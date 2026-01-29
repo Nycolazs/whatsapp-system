@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atendimento - WhatsApp System</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Lista de Tickets */
+    .tickets-panel {
+      width: 350px;
+      background: white;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 20px;
+      background: #00a884;
+      color: white;
+    }
+
+    .panel-header h2 {
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+
+    .panel-header .user-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .panel-header .admin-actions {
+      margin-top: 10px;
+    }
+
+    .btn-manage-sellers {
+      width: 100%;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .btn-manage-sellers:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .logout-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .tickets-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .ticket-item {
+      padding: 15px 20px;
+      border-bottom: 1px solid #e0e0e0;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .ticket-item:hover {
+      background: #f5f5f5;
+    }
+
+    .ticket-item.active {
+      background: #e9f7f3;
+    }
+
+    .ticket-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #dfe5e7;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+
+    .ticket-default-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #dfe5e7;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #667781;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .ticket-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ticket-phone {
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #111;
+    }
+
+    .ticket-preview {
+      font-size: 13px;
+      color: #667781;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ticket-seller-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #00a884;
+      background: rgba(0, 168, 132, 0.1);
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .ticket-unassigned-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #ff9800;
+      background: rgba(255, 152, 0, 0.1);
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .ticket-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 5px;
+      font-size: 11px;
+      color: #667781;
+    }
+
+    .ticket-status {
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .status-pendente {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-em_atendimento {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    .status-resolvido {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    /* Chat Panel */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #efeae2;
+      min-height: 0; /* Importante para flex com overflow */
+    }
+
+    .chat-header {
+      padding: 15px 20px;
+      background: #f0f2f5;
+      border-bottom: 1px solid #d1d7db;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-info {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .chat-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #dfe5e7;
+      object-fit: cover;
+    }
+
+    .chat-default-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #dfe5e7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #667781;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .chat-text h3 {
+      font-size: 16px;
+      color: #111;
+    }
+
+    .chat-actions select {
+      display: none;
+    }
+
+    /* Custom Select */
+    .custom-select {
+      position: relative;
+      display: inline-block;
+      min-width: 150px;
+    }
+
+    .custom-select-trigger {
+      padding: 8px 30px 8px 12px;
+      background: white;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      position: relative;
+      color: #111;
+    }
+
+    .custom-select-trigger:hover {
+      border-color: #00a884;
+      box-shadow: 0 2px 4px rgba(0, 168, 132, 0.1);
+    }
+
+    .custom-select-trigger::after {
+      content: '▼';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      color: #667781;
+      transition: transform 0.2s;
+    }
+
+    .custom-select.open .custom-select-trigger::after {
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    .custom-select-options {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: none;
+      z-index: 1000;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .custom-select.open .custom-select-options {
+      display: block;
+      animation: slideDown 0.2s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .custom-select-option {
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 13px;
+      color: #111;
+    }
+
+    .custom-select-option:hover {
+      background: #f0f2f5;
+    }
+
+    .custom-select-option.selected {
+      background: #e7f5f2;
+      color: #00a884;
+      font-weight: 500;
+    }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0; /* Importante para permitir scroll */
+    }
+
+    .message {
+      max-width: 65%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      word-wrap: break-word;
+    }
+
+    .message-client {
+      background: white;
+      align-self: flex-start;
+      margin-right: auto;
+    }
+
+    .message-agent {
+      background: #d9fdd3;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: #667781;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .message-image {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      display: none; /* Escondida por padrão até carregar */
+    }
+
+    .message-image.loaded {
+      display: block;
+    }
+
+    .message-image:hover {
+      opacity: 0.9;
+    }
+
+    .image-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      color: #667781;
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .image-loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #e0e0e0;
+      border-top: 2px solid #00a884;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Lightbox para imagens */
+    .image-lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .image-lightbox.active {
+      display: flex;
+    }
+
+    .image-lightbox img {
+      max-width: 90%;
+      max-height: 90vh;
+      border-radius: 8px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .message-input-area {
+      padding: 15px 20px;
+      background: #f0f2f5;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      border-top: 1px solid #d1d7db;
+      flex-shrink: 0; /* Impede que encolha */
+    }
+
+    .message-input {
+      flex: 1;
+      padding: 12px 15px;
+      border: 1px solid #d1d7db;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      max-height: 120px;
+      min-height: 44px;
+    }
+
+    .send-button {
+      padding: 12px 25px;
+      background: #00a884;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .send-button:hover {
+      background: #008f6c;
+    }
+
+    .send-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #667781;
+    }
+
+    .empty-state h3 {
+      margin-top: 20px;
+      font-size: 20px;
+    }
+
+    .empty-state p {
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    /* Modal de Confirmação */
+    .confirmation-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confirmation-modal.active {
+      display: flex;
+    }
+
+    .confirmation-modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .confirmation-modal-header {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #111;
+    }
+
+    .confirmation-modal-message {
+      font-size: 14px;
+      color: #667781;
+      margin-bottom: 25px;
+      line-height: 1.5;
+    }
+
+    .confirmation-modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn-cancel {
+      padding: 10px 25px;
+      background: #f0f2f5;
+      color: #667781;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .btn-cancel:hover {
+      background: #e5e5e5;
+    }
+
+    .btn-confirm {
+      padding: 10px 25px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .btn-confirm:hover {
+      background: #ff5252;
+    }
+
+    /* Toast de Alerta */
+    .custom-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 16px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10000;
+      animation: slideInRight 0.3s ease;
+      max-width: 350px;
+      border-left: 4px solid #00a884;
+    }
+
+    .custom-toast.error {
+      border-left-color: #ff6b6b;
+    }
+
+    .custom-toast.warning {
+      border-left-color: #ffa500;
+    }
+
+    .custom-toast-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .custom-toast-message {
+      flex: 1;
+      font-size: 14px;
+      color: #111;
+    }
+
+    .custom-toast-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #667781;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+
+    .custom-toast.hiding {
+      animation: slideOutRight 0.3s ease;
+    }
+
+    /* Botão de voltar para mobile */
+    .back-button {
+      display: none;
+      padding: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      font-size: 20px;
+      margin-right: 10px;
+    }
+
+    /* Responsividade para Mobile */
+    @media (max-width: 768px) {
+      .back-button {
+        display: inline-block;
+      }
+
+      .tickets-panel {
+        width: 100%;
+        position: absolute;
+        z-index: 10;
+        transition: transform 0.3s;
+        left: 0;
+        top: 0;
+        bottom: 0;
+      }
+
+      .tickets-panel.hide-mobile {
+        transform: translateX(-100%);
+        visibility: hidden;
+      }
+
+      .chat-panel {
+        width: 100%;
+        position: absolute;
+        z-index: 9;
+        left: 0;
+        top: 0;
+        bottom: 0;
+      }
+
+      #chatArea {
+        display: flex !important;
+      }
+
+      .panel-header h2 {
+        font-size: 16px;
+      }
+
+      .chat-header {
+        padding: 12px 15px;
+      }
+
+      .chat-header h3 {
+        font-size: 14px;
+      }
+
+      .chat-actions {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      #adminSellerSelect {
+        margin-right: 0 !important;
+        margin-bottom: 5px;
+      }
+
+      #statusSelect {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+
+      .message-input-area {
+        padding: 10px;
+      }
+
+      .message-input {
+        font-size: 14px;
+      }
+
+      .send-button {
+        padding: 10px 15px;
+        font-size: 13px;
+      }
+
+      .ticket-item {
+        padding: 12px;
+      }
+
+      .message-bubble {
+        max-width: 85%;
+        font-size: 14px;
+      }
+
+      .confirmation-modal-content {
+        width: 90%;
+        max-width: 350px;
+        padding: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .panel-header {
+        padding: 15px;
+      }
+
+      .chat-header {
+        padding: 10px;
+      }
+
+      .message-input-area {
+        padding: 8px;
+      }
+
+      .send-button {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      .custom-toast {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        font-size: 13px;
+      }
+
+      .custom-select {
+        min-width: 120px;
+      }
+
+      .custom-select-trigger {
+        font-size: 12px;
+        padding: 6px 25px 6px 10px;
+      }
+
+      .custom-select-option {
+        font-size: 12px;
+        padding: 8px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Lista de Tickets -->
+    <div class="tickets-panel">
+      <div class="panel-header">
+        <h2>Conversas</h2>
+        <p style="font-size: 13px; opacity: 0.9;">Atendimento WhatsApp</p>
+        <div class="user-section" id="userSection" style="display: none;">
+          <span id="userNameDisplay"></span>
+          <button class="logout-btn" onclick="logout()">Sair</button>
+        </div>
+        <div class="admin-actions" id="adminActions" style="display: none;">
+          <button class="btn-manage-sellers" onclick="window.location.href='/admin-sellers'">
+            👨‍💼 Gerenciar Vendedores
+          </button>
+        </div>
+      </div>
+      <div class="tickets-list" id="ticketsList">
+        <!-- Tickets serão inseridos aqui -->
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-panel">
+      <div id="emptyState" class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <h3>Selecione uma conversa</h3>
+        <p>Escolha um ticket da lista para iniciar o atendimento</p>
+      </div>
+
+      <div id="chatArea" style="display: none; flex: 1; flex-direction: column; min-height: 0;">
+        <div class="chat-header">
+          <div class="chat-info">
+            <button class="back-button" onclick="backToTicketList()">←</button>
+            <div id="chatAvatarContainer"></div>
+            <div class="chat-text">
+              <h3 id="currentPhone"></h3>
+              <span id="currentStatus" style="font-size: 12px; color: #667781;"></span>
+            </div>
+          </div>
+          <div class="chat-actions">
+            <div id="adminSellerSelect" style="display: none; margin-right: 10px;">
+              <label style="font-size: 12px; color: #667781; margin-right: 5px;">Vendedor:</label>
+              <select id="sellerSelect" onchange="assignTicketToSeller()" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+                <option value="">Não atribuído</option>
+              </select>
+            </div>
+            <select id="statusSelect" onchange="updateTicketStatus()">
+              <option value="pendente">Pendente</option>
+              <option value="em_atendimento">Em Atendimento</option>
+              <option value="resolvido">Resolvido</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+          <!-- Mensagens serão inseridas aqui -->
+        </div>
+
+        <div class="message-input-area">
+          <textarea 
+            id="messageInput" 
+            class="message-input" 
+            placeholder="Digite sua mensagem..."
+            rows="1"
+            onkeypress="handleEnter(event)"
+          ></textarea>
+          <button class="send-button" onclick="sendMessage()">Enviar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação -->
+  <div class="confirmation-modal" id="confirmModal">
+    <div class="confirmation-modal-content">
+      <div class="confirmation-modal-header">⚠️ Marcar como Resolvido?</div>
+      <div class="confirmation-modal-message">
+        Tem certeza que deseja marcar esta conversa como resolvida?<br><br>
+        <strong>Ela desaparecerá imediatamente da sua lista de atendimento.</strong>
+      </div>
+      <div class="confirmation-modal-actions">
+        <button class="btn-cancel" onclick="cancelResolveTicket()">Cancelar</button>
+        <button class="btn-confirm" onclick="confirmResolveTicket()">Sim, Resolver</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox para imagens -->
+  <div class="image-lightbox" id="imageLightbox" onclick="closeLightbox()">
+    <img id="lightboxImage" src="" alt="Imagem">
+  </div>
+
+  <script>
+    const API_URL = `http://${window.location.hostname}:3001`;
+    let currentTicket = null;
+    let updateInterval = null;
+    let isLoadingTickets = false;
+    let lastTicketsData = null;
+    let profilePictureCache = {};
+    let isConnected = false; // Status da conexão WhatsApp
+    let userId = null;
+    let userType = null;
+    let userName = null;
+    let sellers = []; // Lista de vendedores para admin
+
+    // Verifica autenticação via sessão
+    async function checkAuth() {
+      try {
+        const response = await fetch(`${API_URL}/auth/session`, {
+          credentials: 'include' // Importante para enviar cookies de sessão
+        });
+
+        if (!response.ok) {
+          // Sem autenticação, redireciona para login
+          window.location.href = '/login';
+          return;
+        }
+
+        const data = await response.json();
+        userId = data.userId;
+        userType = data.userType;
+        userName = data.userName;
+
+        // Mostra informações do usuário no header
+        const userSection = document.getElementById('userSection');
+        const userNameDisplay = document.getElementById('userNameDisplay');
+        const adminActions = document.getElementById('adminActions');
+        
+        if (userSection && userNameDisplay) {
+          if (userType === 'admin') {
+            userNameDisplay.textContent = `👨‍💻 ${userName} (Admin)`;
+            // Mostra botão de gerenciar vendedores para admin
+            if (adminActions) {
+              adminActions.style.display = 'block';
+            }
+            // Carrega lista de vendedores para o admin
+            await loadSellers();
+          } else {
+            userNameDisplay.textContent = `👤 ${userName}`;
+          }
+          userSection.style.display = 'flex';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+
+    // Carrega lista de vendedores (apenas para admin)
+    async function loadSellers() {
+      if (userType !== 'admin') return;
+      
+      try {
+        const response = await fetch(`${API_URL}/sellers`, {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao carregar vendedores');
+        }
+
+        sellers = await response.json();
+      } catch (error) {
+        // Erro ao carregar vendedores
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        // Ignora erros de logout
+      }
+      window.location.href = '/login';
+    }
+
+    // Verifica status da conexão
+    async function checkConnectionStatus() {
+      try {
+        const response = await fetch(`${API_URL}/connection-status`);
+        const data = await response.json();
+        isConnected = data.connected;
+        
+        // Atualiza UI com indicador de status
+        updateConnectionIndicator(data.connected);
+      } catch (error) {
+        isConnected = false;
+        updateConnectionIndicator(false);
+      }
+    }
+
+    // Atualiza indicador visual da conexão
+    function updateConnectionIndicator(connected) {
+      const sendButton = document.querySelector('.send-button');
+      const messageInput = document.getElementById('messageInput');
+      
+      if (connected) {
+        if (sendButton) {
+          sendButton.disabled = false;
+          sendButton.title = '';
+        }
+        if (messageInput) {
+          messageInput.disabled = false;
+          messageInput.placeholder = 'Digite sua mensagem...';
+        }
+      } else {
+        if (sendButton) {
+          sendButton.disabled = true;
+          sendButton.title = 'WhatsApp desconectado. Aguarde a reconexão.';
+        }
+        if (messageInput) {
+          messageInput.disabled = true;
+          messageInput.placeholder = 'Aguardando conexão do WhatsApp...';
+        }
+      }
+    }
+
+    // Carrega tickets
+    async function loadTickets() {
+      if (isLoadingTickets) return;
+      isLoadingTickets = true;
+      
+      try {
+        // Usa endpoint específico para vendedor ou admin
+        const endpoint = userType === 'admin' 
+          ? `${API_URL}/admin/tickets`
+          : `${API_URL}/tickets/seller/${userId}`;
+        
+        const response = await fetch(endpoint, {
+          credentials: 'include'
+        });
+        const tickets = await response.json();
+        
+        // Compara com os dados anteriores para evitar re-render desnecessário
+        const ticketsString = JSON.stringify(tickets);
+        if (lastTicketsData === ticketsString) {
+          isLoadingTickets = false;
+          return;
+        }
+        lastTicketsData = ticketsString;
+        
+        const ticketsList = document.getElementById('ticketsList');
+        ticketsList.innerHTML = '';
+
+        if (tickets.length === 0) {
+          ticketsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #667781;">Nenhum ticket ainda</div>';
+          return;
+        }
+
+        for (const ticket of tickets) {
+          const div = document.createElement('div');
+          div.className = `ticket-item ${currentTicket && currentTicket.id === ticket.id ? 'active' : ''}`;
+          div.onclick = () => selectTicket(ticket);
+          
+          const statusClass = `status-${ticket.status}`;
+          const statusLabel = ticket.status === 'pendente' ? 'Pendente' : 
+                             ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
+          
+          // Busca foto de perfil
+          const avatarHtml = await getProfilePictureHtml(ticket.phone, 'list');
+          
+          // Exibe nome do contato ou número
+          const displayName = ticket.contact_name || ticket.phone;
+          const phoneSubtext = ticket.contact_name ? `<div style="font-size: 11px; color: #667781;">${ticket.phone}</div>` : '';
+          
+          // Se for admin, mostra o vendedor responsável com badge destacado
+          let sellerBadge = '';
+          if (userType === 'admin') {
+            if (ticket.seller_name) {
+              sellerBadge = `<span class="ticket-seller-badge">👤 ${ticket.seller_name}</span>`;
+            } else {
+              sellerBadge = `<span class="ticket-unassigned-badge">⚠️ Não atribuído</span>`;
+            }
+          }
+          
+          div.innerHTML = `
+            ${avatarHtml}
+            <div class="ticket-content">
+              <div class="ticket-phone">${displayName}</div>
+              ${phoneSubtext}
+              ${sellerBadge}
+              <div class="ticket-meta">
+                <span class="ticket-status ${statusClass}">${statusLabel}</span>
+                <span>${new Date(ticket.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          `;
+          
+          ticketsList.appendChild(div);
+        }
+      } catch (error) {
+        // Erro ao carregar tickets
+      } finally {
+        isLoadingTickets = false;
+      }
+    }
+
+    // Busca foto de perfil
+    async function getProfilePictureHtml(phone, type = 'list') {
+      // Usa cache para evitar requisições repetidas
+      if (profilePictureCache[phone]) {
+        const data = profilePictureCache[phone];
+        const firstLetter = phone.charAt(0).toUpperCase();
+        
+        if (data.url) {
+          if (type === 'list') {
+            return `<img src="${data.url}" class="ticket-avatar" alt="Avatar">`;
+          } else {
+            return `<img src="${data.url}" class="chat-avatar" alt="Avatar">`;
+          }
+        } else {
+          if (type === 'list') {
+            return `<div class="ticket-default-avatar">${firstLetter}</div>`;
+          } else {
+            return `<div class="chat-default-avatar">${firstLetter}</div>`;
+          }
+        }
+      }
+      
+      try {
+        const response = await fetch(`${API_URL}/profile-picture/${phone}`);
+        const data = await response.json();
+        
+        // Armazena no cache
+        profilePictureCache[phone] = data;
+        
+        const firstLetter = phone.charAt(0).toUpperCase();
+        
+        if (data.url) {
+          if (type === 'list') {
+            return `<img src="${data.url}" class="ticket-avatar" alt="Avatar">`;
+          } else {
+            return `<img src="${data.url}" class="chat-avatar" alt="Avatar">`;
+          }
+        } else {
+          if (type === 'list') {
+            return `<div class="ticket-default-avatar">${firstLetter}</div>`;
+          } else {
+            return `<div class="chat-default-avatar">${firstLetter}</div>`;
+          }
+        }
+      } catch (error) {
+        const firstLetter = phone.charAt(0).toUpperCase();
+        if (type === 'list') {
+          return `<div class="ticket-default-avatar">${firstLetter}</div>`;
+        } else {
+          return `<div class="chat-default-avatar">${firstLetter}</div>`;
+        }
+      }
+    }
+
+    // Seleciona ticket
+    async function selectTicket(ticket) {
+      currentTicket = ticket;
+      
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('chatArea').style.display = 'flex';
+      
+      // Mobile: esconde lista de tickets e mostra o chat
+      if (window.innerWidth <= 768) {
+        document.querySelector('.tickets-panel').classList.add('hide-mobile');
+      }
+      
+      // Exibe nome do contato ou número no cabeçalho
+      const displayName = ticket.contact_name || ticket.phone;
+      document.getElementById('currentPhone').textContent = displayName;
+      
+      // Exibe número abaixo do nome se houver nome de contato
+      if (ticket.contact_name) {
+        document.getElementById('currentStatus').textContent = ticket.phone;
+      } else {
+        document.getElementById('currentStatus').textContent = '';
+      }
+      
+      document.getElementById('statusSelect').value = ticket.status;
+      
+      // Se for admin, mostra o select de vendedor
+      if (userType === 'admin') {
+        const adminSellerDiv = document.getElementById('adminSellerSelect');
+        const sellerSelect = document.getElementById('sellerSelect');
+        
+        if (adminSellerDiv && sellerSelect) {
+          adminSellerDiv.style.display = 'flex';
+          
+          // Popula o select com vendedores
+          sellerSelect.innerHTML = '<option value="">Não atribuído</option>';
+          sellers.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = s.name;
+            option.selected = ticket.seller_id === s.id;
+            sellerSelect.appendChild(option);
+          });
+        }
+      }
+      
+      // Inicializa os selects customizados
+      setTimeout(() => initCustomSelects(), 100);
+      
+      // Carrega foto de perfil no cabeçalho
+      const avatarHtml = await getProfilePictureHtml(ticket.phone, 'chat');
+      document.getElementById('chatAvatarContainer').innerHTML = avatarHtml;
+      
+      await loadMessages(ticket.id);
+    }
+
+    // Atribui ticket a vendedor (apenas admin)
+    async function assignTicketToSeller() {
+      if (!currentTicket || userType !== 'admin') return;
+      
+      const sellerId = document.getElementById('sellerSelect').value;
+      
+      try {
+        const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sellerId: sellerId || null })
+        });
+
+        if (response.ok) {
+          // Atualiza o ticket atual
+          currentTicket.seller_id = sellerId ? parseInt(sellerId) : null;
+          const seller = sellers.find(s => s.id == sellerId);
+          currentTicket.seller_name = seller ? seller.name : null;
+          
+          // Recarrega a lista de tickets
+          await loadTickets();
+        } else {
+          showToast('Erro ao atribuir vendedor', 'error');
+        }
+      } catch (error) {
+        showToast('Erro ao atribuir vendedor', 'error');
+      }
+    }
+
+    // Armazena última contagem de mensagens para detectar novas
+    let lastMessageCount = {};
+    let lastMessageTimestamp = {}; // Armazena timestamp da última mensagem por ticket
+
+    // Carrega mensagens
+    async function loadMessages(ticketId, isAutoRefresh = false) {
+      try {
+        const container = document.getElementById('messagesContainer');
+        
+        // Se for auto-refresh, tenta carregar apenas novas mensagens
+        let messages = [];
+        if (isAutoRefresh && lastMessageTimestamp[ticketId]) {
+          // Carrega apenas novas mensagens desde o último timestamp
+          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages/since/${lastMessageTimestamp[ticketId]}`, {
+            credentials: 'include'
+          });
+          messages = await response.json();
+          
+          // Se tem novas mensagens, carrega todas para mostrar
+          if (messages.length > 0) {
+            const fullResponse = await fetch(`${API_URL}/tickets/${ticketId}/messages`, {
+              credentials: 'include'
+            });
+            messages = await fullResponse.json();
+          }
+        } else {
+          // Carrega todas as mensagens
+          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages`, {
+            credentials: 'include'
+          });
+          messages = await response.json();
+        }
+        
+        // Detecta se há novas mensagens
+        const newMessageCount = messages.length;
+        const oldMessageCount = lastMessageCount[ticketId] || 0;
+        const hasNewMessages = newMessageCount > oldMessageCount && isAutoRefresh;
+        
+        lastMessageCount[ticketId] = newMessageCount;
+        
+        // Atualiza timestamp da última mensagem
+        if (messages.length > 0) {
+          lastMessageTimestamp[ticketId] = messages[messages.length - 1].created_at;
+        }
+        
+        // Se não há mudanças e é auto-refresh, não re-renderiza
+        if (hasNewMessages || !isAutoRefresh) {
+          const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
+          
+          container.innerHTML = '';
+
+          messages.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `message message-${msg.sender}`;
+            
+            let contentHtml = '';
+            
+            // Se for imagem, exibe a imagem
+            if (msg.message_type === 'image' && msg.media_url) {
+              const imageId = `img-${msg.id}`;
+              contentHtml = `
+                ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                <div>${msg.content !== '[Imagem]' ? msg.content : ''}</div>
+                <div class="image-loading" id="loading-${imageId}">
+                  <div class="image-loading-spinner"></div>
+                  <span>Carregando imagem...</span>
+                </div>
+                <img 
+                  id="${imageId}" 
+                  src="${msg.media_url}" 
+                  class="message-image" 
+                  alt="Imagem" 
+                  onclick="openLightbox('${msg.media_url}')"
+                  onload="document.getElementById('${imageId}').classList.add('loaded'); document.getElementById('loading-${imageId}').style.display='none'; document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;"
+                  onerror="document.getElementById('loading-${imageId}').innerHTML='<span style=color:#ff6b6b>❌ Erro ao carregar imagem</span>';"
+                >
+                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+              `;
+            } else if (msg.message_type === 'audio' && msg.media_url) {
+              // Se for áudio, exibe o player ou loading
+              const audioId = `audio-${msg.id}`;
+              if (msg.media_url === 'loading') {
+                contentHtml = `
+                  ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                  <div>🎤 Processando áudio...</div>
+                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                `;
+              } else {
+                contentHtml = `
+                  ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                  <div>🎤 Mensagem de áudio</div>
+                  <audio id="${audioId}" controls style="max-width: 100%; margin-top: 8px;">
+                    <source src="${msg.media_url}" type="audio/ogg">
+                    <source src="${msg.media_url}" type="audio/mpeg">
+                    Seu navegador não suporta o elemento de áudio.
+                  </audio>
+                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                `;
+              }
+            } else {
+              // Mensagem de texto normal
+              contentHtml = `
+                ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                <div>${msg.content}</div>
+                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+              `;
+            }
+            
+            div.innerHTML = contentHtml;
+            container.appendChild(div);
+          });
+
+          // Scroll para o final apenas se o usuário estava no final
+          if (shouldScroll || !isAutoRefresh) {
+            setTimeout(() => {
+              container.scrollTop = container.scrollHeight;
+            }, 0);
+          }
+        }
+      } catch (error) {
+        // Erro ao carregar mensagens
+      }
+    }
+
+    // Envia mensagem
+    async function sendMessage() {
+      if (!currentTicket) return;
+      if (!isConnected) {
+        showToast('WhatsApp desconectado. Por favor, aguarde a reconexão.', 'warning');
+        return;
+      }
+
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      try {
+        const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },          credentials: 'include',          body: JSON.stringify({ message })
+        });
+
+        if (response.ok) {
+          input.value = '';
+          // Atualiza imediatamente as mensagens após enviar
+          await loadMessages(currentTicket.id, false);
+          await loadTickets();
+        } else {
+          const error = await response.json();
+          showToast(error.error || 'Erro ao enviar mensagem', 'error');
+        }
+      } catch (error) {
+        showToast('Erro ao enviar mensagem. Verifique a conexão.', 'error');
+      }
+    }
+
+    // Variável para armazenar o status que está sendo confirmado
+    let pendingStatus = null;
+
+    // Atualiza status do ticket
+    async function updateTicketStatus() {
+      if (!currentTicket) return;
+
+      const status = document.getElementById('statusSelect').value;
+      const previousStatus = currentTicket.status;
+
+      // Se for admin, aplica direto sem confirmação
+      if (userType === 'admin') {
+        await applyStatusChange(status);
+        return;
+      }
+
+      // Se for vendedor e vai marcar como resolvido, pede confirmação via modal
+      if (status === 'resolvido' && previousStatus !== 'resolvido') {
+        pendingStatus = status;
+        document.getElementById('confirmModal').classList.add('active');
+        // Volta o select ao status anterior enquanto aguarda confirmação
+        document.getElementById('statusSelect').value = previousStatus;
+        return;
+      }
+
+      // Se mudou de outro status (não para resolvido), aplica direto
+      await applyStatusChange(status);
+    }
+
+    function cancelResolveTicket() {
+      pendingStatus = null;
+      document.getElementById('confirmModal').classList.remove('active');
+      // Já volta o select automaticamente
+    }
+
+    async function confirmResolveTicket() {
+      document.getElementById('confirmModal').classList.remove('active');
+      if (pendingStatus) {
+        await applyStatusChange(pendingStatus);
+        pendingStatus = null;
+      }
+    }
+
+    // Funções para lightbox de imagens
+    function openLightbox(imageUrl) {
+      event.stopPropagation(); // Previne bubbling
+      document.getElementById('lightboxImage').src = imageUrl;
+      document.getElementById('imageLightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('imageLightbox').classList.remove('active');
+    }
+
+    async function applyStatusChange(status) {
+      try {
+        const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ status })
+        });
+
+        if (response.ok) {
+          currentTicket.status = status;
+          
+          // Se marcou como resolvido, fecha e limpa tudo imediatamente
+          if (status === 'resolvido') {
+            // Limpar o ticket atual e fechar a conversa imediatamente
+            const resolvedTicketId = currentTicket.id;
+            currentTicket = null;
+            document.getElementById('emptyState').style.display = 'flex';
+            document.getElementById('chatArea').style.display = 'none';
+            
+            // Remove o ticket da lista da esquerda imediatamente
+            const ticketElement = document.querySelector(`.ticket-item[onclick*="selectTicket"][onclick*="id:${resolvedTicketId}"]`);
+            if (ticketElement) {
+              ticketElement.remove();
+            }
+            
+            // Mostra mensagem de sucesso no estado vazio
+            const emptyState = document.getElementById('emptyState');
+            const originalContent = emptyState.innerHTML;
+            emptyState.innerHTML = `
+              <div style="color: #00a884; gap: 15px; display: flex; flex-direction: column; align-items: center;">
+                <div style="font-size: 48px;">✅</div>
+                <p style="font-size: 16px; font-weight: 600;">Conversa resolvida!</p>
+                <p style="font-size: 13px; color: #667781;">O atendimento foi finalizado</p>
+              </div>
+            `;
+            
+            // Restaura o estado vazio original após 2 segundos
+            setTimeout(() => {
+              emptyState.innerHTML = originalContent;
+            }, 2000);
+          }
+          
+          await loadTickets();
+        }
+      } catch (error) {
+        document.getElementById('statusSelect').value = currentTicket.status;
+        updateCustomSelect('statusSelect');
+      }
+    }
+
+    // Enter para enviar
+    function handleEnter(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+
+    // Volta para lista de tickets (mobile)
+    function backToTicketList() {
+      document.querySelector('.tickets-panel').classList.remove('hide-mobile');
+    }
+
+    // Auto-refresh mais agressivo
+    (async function init() {
+      await checkAuth(); // Verifica autenticação primeiro e aguarda
+      checkConnectionStatus(); // Verifica conexão ao carregar
+      loadTickets(); // Agora userType já está definido
+      
+      // Atualiza tickets a cada 500ms para resposta quase instantânea
+      setInterval(() => {
+        checkConnectionStatus();
+        loadTickets();
+      }, 500);
+      
+      // Atualiza mensagens a cada 500ms quando há ticket selecionado
+      setInterval(() => {
+        if (currentTicket) {
+          loadMessages(currentTicket.id, true); // isAutoRefresh = true
+        }
+      }, 500);
+    })();
+
+    // Sistema de Toast customizado
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = `custom-toast ${type}`;
+      
+      const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '✅';
+      
+      toast.innerHTML = `
+        <div class="custom-toast-icon">${icon}</div>
+        <div class="custom-toast-message">${message}</div>
+        <button class="custom-toast-close" onclick="this.parentElement.remove()">×</button>
+      `;
+      
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Inicializar selects customizados
+    function initCustomSelects() {
+      // Status Select
+      const statusSelect = document.getElementById('statusSelect');
+      if (statusSelect && !statusSelect.nextElementSibling?.classList.contains('custom-select')) {
+        createCustomSelect(statusSelect, 'statusSelect');
+      }
+      
+      // Seller Select
+      const sellerSelect = document.getElementById('sellerSelect');
+      if (sellerSelect && !sellerSelect.nextElementSibling?.classList.contains('custom-select')) {
+        createCustomSelect(sellerSelect, 'sellerSelect');
+      }
+    }
+
+    function createCustomSelect(selectElement, id) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'custom-select';
+      wrapper.dataset.selectId = id;
+      
+      const trigger = document.createElement('div');
+      trigger.className = 'custom-select-trigger';
+      trigger.textContent = selectElement.options[selectElement.selectedIndex].text;
+      
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'custom-select-options';
+      
+      Array.from(selectElement.options).forEach((option, index) => {
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'custom-select-option';
+        if (option.selected) optionDiv.classList.add('selected');
+        optionDiv.textContent = option.text;
+        optionDiv.dataset.value = option.value;
+        optionDiv.dataset.index = index;
+        
+        optionDiv.onclick = () => {
+          selectElement.selectedIndex = index;
+          trigger.textContent = option.text;
+          
+          // Remove selected de todos
+          optionsContainer.querySelectorAll('.custom-select-option').forEach(o => {
+            o.classList.remove('selected');
+          });
+          optionDiv.classList.add('selected');
+          
+          wrapper.classList.remove('open');
+          
+          // Dispara o evento change
+          selectElement.dispatchEvent(new Event('change'));
+        };
+        
+        optionsContainer.appendChild(optionDiv);
+      });
+      
+      trigger.onclick = (e) => {
+        e.stopPropagation();
+        
+        // Fecha outros selects abertos
+        document.querySelectorAll('.custom-select.open').forEach(s => {
+          if (s !== wrapper) s.classList.remove('open');
+        });
+        
+        wrapper.classList.toggle('open');
+      };
+      
+      wrapper.appendChild(trigger);
+      wrapper.appendChild(optionsContainer);
+      
+      selectElement.parentNode.insertBefore(wrapper, selectElement.nextSibling);
+    }
+
+    // Fecha selects ao clicar fora
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.custom-select.open').forEach(s => {
+        s.classList.remove('open');
+      });
+    });
+
+    // Atualiza os selects customizados quando necessário
+    function updateCustomSelect(selectId) {
+      const selectElement = document.getElementById(selectId);
+      const wrapper = document.querySelector(`[data-select-id="${selectId}"]`);
+      
+      if (selectElement && wrapper) {
+        const trigger = wrapper.querySelector('.custom-select-trigger');
+        trigger.textContent = selectElement.options[selectElement.selectedIndex].text;
+        
+        const optionsContainer = wrapper.querySelector('.custom-select-options');
+        optionsContainer.querySelectorAll('.custom-select-option').forEach((optionDiv, index) => {
+          if (index === selectElement.selectedIndex) {
+            optionDiv.classList.add('selected');
+          } else {
+            optionDiv.classList.remove('selected');
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

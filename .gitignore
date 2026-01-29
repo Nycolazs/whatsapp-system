@@ -1,0 +1,10 @@
+auth/*
+
+backend/auth/*
+
+media/*
+
+server.log
+db.sqlite
+backend/db.sqlite
+backend/node_modules/

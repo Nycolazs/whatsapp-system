@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-system",
+  "version": "1.0.0",
+  "description": "Sistema WhatsApp",
+  "main": "backend/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node backend/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

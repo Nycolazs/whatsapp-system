@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Blacklist - WhatsApp System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+            padding: 8px 12px;
+            flex: none;
+            width: auto;
+        }
+
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            padding: 20px;
+            font-weight: 600;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        thead {
+            background: #f5f5f5;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            color: #333;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            color: #666;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .phone-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #667eea;
+        }
+
+        .date-cell {
+            font-size: 0.9em;
+            color: #999;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 600px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            header p {
+                font-size: 0.95em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            header h1 {
+                font-size: 1.5em;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .form-group {
+                gap: 8px;
+            }
+
+            input, textarea, button {
+                font-size: 14px;
+            }
+
+            table {
+                font-size: 0.8em;
+            }
+
+            th, td {
+                padding: 6px 4px;
+            }
+
+            .btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚫 Gerenciar Blacklist</h1>
+            <p>Controle os números que não receberão mensagens automáticas</p>
+        </header>
+
+        <!-- Card de Adição -->
+        <div class="card">
+            <h2>➕ Adicionar Número</h2>
+            <div id="alert-add" class="alert"></div>
+            
+            <form id="form-add" onsubmit="adicionarNumero(event)">
+                <div class="form-group">
+                    <label for="phone">Número de Telefone:</label>
+                    <input 
+                        type="text" 
+                        id="phone" 
+                        placeholder="Ex: 5511999999999@s.whatsapp.net ou 5511999999999"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="reason">Motivo (opcional):</label>
+                    <textarea 
+                        id="reason" 
+                        placeholder="Ex: Cliente bloqueado, spam, etc."
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn-primary">Adicionar à Blacklist</button>
+                    <button type="reset" class="btn-secondary">Limpar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Card de Listagem -->
+        <div class="card">
+            <h2>📋 Lista de Números Bloqueados</h2>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-number" id="stat-count">0</div>
+                    <div class="stat-label">Números Bloqueados</div>
+                </div>
+            </div>
+
+            <div id="alert-list" class="alert"></div>
+
+            <div id="loading-list" class="loading" style="display: none;">
+                ⏳ Carregando lista...
+            </div>
+
+            <div id="blacklist-content">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>Nenhum número bloqueado ainda</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = `http://${window.location.hostname}:3001`;
+
+        // Mostrar alerta
+        function showAlert(elementId, message, type) {
+            const alertEl = document.getElementById(elementId);
+            alertEl.textContent = message;
+            alertEl.className = `alert show alert-${type}`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    alertEl.classList.remove('show');
+                }, 4000);
+            }
+        }
+
+        // Adicionar número
+        async function adicionarNumero(event) {
+            event.preventDefault();
+            
+            let phone = document.getElementById('phone').value.trim();
+            const reason = document.getElementById('reason').value.trim();
+
+            // Se não tiver @s.whatsapp.net, adiciona automaticamente
+            if (!phone.includes('@')) {
+                phone = phone.replace(/\D/g, '') + '@s.whatsapp.net';
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/blacklist`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, reason })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('alert-add', '✅ Número adicionado com sucesso!', 'success');
+                    document.getElementById('form-add').reset();
+                    carregarBlacklist();
+                } else {
+                    showAlert('alert-add', `❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert('alert-add', '❌ Erro ao conectar à API', 'error');
+            }
+        }
+
+        // Carregar lista de blacklist
+        async function carregarBlacklist() {
+            const content = document.getElementById('blacklist-content');
+            const loading = document.getElementById('loading-list');
+            const statCount = document.getElementById('stat-count');
+
+            loading.style.display = 'block';
+            content.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_URL}/blacklist`);
+                const blacklist = await response.json();
+
+                loading.style.display = 'none';
+
+                if (!Array.isArray(blacklist) || blacklist.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>Nenhum número bloqueado ainda</p>
+                        </div>
+                    `;
+                    statCount.textContent = '0';
+                    return;
+                }
+
+                statCount.textContent = blacklist.length;
+
+                const tableHTML = `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Telefone</th>
+                                    <th>Motivo</th>
+                                    <th>Adicionado em</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${blacklist.map(item => `
+                                    <tr>
+                                        <td class="phone-cell">${item.phone}</td>
+                                        <td>${item.reason || '—'}</td>
+                                        <td class="date-cell">${new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
+                                        <td>
+                                            <button class="btn-danger" onclick="removerNumero('${item.phone}')">
+                                                Remover
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                content.innerHTML = tableHTML;
+            } catch (error) {
+                loading.style.display = 'none';
+                showAlert('alert-list', '❌ Erro ao carregar lista', 'error');
+            }
+        }
+
+        // Remover número
+        async function removerNumero(phone) {
+            if (!confirm(`Tem certeza que deseja remover ${phone} da blacklist?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/blacklist/${encodeURIComponent(phone)}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('alert-list', '✅ Número removido com sucesso!', 'success');
+                    carregarBlacklist();
+                } else {
+                    showAlert('alert-list', `❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert('alert-list', '❌ Erro ao remover número', 'error');
+            }
+        }
+
+        // Carregar lista ao abrir a página
+        carregarBlacklist();
+    </script>
+</body>
+</html>
