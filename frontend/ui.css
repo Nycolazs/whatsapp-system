@@ -1,0 +1,61 @@
+/* Shared UI: smooth page transitions and toasts */
+body.page {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 360ms cubic-bezier(.2,.9,.2,1), transform 360ms cubic-bezier(.2,.9,.2,1);
+  will-change: opacity, transform;
+}
+
+body.page.enter {
+  opacity: 1;
+  transform: none;
+}
+
+body.page.leave {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Toast container */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 12000;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: white;
+  color: #111;
+  padding: 12px 14px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 360px;
+  border-left: 4px solid #2b9e6b;
+  transform-origin: right top;
+  transition: transform 280ms ease, opacity 280ms ease;
+}
+
+.toast.info { border-left-color: #2b9e6b; }
+.toast.error { border-left-color: #ff6b6b; }
+.toast.warning { border-left-color: #ffa500; }
+
+.toast.hide {
+  opacity: 0;
+  transform: translateX(20px) scale(.98);
+}
+
+.toast .msg { flex: 1; font-size: 14px; }
+.toast .close-btn { background: transparent; border: none; cursor: pointer; color: #667781; font-size: 16px; }
+
+/* Small utility for subtle fades */
+.fade { transition: opacity 220ms ease; }
+.fade.hidden { opacity: 0; pointer-events: none; }

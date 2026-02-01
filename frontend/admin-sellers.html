@@ -158,13 +158,27 @@
       padding: 30px;
     }
 
-    /* Sellers View */
-    .sellers-container {
-      display: none;
+    /* Section panels: animate visibility smoothly */
+    .sellers-container,
+    .tickets-container,
+    .blacklist-container,
+    .hours-container {
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      transform: translateY(8px);
+      transition: opacity 280ms cubic-bezier(.2,.9,.2,1), transform 280ms cubic-bezier(.2,.9,.2,1), max-height 420ms ease;
+      visibility: hidden;
     }
 
-    .sellers-container.active {
-      display: block;
+    .sellers-container.active,
+    .tickets-container.active,
+    .blacklist-container.active,
+    .hours-container.active {
+      opacity: 1;
+      max-height: 2000px; /* large enough to show content */
+      transform: none;
+      visibility: visible;
     }
 
     .btn-new-seller {
@@ -805,6 +819,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="ui.css">
 </head>
 <body>
   <div class="container">
@@ -878,7 +893,7 @@
             <div class="panel">
               <h3>Adicionar número</h3>
               <form id="blacklistForm" class="blacklist-form" onsubmit="addBlacklist(event)">
-                <input type="text" id="blacklistPhone" placeholder="Ex: 5511999999999@s.whatsapp.net ou 5511999999999" required>
+                <input type="text" id="blacklistPhone" placeholder="Ex: 5511999999999" required>
                 <input type="text" id="blacklistReason" placeholder="Motivo (opcional)">
                 <textarea id="blacklistReasonDetails" placeholder="Detalhes adicionais (opcional)"></textarea>
                 <div class="blacklist-actions">
@@ -926,7 +941,7 @@
           <div class="panel">
             <h3>Datas de exceção (feriados)</h3>
             <div class="exception-form">
-              <input type="date" id="exceptionDate">
+              <input type="text" id="exceptionDate" placeholder="dd/mm/aaaa" maxlength="10" oninput="formatExceptionDateInput(event)">
               <input type="text" id="exceptionReason" placeholder="Motivo (ex: feriado)">
               <button onclick="addException()">Adicionar</button>
             </div>
@@ -1001,20 +1016,20 @@
         });
 
         if (!response.ok) {
-          window.location.href = '/login';
+          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
           return;
         }
 
         const data = await response.json();
         
         if (data.userType !== 'admin') {
-          window.location.href = '/login';
+          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
           return;
         }
 
         document.getElementById('adminName').textContent = data.userName;
       } catch (error) {
-        window.location.href = '/login';
+        if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
       }
     }
 
@@ -1038,7 +1053,7 @@
           // Ignora
         }
 
-        window.location.href = '/whatsapp-qr';
+        if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
       });
     }
 
@@ -1051,42 +1066,59 @@
       } catch (error) {
         // Ignora erros de logout
       }
-      window.location.href = '/login';
+      if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
     }
 
     function showSection(section) {
+      // update nav active state
       document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.section === section);
       });
-      
-      document.querySelectorAll('[id$="Section"]').forEach(div => {
-        div.classList.remove('active');
-      });
 
-      if (section === 'sellers') {
-        document.getElementById('sellersSection').classList.add('active');
-        document.getElementById('sectionTitle').textContent = 'Gerenciar Usuários';
-        document.getElementById('headerBtn').style.display = 'block';
-        document.getElementById('headerBtn').textContent = '+ Novo Usuário';
-        document.getElementById('headerBtn').onclick = openNewSellerModal;
-        loadUsers();
-      } else if (section === 'tickets') {
-        document.getElementById('ticketsSection').classList.add('active');
-        document.getElementById('sectionTitle').textContent = 'Tickets';
-        document.getElementById('headerBtn').style.display = 'none';
-        loadTickets();
-      } else if (section === 'blacklist') {
-        document.getElementById('blacklistSection').classList.add('active');
-        document.getElementById('sectionTitle').textContent = 'Blacklist';
-        document.getElementById('headerBtn').style.display = 'none';
-        loadBlacklist();
-      } else if (section === 'hours') {
-        document.getElementById('hoursSection').classList.add('active');
-        document.getElementById('sectionTitle').textContent = 'Horários de Funcionamento';
-        document.getElementById('headerBtn').style.display = 'none';
-        loadBusinessHours();
-        loadExceptions();
-        loadOutOfHoursMessage();
+      // graceful transition: fade out current active section, then switch
+      const current = document.querySelector('[id$="Section"].active');
+      const finishSwitch = () => {
+        document.querySelectorAll('[id$="Section"]').forEach(div => div.classList.remove('active'));
+
+        if (section === 'sellers') {
+          document.getElementById('sellersSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Gerenciar Usuários';
+          document.getElementById('headerBtn').style.display = 'block';
+          document.getElementById('headerBtn').textContent = '+ Novo Usuário';
+          document.getElementById('headerBtn').onclick = openNewSellerModal;
+          loadUsers();
+        } else if (section === 'tickets') {
+          document.getElementById('ticketsSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Tickets';
+          document.getElementById('headerBtn').style.display = 'none';
+          loadTickets();
+        } else if (section === 'blacklist') {
+          document.getElementById('blacklistSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Blacklist';
+          document.getElementById('headerBtn').style.display = 'none';
+          loadBlacklist();
+        } else if (section === 'hours') {
+          document.getElementById('hoursSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Horários de Funcionamento';
+          document.getElementById('headerBtn').style.display = 'none';
+          loadBusinessHours();
+          loadExceptions();
+          loadOutOfHoursMessage();
+        }
+
+        // reveal new active
+        const newActive = document.querySelector('[id$="Section"].active');
+        if (newActive) {
+          newActive.classList.remove('hidden');
+        }
+      };
+
+      if (current) {
+        // smoothly hide
+        current.classList.add('fade', 'hidden');
+        setTimeout(finishSwitch, 220);
+      } else {
+        finishSwitch();
       }
     }
 
@@ -1107,7 +1139,7 @@
             } catch (_) {}
           }
           console.error('Erro ao carregar usuários:', response.status, msg);
-          showToast(msg, 'error');
+          if (typeof showNotification === 'function') showNotification(msg, 'error'); else showToast(msg, 'error');
           return;
         }
         
@@ -1115,7 +1147,7 @@
         renderUsers();
       } catch (error) {
         console.error('Erro ao carregar usuários:', error);
-        showToast('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
+        if (typeof showNotification === 'function') showNotification('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error'); else showToast('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
       }
     }
 
@@ -1275,10 +1307,10 @@
         });
 
         if (!response.ok) throw new Error('Erro ao salvar horários');
-        showToast('Horários atualizados', 'success');
+        if (typeof showNotification === 'function') showNotification('Horários atualizados', 'info'); else showToast('Horários atualizados', 'success');
         loadBusinessHours();
       } catch (error) {
-        showToast(error.message, 'error');
+        if (typeof showNotification === 'function') showNotification(error.message, 'error'); else showToast(error.message, 'error');
       }
     }
 
@@ -1382,6 +1414,44 @@
       return date.toLocaleDateString('pt-BR');
     }
 
+    // Formata o input enquanto o usuário digita: dd/mm/aaaa
+    function formatExceptionDateInput(event) {
+      const el = event.target;
+      let v = el.value.replace(/[^0-9]/g, '');
+      if (v.length > 8) v = v.slice(0,8);
+      if (v.length >= 5) el.value = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+      else if (v.length >= 3) el.value = v.slice(0,2) + '/' + v.slice(2);
+      else el.value = v;
+    }
+
+    // Converte dd/mm/aaaa para ISO (aaaa-mm-dd). Retorna null se inválido.
+    function parseDateBR(value) {
+      if (!value) return null;
+      const trimmed = value.trim();
+      // aceita dd/mm/aaaa
+      const m = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (m) {
+        const day = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const year = parseInt(m[3], 10);
+        if (month < 1 || month > 12) return null;
+        const maxDay = new Date(year, month, 0).getDate();
+        if (day < 1 || day > maxDay) return null;
+        // return ISO
+        const mm = String(month).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        return `${year}-${mm}-${dd}`;
+      }
+
+      // aceita ISO aaaa-mm-dd
+      const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) {
+        return trimmed;
+      }
+
+      return null;
+    }
+
     function renderExceptions() {
       const tbody = document.getElementById('exceptionsTableBody');
       if (!exceptions.length) {
@@ -1399,11 +1469,17 @@
     }
 
     async function addException() {
-      const date = document.getElementById('exceptionDate').value;
+      const dateInput = document.getElementById('exceptionDate').value.trim();
       const reason = document.getElementById('exceptionReason').value;
 
-      if (!date) {
+      if (!dateInput) {
         showToast('Informe uma data', 'warning');
+        return;
+      }
+
+      const isoDate = parseDateBR(dateInput);
+      if (!isoDate) {
+        showToast('Data inválida. Use dd/mm/aaaa', 'warning');
         return;
       }
 
@@ -1412,7 +1488,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ date, closed: true, reason })
+          body: JSON.stringify({ date: isoDate, closed: true, reason })
         });
 
         if (!response.ok) throw new Error('Erro ao salvar exceção');
@@ -1697,7 +1773,7 @@
           }
           showToast(data.message || 'Usuário agora é apenas vendedor', 'success');
           if (data.sessionDestroyed) {
-            window.location.href = '/login';
+            if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
             return;
           }
           loadUsers();
@@ -1748,7 +1824,7 @@
     }
 
     function goBackToChats() {
-      window.location.href = '/agent';
+      if (typeof navigateTo === 'function') navigateTo('/agent'); else window.location.href = '/agent';
     }
 
     // Sistema de Toast customizado
@@ -1775,5 +1851,6 @@
     checkAuth();
     showSection('sellers');
   </script>
+  <script src="ui.js"></script>
 </body>
 </html>

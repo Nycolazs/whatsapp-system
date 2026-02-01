@@ -843,6 +843,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="ui.css">
 </head>
 <body>
   <div class="container">
@@ -856,7 +857,7 @@
           <button class="logout-btn" onclick="logout()">Sair</button>
         </div>
         <div class="admin-actions" id="adminActions" style="display: none;">
-          <button class="btn-manage-sellers" onclick="window.location.href='/admin-sellers'">
+          <button class="btn-manage-sellers" onclick="(function(){ if (typeof navigateTo === 'function') navigateTo('/admin-sellers'); else window.location.href='/admin-sellers'; })()">
             ⚙️ Painel Admin
           </button>
         </div>
@@ -959,7 +960,7 @@
 
         if (!response.ok) {
           // Sem autenticação, redireciona para login
-          window.location.href = '/login';
+          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
           return;
         }
 
@@ -992,7 +993,7 @@
           userSection.style.display = 'flex';
         }
       } catch (error) {
-        window.location.href = '/login';
+        if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
       }
     }
 
@@ -1025,7 +1026,7 @@
       } catch (error) {
         // Ignora erros de logout
       }
-      window.location.href = '/login';
+      if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
     }
 
     // Verifica status da conexão
@@ -1101,23 +1102,23 @@
           return;
         }
 
+        // Build ticket elements quickly and fetch avatars asynchronously to avoid blocking
         for (const ticket of tickets) {
           const div = document.createElement('div');
           div.className = `ticket-item ${currentTicket && currentTicket.id === ticket.id ? 'active' : ''}`;
           div.onclick = () => selectTicket(ticket);
-          
+
           const statusClass = `status-${ticket.status}`;
           const statusLabel = ticket.status === 'pendente' ? 'Pendente' : 
                              ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
-          
-          // Busca foto de perfil
-          const avatarHtml = await getProfilePictureHtml(ticket.phone, 'list');
-          
-          // Exibe nome do contato ou número
+
+          // Placeholder avatar (will be replaced when loaded)
+          const firstLetter = (ticket.contact_name || ticket.phone || '').charAt(0).toUpperCase();
+          const avatarPlaceholder = `<div class="ticket-default-avatar avatar-placeholder">${firstLetter}</div>`;
+
           const displayName = ticket.contact_name || ticket.phone;
           const phoneSubtext = ticket.contact_name ? `<div style="font-size: 11px; color: #667781;">${ticket.phone}</div>` : '';
-          
-          // Se for admin, mostra o vendedor responsável com badge destacado
+
           let sellerBadge = '';
           if (userType === 'admin') {
             if (ticket.seller_name) {
@@ -1126,9 +1127,9 @@
               sellerBadge = `<span class="ticket-unassigned-badge">⚠️ Não atribuído</span>`;
             }
           }
-          
+
           div.innerHTML = `
-            ${avatarHtml}
+            ${avatarPlaceholder}
             <div class="ticket-content">
               <div class="ticket-phone">${displayName}</div>
               ${phoneSubtext}
@@ -1139,8 +1140,22 @@
               </div>
             </div>
           `;
-          
+
+          // append first, then try to load avatar and replace placeholder when ready
           ticketsList.appendChild(div);
+          (async () => {
+            try {
+              const avatarHtml = await getProfilePictureHtml(ticket.phone, 'list');
+              const placeholder = div.querySelector('.avatar-placeholder');
+              if (placeholder) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = avatarHtml;
+                placeholder.replaceWith(wrapper.firstElementChild);
+              }
+            } catch (_) {
+              // ignore avatar load errors
+            }
+          })();
         }
       } catch (error) {
         // Erro ao carregar tickets
@@ -1712,39 +1727,64 @@
       checkConnectionStatus(); // Verifica conexão ao carregar
       loadTickets(); // Agora userType já está definido
       
-      // Atualiza tickets a cada 500ms para resposta quase instantânea
-      setInterval(() => {
-        checkConnectionStatus();
-        loadTickets();
-      }, 500);
-      
-      // Atualiza mensagens a cada 500ms quando há ticket selecionado
-      setInterval(() => {
-        if (currentTicket && hasLoadedMessages[currentTicket.id]) {
-          loadMessages(currentTicket.id, true); // isAutoRefresh = true
-        }
-      }, 500);
+      // Adaptive polling: use timeouts so we can vary the delay when tab not focused
+      const POLL_TICKETS_ACTIVE = 1200; // ms when focused
+      const POLL_TICKETS_INACTIVE = 5000; // ms when not focused
+      const POLL_MESSAGES_ACTIVE = 900;
+      const POLL_MESSAGES_INACTIVE = 4000;
+
+      let ticketsPollId = null;
+      let messagesPollId = null;
+
+      function scheduleTicketsPoll(delay) {
+        if (ticketsPollId) clearTimeout(ticketsPollId);
+        ticketsPollId = setTimeout(async () => {
+          try {
+            checkConnectionStatus();
+            await loadTickets();
+          } catch (e) {}
+          const nextDelay = document.hasFocus() ? POLL_TICKETS_ACTIVE : POLL_TICKETS_INACTIVE;
+          scheduleTicketsPoll(nextDelay);
+        }, delay);
+      }
+
+      function scheduleMessagesPoll(delay) {
+        if (messagesPollId) clearTimeout(messagesPollId);
+        messagesPollId = setTimeout(async () => {
+          try {
+            if (currentTicket && hasLoadedMessages[currentTicket.id]) {
+              await loadMessages(currentTicket.id, true);
+            }
+          } catch (e) {}
+          const nextDelay = document.hasFocus() ? POLL_MESSAGES_ACTIVE : POLL_MESSAGES_INACTIVE;
+          scheduleMessagesPoll(nextDelay);
+        }, delay);
+      }
+
+      // start adaptive loops
+      scheduleTicketsPoll(POLL_TICKETS_ACTIVE);
+      scheduleMessagesPoll(POLL_MESSAGES_ACTIVE);
     })();
 
-    // Sistema de Toast customizado
+    // Use shared showNotification (ui.js). Provide fallback if missing.
     function showToast(message, type = 'success') {
+      if (typeof showNotification === 'function') {
+        const mapped = type === 'success' ? 'info' : type;
+        showNotification(message, mapped);
+        return;
+      }
+
+      // Fallback minimal toast
       const toast = document.createElement('div');
       toast.className = `custom-toast ${type}`;
-      
       const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '✅';
-      
       toast.innerHTML = `
         <div class="custom-toast-icon">${icon}</div>
         <div class="custom-toast-message">${message}</div>
         <button class="custom-toast-close" onclick="this.parentElement.remove()">×</button>
       `;
-      
       document.body.appendChild(toast);
-      
-      setTimeout(() => {
-        toast.classList.add('hiding');
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
+      setTimeout(() => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 300); }, 4000);
     }
 
     function escapeHtml(value) {
@@ -1902,5 +1942,6 @@
       }
     }
   </script>
+  <script src="ui.js"></script>
 </body>
 </html>

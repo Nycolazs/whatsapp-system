@@ -132,6 +132,7 @@
       color: #64748b;
     }
   </style>
+  <link rel="stylesheet" href="ui.css">
 </head>
 <body>
   <div class="card">
@@ -182,9 +183,9 @@
             try {
               const response = await fetch('/auth/has-admin', { cache: 'no-store' });
               const info = await response.json();
-              window.location.href = info.hasAdmin ? '/login' : '/setup-admin';
+              if (typeof navigateTo === 'function') navigateTo(info.hasAdmin ? '/login' : '/setup-admin'); else window.location.href = info.hasAdmin ? '/login' : '/setup-admin';
             } catch (error) {
-              window.location.href = '/setup-admin';
+              if (typeof navigateTo === 'function') navigateTo('/setup-admin'); else window.location.href = '/setup-admin';
             }
           }, 800);
           return;
@@ -227,5 +228,6 @@
 
     startPolling();
   </script>
+  <script src="ui.js"></script>
 </body>
 </html>

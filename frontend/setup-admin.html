@@ -91,6 +91,7 @@
       margin-bottom: 12px;
     }
   </style>
+  <link rel="stylesheet" href="ui.css">
 </head>
 <body>
   <div class="card">
@@ -120,19 +121,19 @@
         const waResponse = await fetch('/whatsapp/qr', { cache: 'no-store' });
         const waData = await waResponse.json();
         if (!waData.connected) {
-          window.location.href = '/whatsapp-qr';
+          if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
           return false;
         }
 
         const response = await fetch('/auth/has-admin');
         const data = await response.json();
         if (data.hasAdmin) {
-          window.location.href = '/login';
+          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
           return false;
         }
         return true;
       } catch (error) {
-        window.location.href = '/whatsapp-qr';
+        if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
         return false;
       }
     }
@@ -163,7 +164,7 @@
           throw new Error(data.error || 'Erro ao criar admin');
         }
 
-        window.location.href = '/login';
+        if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
       } catch (error) {
         errorDiv.textContent = error.message;
         errorDiv.style.display = 'block';
@@ -173,5 +174,6 @@
 
     ensureConnected();
   </script>
+  <script src="ui.js"></script>
 </body>
 </html>
