@@ -119,6 +119,7 @@
       cursor: not-allowed;
     }
 
+
     .error-message {
       color: #d32f2f;
       font-size: 14px;
@@ -204,6 +205,7 @@
 
       <button type="submit" class="login-button">Entrar</button>
     </form>
+
   </div>
 
   <script>
@@ -249,8 +251,12 @@
           throw new Error(data.error || 'Erro ao fazer login');
         }
 
-        // Sessão criada no servidor, redireciona sem usar localStorage
-        window.location.href = '/agent';
+        // Redireciona baseado no tipo de usuário
+        if (data.userType === 'admin') {
+          window.location.href = '/agent';
+        } else {
+          window.location.href = '/agent';
+        }
       } catch (error) {
         errorDiv.textContent = error.message;
         errorDiv.style.display = 'block';
@@ -258,6 +264,9 @@
         loginBtn.textContent = 'Entrar';
       }
     }
+
+    // Verifica conexão ao abrir a tela
+    ensureConnected();
 
     // Auto-focus no username
     document.getElementById('username').focus();

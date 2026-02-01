@@ -2,22 +2,33 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const Database = require('better-sqlite3');
 const startBot = require('./baileys');
-const { getSocket } = require('./baileys');
+const { getSocket, getQrState, forceNewQr } = require('./baileys');
 const db = require('./db');
 const crypto = require('crypto');
+const qrcode = require('qrcode');
 
 const app = express();
 
-// Configurar sessões
+// Configurar sessões com armazenamento persistente
+const sessionDb = new Database(path.join(__dirname, '..', 'data', 'db', 'sessions.db'));
 app.use(session({
-  secret: 'whatsapp-system-secret-key-' + Math.random().toString(36),
+  store: new SqliteStore({
+    client: sessionDb,
+    expired: {
+      clear: true,
+      intervalMs: 900000 // 15 minutos
+    }
+  }),
+  secret: 'whatsapp-system-secret-key-fixed-2024',
   resave: false,
   saveUninitialized: false,
   cookie: { 
     secure: false, // mudar para true em produção com HTTPS
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 dias
   }
 }));
 
@@ -32,12 +43,16 @@ app.use('/media', express.static(path.join(__dirname, '../media')));
 const frontendDir = path.join(__dirname, '../frontend');
 
 // Rotas amigáveis para as telas (sem /frontend/...)
-app.get('/', (req, res) => res.sendFile(path.join(frontendDir, 'index.html')));
-app.get('/login', (req, res) => res.sendFile(path.join(frontendDir, 'index.html')));
+app.get('/', (req, res) => {
+  return res.sendFile(path.join(frontendDir, 'index.html'));
+});
+app.get('/login', (req, res) => {
+  return res.sendFile(path.join(frontendDir, 'index.html'));
+});
 app.get('/agent', (req, res) => res.sendFile(path.join(frontendDir, 'agent.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(frontendDir, 'admin.html')));
 app.get('/admin-sellers', (req, res) => res.sendFile(path.join(frontendDir, 'admin-sellers.html')));
-app.get('/blacklist-ui', (req, res) => res.sendFile(path.join(frontendDir, 'blacklist.html')));
+app.get('/whatsapp-qr', (req, res) => res.sendFile(path.join(frontendDir, 'whatsapp-qr.html')));
+app.get('/setup-admin', (req, res) => res.sendFile(path.join(frontendDir, 'setup-admin.html')));
 
 const fs = require('fs')
 const authDir = path.join(__dirname, 'auth')
@@ -85,6 +100,70 @@ app.get('/connection-status', (req, res) => {
   });
 });
 
+// 📱 Endpoint para obter QR code do WhatsApp (para exibir no browser)
+app.get('/whatsapp/qr', async (req, res) => {
+  try {
+    const qrState = getQrState();
+
+    if (qrState.connected) {
+      return res.json({
+        connected: true,
+        connectionState: qrState.connectionState,
+        qrAt: qrState.qrAt,
+        qrDataUrl: null
+      });
+    }
+
+    if (!qrState.qr) {
+      return res.json({
+        connected: false,
+        connectionState: qrState.connectionState,
+        qrAt: qrState.qrAt,
+        qrDataUrl: null
+      });
+    }
+
+    const qrDataUrl = await qrcode.toDataURL(qrState.qr, { margin: 2, scale: 6 });
+    res.json({
+      connected: false,
+      connectionState: qrState.connectionState,
+      qrAt: qrState.qrAt,
+      qrDataUrl
+    });
+  } catch (error) {
+    res.status(500).json({
+      connected: false,
+      connectionState: 'error',
+      qrAt: null,
+      qrDataUrl: null
+    });
+  }
+});
+
+// 🔄 Endpoint para forçar novo QR
+app.post('/whatsapp/qr/refresh', async (req, res) => {
+  try {
+    const result = await forceNewQr();
+    if (!result.ok) {
+      return res.status(409).json({ error: 'WhatsApp já está conectado' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar QR' });
+  }
+});
+
+// 🔌 Endpoint para desconectar WhatsApp (admin)
+app.post('/whatsapp/logout', requireAdmin, async (req, res) => {
+  try {
+    await forceNewQr(true);
+    db.clearAllData();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao desconectar WhatsApp' });
+  }
+});
+
 
 // �📋 Endpoints para Tickets
 app.get('/tickets', requireAuth, (req, res) => {
@@ -92,6 +171,9 @@ app.get('/tickets', requireAuth, (req, res) => {
     SELECT t.*, 
            (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
     FROM tickets t 
+    WHERE t.phone LIKE '55%'
+      AND t.phone NOT LIKE '%@%'
+      AND length(t.phone) BETWEEN 12 AND 13
     ORDER BY updated_at DESC
   `).all();
   res.json(tickets);
@@ -99,8 +181,30 @@ app.get('/tickets', requireAuth, (req, res) => {
 
 app.get('/tickets/:id/messages', requireAuth, (req, res) => {
   const { id } = req.params;
-  const messages = db.prepare('SELECT * FROM messages WHERE ticket_id = ? ORDER BY created_at ASC').all(id);
-  res.json(messages);
+  const { limit, before } = req.query;
+
+  try {
+    const params = [id];
+    let query = 'SELECT * FROM messages WHERE ticket_id = ?';
+
+    if (before) {
+      query += ' AND created_at < ?';
+      params.push(before);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 0, 0), 1000);
+    if (safeLimit > 0) {
+      query += ' LIMIT ?';
+      params.push(safeLimit);
+    }
+
+    const rows = db.prepare(query).all(...params);
+    res.json(rows.reverse());
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao listar mensagens' });
+  }
 });
 
 // 🔔 Endpoint para obter apenas novas mensagens (polling otimizado)
@@ -326,51 +430,79 @@ app.post('/auth/login', (req, res) => {
   }
   
   try {
-    if (isAdmin) {
-      // Login como admin (usuário padrão)
-      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-      
-      if (!user || user.password !== password) {
-        return res.status(401).json({ error: 'Credenciais inválidas' });
-      }
-      
-      // Criar sessão
-      req.session.userId = user.id;
-      req.session.userName = user.username;
+    // Verifica se é admin (verifica ambas as tabelas)
+    const adminUser = db.prepare('SELECT * FROM users WHERE username = ? AND role = ?').get(username, 'admin');
+    if (adminUser && adminUser.password === hashPassword(password)) {
+      req.session.userId = adminUser.id;
+      req.session.userName = adminUser.username;
       req.session.userType = 'admin';
       
-      res.json({
+      return res.json({
         success: true,
-        userId: user.id,
+        userId: adminUser.id,
         userType: 'admin',
-        userName: user.username
+        userName: adminUser.username
       });
-    } else {
-      // Login como vendedor
-      const seller = db.prepare('SELECT * FROM sellers WHERE name = ?').get(username);
-      
-      if (!seller || seller.password !== hashPassword(password)) {
-        return res.status(401).json({ error: 'Credenciais inválidas' });
-      }
-      
+    }
+    
+    // Verifica se é vendedor
+    const seller = db.prepare('SELECT * FROM sellers WHERE name = ?').get(username);
+    if (seller && seller.password === hashPassword(password)) {
       if (!seller.active) {
         return res.status(401).json({ error: 'Vendedor desativado' });
       }
       
-      // Criar sessão
       req.session.userId = seller.id;
       req.session.userName = seller.name;
       req.session.userType = 'seller';
       
-      res.json({
+      return res.json({
         success: true,
         userId: seller.id,
         userType: 'seller',
         userName: seller.name
       });
     }
+    
+    // Nenhum usuário encontrado
+    return res.status(401).json({ error: 'Credenciais inválidas' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
+// 🔧 Verifica se já existe admin
+app.get('/auth/has-admin', (req, res) => {
+  try {
+    const count = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count;
+    res.json({ hasAdmin: count > 0 });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao verificar admin' });
+  }
+});
+
+// 🔧 Cria admin (somente se não existir)
+app.post('/auth/setup-admin', (req, res) => {
+  const qrState = getQrState();
+  if (!qrState.connected) {
+    return res.status(403).json({ error: 'WhatsApp não conectado.' });
+  }
+
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Usuário e senha obrigatórios' });
+  }
+
+  try {
+    const count = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count;
+    if (count > 0) {
+      return res.status(409).json({ error: 'Admin já existe' });
+    }
+
+    db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(username, hashPassword(password), 'admin');
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar admin' });
   }
 });
 
@@ -409,7 +541,64 @@ app.get('/sellers', requireAdmin, (req, res) => {
   }
 });
 
-// Criar novo vendedor (apenas admin)
+// Listar todos os usuários (admins + vendedores)
+app.get('/users', requireAdmin, (req, res) => {
+  try {
+    // Pega todos os admins
+    const admins = db.prepare("SELECT id, username as name, 'admin' as type, created_at FROM users WHERE role = 'admin' ORDER BY username").all();
+    
+    // Pega todos os vendedores
+    const sellers = db.prepare("SELECT id, name, 'seller' as type, active, created_at FROM sellers ORDER BY name").all();
+    
+    // Combina e cria estrutura unificada
+    const allUsers = [];
+    
+    // Processa admins
+    for (const admin of admins) {
+      const sellerInfo = db.prepare("SELECT active FROM sellers WHERE name = ?").get(admin.name);
+      allUsers.push({
+        id: `admin_${admin.id}`,
+        name: admin.name,
+        isAdmin: true,
+        isSeller: !!sellerInfo,
+        sellerActive: sellerInfo ? sellerInfo.active : false,
+        created_at: admin.created_at
+      });
+    }
+    
+    // Processa vendedores
+    for (const seller of sellers) {
+      const adminInfo = db.prepare("SELECT id FROM users WHERE username = ? AND role = 'admin'").get(seller.name);
+      // Só adiciona se não for admin (já foi adicionado acima)
+      if (!adminInfo) {
+        allUsers.push({
+          id: `seller_${seller.id}`,
+          name: seller.name,
+          isAdmin: false,
+          isSeller: true,
+          sellerActive: seller.active,
+          created_at: seller.created_at
+        });
+      }
+    }
+    
+    res.json(allUsers);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
+// Listar vendedores ativos (admin e vendedores)
+app.get('/sellers/active', requireAuth, (req, res) => {
+  try {
+    const sellers = db.prepare('SELECT id, name FROM sellers WHERE active = 1 ORDER BY name').all();
+    res.json(sellers);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao listar vendedores' });
+  }
+});
+
+// Criar Novo Usuário (apenas admin)
 app.post('/sellers', (req, res) => {
   const { name, password } = req.body;
   
@@ -485,13 +674,186 @@ app.delete('/sellers/:id', requireAdmin, (req, res) => {
   }
 });
 
-// Atribuir ticket a um vendedor (apenas admin)
-app.post('/tickets/:id/assign', requireAdmin, (req, res) => {
+// Promover vendedor a admin
+app.post('/sellers/:id/make-admin', requireAdmin, (req, res) => {
   const { id } = req.params;
-  const { sellerId } = req.body;
   
   try {
-    db.prepare('UPDATE tickets SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(sellerId || null, id);
+    const seller = db.prepare('SELECT * FROM sellers WHERE id = ?').get(id);
+    if (!seller) {
+      return res.status(404).json({ error: 'Vendedor não encontrado' });
+    }
+
+    // Cria um usuário admin com o mesmo nome do vendedor
+    db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(
+      seller.name,
+      seller.password,
+      'admin'
+    );
+
+    // Marca o vendedor como inativo para que não possa mais acessar como vendedor
+    db.prepare('UPDATE sellers SET active = 0 WHERE id = ?').run(id);
+
+    res.json({ success: true, message: 'Vendedor promovido a admin' });
+  } catch (error) {
+    if (error.message.includes('UNIQUE')) {
+      return res.status(409).json({ error: 'Este vendedor já é admin' });
+    }
+    res.status(500).json({ error: 'Erro ao promover vendedor' });
+  }
+});
+
+// Verificar se vendedor é admin
+app.get('/sellers/:id/is-admin', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const seller = db.prepare('SELECT * FROM sellers WHERE id = ?').get(id);
+    if (!seller) {
+      return res.status(404).json({ error: 'Vendedor não encontrado' });
+    }
+
+    const admin = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(seller.name);
+    res.json({ isAdmin: !!admin });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao verificar admin' });
+  }
+});
+
+// Remover admin de um vendedor
+app.post('/sellers/:id/remove-admin', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const seller = db.prepare('SELECT * FROM sellers WHERE id = ?').get(id);
+    if (!seller) {
+      return res.status(404).json({ error: 'Vendedor não encontrado' });
+    }
+
+    const result = db.prepare("DELETE FROM users WHERE username = ? AND role = 'admin'").run(seller.name);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Este vendedor não é admin' });
+    }
+
+    // Reativa o vendedor para que possa fazer login novamente
+    db.prepare('UPDATE sellers SET active = 1 WHERE id = ?').run(id);
+
+    res.json({ success: true, message: 'Admin removido com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao remover admin' });
+  }
+});
+
+// Fazer um admin também ser vendedor
+app.post('/users/:id/make-seller', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const adminUser = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(id);
+    if (!adminUser) {
+      return res.status(404).json({ error: 'Admin não encontrado' });
+    }
+
+    // Verifica se já é vendedor
+    const seller = db.prepare('SELECT * FROM sellers WHERE name = ?').get(adminUser.username);
+    if (seller) {
+      return res.status(409).json({ error: 'Este admin já é vendedor' });
+    }
+
+    // Cria entrada de vendedor com a mesma senha
+    db.prepare('INSERT INTO sellers (name, password, active) VALUES (?, ?, ?)').run(
+      adminUser.username,
+      adminUser.password,
+      1
+    );
+
+    res.json({ success: true, message: 'Admin agora também é vendedor' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao tornar vendedor' });
+  }
+});
+
+// Remover vendedor de um admin
+app.post('/users/:id/remove-seller', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const adminUser = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(id);
+    if (!adminUser) {
+      return res.status(404).json({ error: 'Admin não encontrado' });
+    }
+
+    const result = db.prepare('DELETE FROM sellers WHERE name = ?').run(adminUser.username);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Este admin não é vendedor' });
+    }
+
+    res.json({ success: true, message: 'Vendedor removido com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao remover vendedor' });
+  }
+});
+
+// Remover vendedor (deletar completamente)
+app.post('/users/:id/remove-seller-only', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const seller = db.prepare('SELECT * FROM sellers WHERE id = ?').get(id);
+    if (!seller) {
+      return res.status(404).json({ error: 'Vendedor não encontrado' });
+    }
+
+    // Remove todas as atribuições de tickets
+    db.prepare('UPDATE tickets SET seller_id = NULL WHERE seller_id = ?').run(id);
+    
+    // Deleta o vendedor
+    db.prepare('DELETE FROM sellers WHERE id = ?').run(id);
+
+    res.json({ success: true, message: 'Vendedor deletado com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao deletar vendedor' });
+  }
+});
+
+// Atribuir/transferir ticket a um vendedor (admin ou vendedor)
+app.post('/tickets/:id/assign', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { sellerId } = req.body;
+
+  if (sellerId === undefined || sellerId === null || sellerId === '') {
+    return res.status(400).json({ error: 'sellerId é obrigatório' });
+  }
+
+  const targetSellerId = Number(sellerId);
+  if (Number.isNaN(targetSellerId)) {
+    return res.status(400).json({ error: 'sellerId inválido' });
+  }
+
+  try {
+    const ticket = db.prepare('SELECT id, seller_id FROM tickets WHERE id = ?').get(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket não encontrado' });
+    }
+
+    // Vendedor só pode transferir se o ticket estiver com ele ou sem vendedor
+    if (req.userType === 'seller') {
+      if (ticket.seller_id && ticket.seller_id !== req.userId) {
+        return res.status(403).json({ error: 'Você não pode transferir este ticket' });
+      }
+    }
+
+    const targetSeller = db.prepare('SELECT id, active FROM sellers WHERE id = ?').get(targetSellerId);
+    if (!targetSeller) {
+      return res.status(404).json({ error: 'Vendedor não encontrado' });
+    }
+    if (!targetSeller.active) {
+      return res.status(400).json({ error: 'Vendedor desativado' });
+    }
+
+    db.prepare('UPDATE tickets SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetSellerId, id);
     res.json({ success: true, message: 'Ticket atribuído' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atribuir ticket' });
@@ -509,7 +871,11 @@ app.get('/tickets/seller/:sellerId', requireAuth, (req, res) => {
              (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
       FROM tickets t 
       LEFT JOIN sellers s ON t.seller_id = s.id
-      WHERE (t.seller_id = ? OR t.seller_id IS NULL) AND t.status != 'resolvido'
+      WHERE (t.seller_id = ? OR t.seller_id IS NULL)
+        AND t.status != 'resolvido'
+        AND t.phone LIKE '55%'
+        AND t.phone NOT LIKE '%@%'
+        AND length(t.phone) BETWEEN 12 AND 13
       ORDER BY updated_at DESC
     `).all(sellerId === '0' ? null : sellerId);
     
@@ -528,12 +894,147 @@ app.get('/admin/tickets', requireAdmin, (req, res) => {
              (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
       FROM tickets t 
       LEFT JOIN sellers s ON t.seller_id = s.id
+      WHERE t.phone LIKE '55%'
+        AND t.phone NOT LIKE '%@%'
+        AND length(t.phone) BETWEEN 12 AND 13
       ORDER BY updated_at DESC
     `).all();
     
     res.json(tickets);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao listar tickets' });
+  }
+});
+
+// 🗓️ Endpoints de Horários de Funcionamento (admin)
+app.get('/business-hours', requireAdmin, (req, res) => {
+  try {
+    const hours = db.prepare('SELECT day, open_time, close_time, enabled FROM business_hours ORDER BY day ASC').all();
+    res.json(hours);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao carregar horários' });
+  }
+});
+
+app.put('/business-hours', requireAdmin, (req, res) => {
+  const payload = Array.isArray(req.body) ? req.body : req.body.hours;
+  if (!Array.isArray(payload)) {
+    return res.status(400).json({ error: 'Formato inválido. Envie uma lista de horários.' });
+  }
+
+  try {
+    const upsert = db.prepare(`
+      INSERT INTO business_hours (day, open_time, close_time, enabled)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(day) DO UPDATE SET
+        open_time = excluded.open_time,
+        close_time = excluded.close_time,
+        enabled = excluded.enabled
+    `);
+
+    const tx = db.transaction((rows) => {
+      rows.forEach(row => {
+        const day = Number(row.day);
+        if (!Number.isInteger(day) || day < 0 || day > 6) {
+          throw new Error('Dia inválido');
+        }
+        upsert.run(day, row.open_time || null, row.close_time || null, row.enabled ? 1 : 0);
+      });
+    });
+
+    tx(payload);
+    res.json({ success: true, message: 'Horários atualizados' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar horários' });
+  }
+});
+
+app.get('/business-exceptions', requireAdmin, (req, res) => {
+  try {
+    const exceptions = db.prepare('SELECT id, date, closed, open_time, close_time, reason FROM business_exceptions ORDER BY date DESC').all();
+    res.json(exceptions);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao carregar exceções' });
+  }
+});
+
+app.post('/business-exceptions', requireAdmin, (req, res) => {
+  const { date, closed, open_time, close_time, reason } = req.body;
+
+  if (!date) {
+    return res.status(400).json({ error: 'Data é obrigatória' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO business_exceptions (date, closed, open_time, close_time, reason)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        closed = excluded.closed,
+        open_time = excluded.open_time,
+        close_time = excluded.close_time,
+        reason = excluded.reason
+    `).run(
+      date,
+      closed ? 1 : 0,
+      open_time || null,
+      close_time || null,
+      reason || null
+    );
+
+    res.status(201).json({
+      success: true,
+      id: result.lastInsertRowid,
+      date,
+      closed: closed ? 1 : 0,
+      open_time: open_time || null,
+      close_time: close_time || null,
+      reason: reason || null
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar exceção' });
+  }
+});
+
+app.delete('/business-exceptions/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = db.prepare('DELETE FROM business_exceptions WHERE id = ?').run(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Exceção não encontrada' });
+    }
+    res.json({ success: true, message: 'Exceção removida' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao remover exceção' });
+  }
+});
+
+app.get('/business-message', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_message');
+    res.json({ message: row?.value || '' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao carregar mensagem' });
+  }
+});
+
+app.put('/business-message', requireAdmin, (req, res) => {
+  const { message } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: 'Mensagem é obrigatória' });
+  }
+
+  try {
+    db.prepare(`
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run('out_of_hours_message', message);
+
+    res.json({ success: true, message: 'Mensagem atualizada' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar mensagem' });
   }
 });
 

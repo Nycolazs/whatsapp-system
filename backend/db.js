@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dataDir = path.join(__dirname, '..', 'data');
+const dataDir = path.join(__dirname, '..', 'data', 'db');
 const dbPath = path.join(dataDir, 'db.sqlite');
 
 if (!fs.existsSync(dataDir)) {
@@ -13,12 +13,22 @@ if (!fs.existsSync(dataDir)) {
 if (!fs.existsSync(dbPath)) {
   const legacyPaths = [
     path.join(__dirname, 'db.sqlite'),
-    path.join(__dirname, '..', 'db.sqlite')
+    path.join(__dirname, '..', 'db.sqlite'),
+    path.join(__dirname, '..', 'data', 'db.sqlite')
   ];
 
   const legacyPath = legacyPaths.find(p => fs.existsSync(p));
   if (legacyPath) {
-    fs.copyFileSync(legacyPath, dbPath);
+    try {
+      fs.renameSync(legacyPath, dbPath);
+    } catch (err) {
+      fs.copyFileSync(legacyPath, dbPath);
+      try {
+        fs.unlinkSync(legacyPath);
+      } catch (e) {
+        // Ignora
+      }
+    }
   }
 }
 
@@ -33,6 +43,31 @@ try {
   // Erro ao configurar pragmas
 }
 
+// Limpa tickets inválidos (ex.: @lid ou não iniciado com 55)
+try {
+  db.exec(`
+    BEGIN TRANSACTION;
+
+    DELETE FROM messages
+    WHERE ticket_id IN (
+      SELECT id FROM tickets
+      WHERE phone LIKE '%@%'
+         OR phone NOT LIKE '55%'
+         OR length(phone) < 12
+         OR length(phone) > 13
+    );
+
+    DELETE FROM tickets
+    WHERE phone LIKE '%@%'
+       OR phone NOT LIKE '55%'
+       OR length(phone) < 12
+       OR length(phone) > 13;
+
+    COMMIT;
+  `);
+} catch (err) {
+  try { db.exec('ROLLBACK;'); } catch (e) {}
+}
 
 db.prepare(`
 CREATE TABLE IF NOT EXISTS sellers (
@@ -201,38 +236,121 @@ created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `).run();
 
-// Seed inicial: Cria usuário admin e vendedores APENAS na primeira execução
-// (quando tabelas estiverem completamente vazias)
-const crypto = require('crypto');
+// Horários de funcionamento
+db.prepare(`
+CREATE TABLE IF NOT EXISTS business_hours (
+day INTEGER PRIMARY KEY,
+open_time TEXT,
+close_time TEXT,
+enabled INTEGER DEFAULT 1
+);
+`).run();
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Datas excepcionais (feriados, etc.)
+db.prepare(`
+CREATE TABLE IF NOT EXISTS business_exceptions (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+date TEXT UNIQUE,
+closed INTEGER DEFAULT 1,
+open_time TEXT,
+close_time TEXT,
+reason TEXT
+);
+`).run();
+
+// Configurações gerais
+db.prepare(`
+CREATE TABLE IF NOT EXISTS settings (
+key TEXT PRIMARY KEY,
+value TEXT
+);
+`).run();
+
+// Controle de envio da mensagem fora do horário
+db.prepare(`
+CREATE TABLE IF NOT EXISTS out_of_hours_log (
+phone TEXT PRIMARY KEY,
+last_sent_at INTEGER
+);
+`).run();
+
+// Seed inicial: horários padrão (se vazio)
+try {
+  const hoursCount = db.prepare('SELECT COUNT(*) as count FROM business_hours').get().count;
+  if (hoursCount === 0) {
+    const insertHour = db.prepare('INSERT INTO business_hours (day, open_time, close_time, enabled) VALUES (?, ?, ?, ?)');
+    // 0=Domingo, 1=Segunda, ... 6=Sábado
+    insertHour.run(0, '09:00', '18:00', 0);
+    insertHour.run(1, '09:00', '18:00', 1);
+    insertHour.run(2, '09:00', '18:00', 1);
+    insertHour.run(3, '09:00', '18:00', 1);
+    insertHour.run(4, '09:00', '18:00', 1);
+    insertHour.run(5, '09:00', '18:00', 1);
+    insertHour.run(6, '09:00', '18:00', 0);
+  }
+} catch (err) {
+  // Ignora erros de seed
 }
 
+// Seed inicial: mensagem padrão fora do horário
 try {
-  const sellerCount = db.prepare('SELECT COUNT(*) as count FROM sellers').get().count;
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-
-  // Só faz seed se AMBAS as tabelas estiverem vazias (primeira execução)
-  if (sellerCount === 0 && userCount === 0) {
-    // Cria admin
-    db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', 'admin', 'admin');
-
-    // Cria vendedores exemplo
-    db.prepare('INSERT INTO sellers (name, email, password) VALUES (?, ?, ?)').run(
-      'João',
-      'joao@example.com',
-      hashPassword('123456')
-    );
-
-    db.prepare('INSERT INTO sellers (name, email, password) VALUES (?, ?, ?)').run(
-      'Maria',
-      'maria@example.com',
-      hashPassword('123456')
+  const existing = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_message');
+  if (!existing) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+      'out_of_hours_message',
+      '🕒 Nosso horário de atendimento já encerrou. Retornaremos no próximo horário de funcionamento.'
     );
   }
 } catch (err) {
-  // Ignora erros de seed (tabelas já populadas ou outros erros não críticos)
+  // Ignora erros de seed
 }
+
+function clearOperationalData() {
+  try {
+    db.exec(`
+      BEGIN TRANSACTION;
+      DELETE FROM out_of_hours_log;
+      COMMIT;
+    `);
+  } catch (err) {
+    try { db.exec('ROLLBACK;'); } catch (e) {}
+  }
+}
+
+db.clearOperationalData = clearOperationalData;
+
+function clearUserData() {
+  try {
+    db.exec(`
+      BEGIN TRANSACTION;
+      DELETE FROM sellers;
+      DELETE FROM users;
+      COMMIT;
+    `);
+  } catch (err) {
+    try { db.exec('ROLLBACK;'); } catch (e) {}
+  }
+}
+
+db.clearUserData = clearUserData;
+
+function clearAllData() {
+  try {
+    db.exec(`
+      BEGIN TRANSACTION;
+      DELETE FROM messages;
+      DELETE FROM tickets;
+      DELETE FROM sellers;
+      DELETE FROM users;
+      DELETE FROM blacklist;
+      DELETE FROM out_of_hours_log;
+      COMMIT;
+    `);
+  } catch (err) {
+    try { db.exec('ROLLBACK;'); } catch (e) {}
+  }
+}
+
+db.clearAllData = clearAllData;
 
 module.exports = db;

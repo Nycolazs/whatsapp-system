@@ -99,7 +99,7 @@ Acesse a página de login e entre como:
 Ao iniciar o servidor, aparecerá um QR code no terminal. Escaneie com seu celular para conectar o WhatsApp.
 
 ### 3. Adicionar à Blacklist
-Acesse `/blacklist-ui` para gerenciar números bloqueados. Apenas números na blacklist receberão atendimento.
+Acesse o painel `/admin-sellers` e use a seção **Blacklist** para gerenciar números bloqueados. Apenas números na blacklist receberão atendimento.
 
 ### 4. Gerenciar Vendedores (Admin)
 Acesse `/admin-sellers` para:
@@ -123,14 +123,12 @@ whatsapp-system/
 ├── frontend/
 │   ├── index.html         # Página de login
 │   ├── agent.html         # Interface de atendimento
-│   ├── admin-sellers.html # Gerenciamento de vendedores
-│   ├── blacklist.html     # Gerenciamento de blacklist
-│   └── admin.html         # Admin (deprecated)
+│   └── admin-sellers.html # Painel admin (vendedores, blacklist e horários)
 ├── data/
-│   └── db.sqlite          # Banco de dados
+│   └── db/
+│       └── db.sqlite      # Banco de dados
 ├── media/
 │   └── audios/            # Áudios recebidos
-├── auth/                  # Sessões WhatsApp
 ├── start.sh               # Script de inicialização
 ├── package.json           # Dependências root
 └── README.md              # Este arquivo
@@ -242,7 +240,7 @@ kill -9 <PID>
 ### Banco de dados corrompido
 ```bash
 # Limpe e recrie
-rm data/db.sqlite
+rm data/db/db.sqlite
 node backend/index.js
 # Sistema recriará automaticamente
 ```
@@ -260,7 +258,7 @@ Verifique:
 
 1. **Alterar senha admin**
    ```sql
-   sqlite3 data/db.sqlite
+   sqlite3 data/db/db.sqlite
    UPDATE users SET password = 'sua_nova_senha' WHERE username = 'admin';
    .quit
    ```
@@ -298,7 +296,7 @@ tail -f logs.txt
 
 - Mantenha o servidor rodando continuamente para receber mensagens
 - Use PM2 ou systemd para auto-reiniciar em caso de falha
-- Faça backup regular do `data/db.sqlite`
+- Faça backup regular do `data/db/db.sqlite`
 - Monitore a conexão WhatsApp regularmente
 - Teste números na blacklist antes de usar em produção
 

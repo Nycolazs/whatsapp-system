@@ -390,7 +390,7 @@
     }
 
     .message-image {
-      max-width: 100%;
+      max-width: 260px;
       border-radius: 8px;
       margin-top: 8px;
       margin-bottom: 8px;
@@ -405,6 +405,18 @@
 
     .message-image:hover {
       opacity: 0.9;
+    }
+
+    .message-sticker {
+      max-width: 200px;
+      max-height: 200px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      display: none; /* Escondida por padrão até carregar */
+    }
+
+    .message-sticker.loaded {
+      display: block;
     }
 
     .image-loading {
@@ -845,7 +857,7 @@
         </div>
         <div class="admin-actions" id="adminActions" style="display: none;">
           <button class="btn-manage-sellers" onclick="window.location.href='/admin-sellers'">
-            👨‍💼 Gerenciar Vendedores
+            ⚙️ Painel Admin
           </button>
         </div>
       </div>
@@ -876,7 +888,7 @@
           </div>
           <div class="chat-actions">
             <div id="adminSellerSelect" style="display: none; margin-right: 10px;">
-              <label style="font-size: 12px; color: #667781; margin-right: 5px;">Vendedor:</label>
+              <label id="sellerSelectLabel" style="font-size: 12px; color: #667781; margin-right: 5px;">Vendedor:</label>
               <select id="sellerSelect" onchange="assignTicketToSeller()" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
                 <option value="">Não atribuído</option>
               </select>
@@ -910,14 +922,11 @@
   <!-- Modal de Confirmação -->
   <div class="confirmation-modal" id="confirmModal">
     <div class="confirmation-modal-content">
-      <div class="confirmation-modal-header">⚠️ Marcar como Resolvido?</div>
-      <div class="confirmation-modal-message">
-        Tem certeza que deseja marcar esta conversa como resolvida?<br><br>
-        <strong>Ela desaparecerá imediatamente da sua lista de atendimento.</strong>
-      </div>
+      <div class="confirmation-modal-header" id="confirmModalHeader">⚠️ Confirmação</div>
+      <div class="confirmation-modal-message" id="confirmModalMessage"></div>
       <div class="confirmation-modal-actions">
-        <button class="btn-cancel" onclick="cancelResolveTicket()">Cancelar</button>
-        <button class="btn-confirm" onclick="confirmResolveTicket()">Sim, Resolver</button>
+        <button class="btn-cancel" id="confirmModalCancel">Cancelar</button>
+        <button class="btn-confirm" id="confirmModalConfirm">Confirmar</button>
       </div>
     </div>
   </div>
@@ -939,6 +948,7 @@
     let userType = null;
     let userName = null;
     let sellers = []; // Lista de vendedores para admin
+    const MESSAGES_PAGE_SIZE = 200;
 
     // Verifica autenticação via sessão
     async function checkAuth() {
@@ -954,7 +964,10 @@
         }
 
         const data = await response.json();
-        userId = data.userId;
+        userId = parseInt(data.userId, 10);
+        if (Number.isNaN(userId)) {
+          userId = data.userId;
+        }
         userType = data.userType;
         userName = data.userName;
 
@@ -974,6 +987,7 @@
             await loadSellers();
           } else {
             userNameDisplay.textContent = `👤 ${userName}`;
+            await loadSellers();
           }
           userSection.style.display = 'flex';
         }
@@ -982,12 +996,13 @@
       }
     }
 
-    // Carrega lista de vendedores (apenas para admin)
+    // Carrega lista de vendedores (admin e vendedores)
     async function loadSellers() {
-      if (userType !== 'admin') return;
+      if (!userType) return;
       
       try {
-        const response = await fetch(`${API_URL}/sellers`, {
+        const endpoint = userType === 'admin' ? `${API_URL}/sellers` : `${API_URL}/sellers/active`;
+        const response = await fetch(endpoint, {
           credentials: 'include'
         });
 
@@ -1213,23 +1228,40 @@
       
       document.getElementById('statusSelect').value = ticket.status;
       
-      // Se for admin, mostra o select de vendedor
-      if (userType === 'admin') {
+      // Se for admin ou vendedor, mostra o select de vendedor
+      if (userType === 'admin' || userType === 'seller') {
         const adminSellerDiv = document.getElementById('adminSellerSelect');
         const sellerSelect = document.getElementById('sellerSelect');
+        const sellerSelectLabel = document.getElementById('sellerSelectLabel');
         
         if (adminSellerDiv && sellerSelect) {
           adminSellerDiv.style.display = 'flex';
+          if (sellerSelectLabel) {
+            sellerSelectLabel.textContent = userType === 'admin' ? 'Vendedor:' : 'Transferir para:';
+          }
           
           // Popula o select com vendedores
-          sellerSelect.innerHTML = '<option value="">Não atribuído</option>';
-          sellers.forEach(s => {
-            const option = document.createElement('option');
-            option.value = s.id;
-            option.textContent = s.name;
-            option.selected = ticket.seller_id === s.id;
-            sellerSelect.appendChild(option);
-          });
+          if (userType === 'admin') {
+            sellerSelect.innerHTML = '<option value="">Não atribuído</option>';
+            sellers.forEach(s => {
+              const option = document.createElement('option');
+              option.value = s.id;
+              option.textContent = s.name;
+              option.selected = ticket.seller_id === s.id;
+              sellerSelect.appendChild(option);
+            });
+          } else {
+            sellerSelect.innerHTML = '<option value="">Selecionar vendedor</option>';
+            const currentUserId = parseInt(userId, 10);
+            sellers
+              .filter(s => s.id !== currentUserId)
+              .forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.id;
+                option.textContent = s.name;
+                sellerSelect.appendChild(option);
+              });
+          }
         }
       }
       
@@ -1243,32 +1275,91 @@
       await loadMessages(ticket.id);
     }
 
-    // Atribui ticket a vendedor (apenas admin)
+    // Atribui ticket a vendedor (admin ou vendedor)
     async function assignTicketToSeller() {
-      if (!currentTicket || userType !== 'admin') return;
+      if (!currentTicket) return;
       
-      const sellerId = document.getElementById('sellerSelect').value;
+      const sellerSelect = document.getElementById('sellerSelect');
+      const sellerId = sellerSelect.value;
+      const targetSellerId = sellerId ? parseInt(sellerId, 10) : null;
+      const previousSellerId = currentTicket.seller_id ? String(currentTicket.seller_id) : '';
+
+      if (String(targetSellerId || '') === previousSellerId) {
+        return;
+      }
+
+      if (userType === 'seller') {
+        const currentUserId = parseInt(userId, 10);
+        if (!targetSellerId || targetSellerId === currentUserId) {
+          showToast('Selecione outro vendedor', 'error');
+          sellerSelect.value = previousSellerId;
+          updateCustomSelect('sellerSelect');
+          return;
+        }
+      }
+
+      const targetSeller = sellers.find(s => s.id == targetSellerId);
+      const safeSellerName = targetSeller ? escapeHtml(targetSeller.name) : 'este vendedor';
+      let confirmHeader = '⚠️ Confirmar atribuição';
+      let confirmMessage = 'Confirmar atribuição deste ticket?';
+      let confirmText = 'Confirmar';
+
+      if (userType === 'admin') {
+        confirmHeader = '⚠️ Alterar atribuição';
+        confirmMessage = targetSellerId
+          ? `Confirmar atribuir para <strong>${safeSellerName}</strong>?`
+          : 'Confirmar remover atribuição do ticket?';
+      } else {
+        confirmHeader = '🔄 Transferir ticket';
+        confirmMessage = `Confirmar transferência para <strong>${safeSellerName}</strong>?`;
+      }
+
+      const confirmed = await confirmWithModal({
+        header: confirmHeader,
+        message: confirmMessage,
+        confirmText,
+        cancelText: 'Cancelar'
+      });
+
+      if (!confirmed) {
+        sellerSelect.value = previousSellerId;
+        updateCustomSelect('sellerSelect');
+        return;
+      }
       
       try {
         const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/assign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ sellerId: sellerId || null })
+          body: JSON.stringify({ sellerId: targetSellerId || null })
         });
 
         if (response.ok) {
           // Atualiza o ticket atual
-          currentTicket.seller_id = sellerId ? parseInt(sellerId) : null;
-          const seller = sellers.find(s => s.id == sellerId);
+          currentTicket.seller_id = targetSellerId;
+          const seller = sellers.find(s => s.id == targetSellerId);
           currentTicket.seller_name = seller ? seller.name : null;
           
           // Recarrega a lista de tickets
           await loadTickets();
+
+          if (userType === 'seller') {
+            const currentUserId = parseInt(userId, 10);
+            if (targetSellerId !== currentUserId) {
+              currentTicket = null;
+              document.getElementById('chatArea').style.display = 'none';
+              document.getElementById('emptyState').style.display = 'flex';
+            }
+          }
         } else {
+          sellerSelect.value = previousSellerId;
+          updateCustomSelect('sellerSelect');
           showToast('Erro ao atribuir vendedor', 'error');
         }
       } catch (error) {
+        sellerSelect.value = previousSellerId;
+        updateCustomSelect('sellerSelect');
         showToast('Erro ao atribuir vendedor', 'error');
       }
     }
@@ -1276,55 +1367,40 @@
     // Armazena última contagem de mensagens para detectar novas
     let lastMessageCount = {};
     let lastMessageTimestamp = {}; // Armazena timestamp da última mensagem por ticket
+    let isLoadingMessages = false;
+    let hasLoadedMessages = {};
 
     // Carrega mensagens
     async function loadMessages(ticketId, isAutoRefresh = false) {
+      if (isLoadingMessages) return;
+      isLoadingMessages = true;
       try {
         const container = document.getElementById('messagesContainer');
         
+        const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
+
         // Se for auto-refresh, tenta carregar apenas novas mensagens
         let messages = [];
         if (isAutoRefresh && lastMessageTimestamp[ticketId]) {
-          // Carrega apenas novas mensagens desde o último timestamp
           const response = await fetch(`${API_URL}/tickets/${ticketId}/messages/since/${lastMessageTimestamp[ticketId]}`, {
             credentials: 'include'
           });
           messages = await response.json();
-          
-          // Se tem novas mensagens, carrega todas para mostrar
-          if (messages.length > 0) {
-            const fullResponse = await fetch(`${API_URL}/tickets/${ticketId}/messages`, {
-              credentials: 'include'
-            });
-            messages = await fullResponse.json();
+          if (!messages.length) {
+            isLoadingMessages = false;
+            return;
           }
         } else {
-          // Carrega todas as mensagens
-          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages`, {
+          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}`, {
             credentials: 'include'
           });
           messages = await response.json();
-        }
-        
-        // Detecta se há novas mensagens
-        const newMessageCount = messages.length;
-        const oldMessageCount = lastMessageCount[ticketId] || 0;
-        const hasNewMessages = newMessageCount > oldMessageCount && isAutoRefresh;
-        
-        lastMessageCount[ticketId] = newMessageCount;
-        
-        // Atualiza timestamp da última mensagem
-        if (messages.length > 0) {
-          lastMessageTimestamp[ticketId] = messages[messages.length - 1].created_at;
-        }
-        
-        // Se não há mudanças e é auto-refresh, não re-renderiza
-        if (hasNewMessages || !isAutoRefresh) {
-          const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
-          
           container.innerHTML = '';
+          lastMessageCount[ticketId] = 0;
+          hasLoadedMessages[ticketId] = true;
+        }
 
-          messages.forEach(msg => {
+        messages.forEach(msg => {
             const div = document.createElement('div');
             div.className = `message message-${msg.sender}`;
             
@@ -1333,9 +1409,11 @@
             // Se for imagem, exibe a imagem
             if (msg.message_type === 'image' && msg.media_url) {
               const imageId = `img-${msg.id}`;
+              const contentDiv = msg.content !== '[Imagem]' ? `<div>${msg.content}</div>` : '';
+              const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
               contentHtml = `
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
-                <div>${msg.content !== '[Imagem]' ? msg.content : ''}</div>
+                ${contentDiv}
                 <div class="image-loading" id="loading-${imageId}">
                   <div class="image-loading-spinner"></div>
                   <span>Carregando imagem...</span>
@@ -1345,9 +1423,24 @@
                   src="${msg.media_url}" 
                   class="message-image" 
                   alt="Imagem" 
-                  onclick="openLightbox('${msg.media_url}')"
-                  onload="document.getElementById('${imageId}').classList.add('loaded'); document.getElementById('loading-${imageId}').style.display='none'; document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;"
-                  onerror="document.getElementById('loading-${imageId}').innerHTML='<span style=color:#ff6b6b>❌ Erro ao carregar imagem</span>';"
+                  onclick="openLightbox('${msg.media_url.replace(/'/g, "\\'")}')"
+                  onload="
+                    const imgEl = document.getElementById('${imageId}');
+                    const loadingEl = document.getElementById('loading-${imageId}');
+                    if (imgEl && loadingEl) {
+                      imgEl.classList.add('loaded');
+                      loadingEl.style.display = 'none';
+                      const msgContainer = document.getElementById('messagesContainer');
+                      if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+                    }
+                  "
+                  onerror="
+                    const loadingEl = document.getElementById('loading-${imageId}');
+                    if (loadingEl) {
+                      loadingEl.innerHTML = '<span style=color:#ff6b6b>❌ Erro ao carregar imagem</span>';
+                      console.error('Erro ao carregar imagem - mediaUrl:', '${isBase64 ? 'base64 data' : msg.media_url}');
+                    }
+                  "
                 >
                 <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
               `;
@@ -1372,6 +1465,62 @@
                   <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                 `;
               }
+            } else if (msg.message_type === 'video' && msg.media_url) {
+              // Se for vídeo, exibe o player ou loading
+              const videoId = `video-${msg.id}`;
+              const contentDiv = msg.content !== '[Vídeo]' ? `<div>${msg.content}</div>` : '';
+              if (msg.media_url === 'loading') {
+                contentHtml = `
+                  ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                  <div>🎥 Processando vídeo...</div>
+                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                `;
+              } else {
+                contentHtml = `
+                  ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                  ${contentDiv}
+                  <video id="${videoId}" controls style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
+                    <source src="${msg.media_url}" type="video/mp4">
+                    <source src="${msg.media_url}" type="video/webm">
+                    Seu navegador não suporta o elemento de vídeo.
+                  </video>
+                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                `;
+              }
+            } else if (msg.message_type === 'sticker' && msg.media_url) {
+              const stickerId = `sticker-${msg.id}`;
+              const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
+              contentHtml = `
+                ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
+                <div class="image-loading" id="loading-${stickerId}">
+                  <div class="image-loading-spinner"></div>
+                  <span>Carregando figurinha...</span>
+                </div>
+                <img 
+                  id="${stickerId}" 
+                  src="${msg.media_url}" 
+                  class="message-sticker" 
+                  alt="Figurinha" 
+                  onload="
+                    const stickerEl = document.getElementById('${stickerId}');
+                    const loadingEl = document.getElementById('loading-${stickerId}');
+                    if (stickerEl && loadingEl) {
+                      stickerEl.classList.add('loaded');
+                      loadingEl.style.display = 'none';
+                      const msgContainer = document.getElementById('messagesContainer');
+                      if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+                    }
+                  "
+                  onerror="
+                    const loadingEl = document.getElementById('loading-${stickerId}');
+                    if (loadingEl) {
+                      loadingEl.innerHTML = '<span style=color:#ff6b6b>❌ Erro ao carregar figurinha</span>';
+                      console.error('Erro ao carregar figurinha - mediaUrl:', '${isBase64 ? 'base64 data' : msg.media_url}');
+                    }
+                  "
+                >
+                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+              `;
             } else {
               // Mensagem de texto normal
               contentHtml = `
@@ -1383,17 +1532,24 @@
             
             div.innerHTML = contentHtml;
             container.appendChild(div);
-          });
+        });
 
-          // Scroll para o final apenas se o usuário estava no final
-          if (shouldScroll || !isAutoRefresh) {
-            setTimeout(() => {
-              container.scrollTop = container.scrollHeight;
-            }, 0);
-          }
+        // Atualiza timestamp da última mensagem
+        if (messages.length > 0) {
+          lastMessageTimestamp[ticketId] = messages[messages.length - 1].created_at;
+          lastMessageCount[ticketId] = (lastMessageCount[ticketId] || 0) + messages.length;
+        }
+
+        // Scroll para o final apenas se o usuário estava no final
+        if (shouldScroll || !isAutoRefresh) {
+          setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+          }, 0);
         }
       } catch (error) {
         // Erro ao carregar mensagens
+      } finally {
+        isLoadingMessages = false;
       }
     }
 
@@ -1419,7 +1575,7 @@
         if (response.ok) {
           input.value = '';
           // Atualiza imediatamente as mensagens após enviar
-          await loadMessages(currentTicket.id, false);
+          await loadMessages(currentTicket.id, true);
           await loadTickets();
         } else {
           const error = await response.json();
@@ -1449,28 +1605,30 @@
       // Se for vendedor e vai marcar como resolvido, pede confirmação via modal
       if (status === 'resolvido' && previousStatus !== 'resolvido') {
         pendingStatus = status;
-        document.getElementById('confirmModal').classList.add('active');
         // Volta o select ao status anterior enquanto aguarda confirmação
         document.getElementById('statusSelect').value = previousStatus;
+        updateCustomSelect('statusSelect');
+
+        openConfirmModal({
+          header: '⚠️ Marcar como Resolvido?',
+          message: 'Tem certeza que deseja marcar esta conversa como resolvida?<br><br><strong>Ela desaparecerá imediatamente da sua lista de atendimento.</strong>',
+          confirmText: 'Sim, Resolver',
+          cancelText: 'Cancelar',
+          onConfirm: async () => {
+            if (pendingStatus) {
+              await applyStatusChange(pendingStatus);
+              pendingStatus = null;
+            }
+          },
+          onCancel: () => {
+            pendingStatus = null;
+          }
+        });
         return;
       }
 
       // Se mudou de outro status (não para resolvido), aplica direto
       await applyStatusChange(status);
-    }
-
-    function cancelResolveTicket() {
-      pendingStatus = null;
-      document.getElementById('confirmModal').classList.remove('active');
-      // Já volta o select automaticamente
-    }
-
-    async function confirmResolveTicket() {
-      document.getElementById('confirmModal').classList.remove('active');
-      if (pendingStatus) {
-        await applyStatusChange(pendingStatus);
-        pendingStatus = null;
-      }
     }
 
     // Funções para lightbox de imagens
@@ -1562,7 +1720,7 @@
       
       // Atualiza mensagens a cada 500ms quando há ticket selecionado
       setInterval(() => {
-        if (currentTicket) {
+        if (currentTicket && hasLoadedMessages[currentTicket.id]) {
           loadMessages(currentTicket.id, true); // isAutoRefresh = true
         }
       }, 500);
@@ -1587,6 +1745,63 @@
         toast.classList.add('hiding');
         setTimeout(() => toast.remove(), 300);
       }, 4000);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function openConfirmModal({ header, message, confirmText = 'Confirmar', cancelText = 'Cancelar', onConfirm, onCancel }) {
+      const modal = document.getElementById('confirmModal');
+      const headerEl = document.getElementById('confirmModalHeader');
+      const messageEl = document.getElementById('confirmModalMessage');
+      const confirmBtn = document.getElementById('confirmModalConfirm');
+      const cancelBtn = document.getElementById('confirmModalCancel');
+
+      headerEl.textContent = header;
+      messageEl.innerHTML = message;
+      confirmBtn.textContent = confirmText;
+      cancelBtn.textContent = cancelText;
+
+      const cleanup = () => {
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+      };
+
+      confirmBtn.onclick = () => {
+        modal.classList.remove('active');
+        cleanup();
+        if (onConfirm) onConfirm();
+      };
+
+      cancelBtn.onclick = () => {
+        modal.classList.remove('active');
+        cleanup();
+        if (onCancel) onCancel();
+      };
+
+      modal.classList.add('active');
+    }
+
+    function confirmWithModal(options) {
+      return new Promise((resolve) => {
+        openConfirmModal({
+          ...options,
+          onConfirm: () => {
+            options.onConfirm && options.onConfirm();
+            resolve(true);
+          },
+          onCancel: () => {
+            options.onCancel && options.onCancel();
+            resolve(false);
+          }
+        });
+      });
     }
 
     // Inicializar selects customizados

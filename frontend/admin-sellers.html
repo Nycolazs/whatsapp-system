@@ -113,6 +113,23 @@
       background: #ff5252;
     }
 
+    .whatsapp-logout-btn {
+      width: 100%;
+      padding: 10px;
+      background: #ffb020;
+      color: #111;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .whatsapp-logout-btn:hover {
+      background: #f59e0b;
+    }
+
     /* Main Content */
     .main-content {
       flex: 1;
@@ -328,6 +345,311 @@
       cursor: pointer;
     }
 
+    /* Business Hours */
+    .hours-container {
+      display: none;
+    }
+
+    .hours-container.active {
+      display: block;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .panel h3 {
+      font-size: 16px;
+      margin-bottom: 15px;
+      color: #111;
+    }
+
+    .hours-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .hours-row {
+      display: grid;
+      grid-template-columns: 1fr 120px 120px 120px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .hours-row label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #111;
+    }
+
+    .hours-row input[type="time"] {
+      padding: 8px 10px;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .hours-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .btn-save-hours {
+      padding: 10px 16px;
+      background: #00a884;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .btn-save-hours:hover {
+      background: #008f6c;
+    }
+
+    .exceptions-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .exceptions-table th,
+    .exceptions-table td {
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .exceptions-table th {
+      background: #f5f5f5;
+      font-weight: 600;
+    }
+
+    .exception-form {
+      display: grid;
+      grid-template-columns: 180px 1fr 140px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .exception-form input,
+    .exception-form button,
+    .exception-form textarea {
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #d1d7db;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .exception-form button {
+      background: #667eea;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .exception-form button:hover {
+      background: #5568d3;
+    }
+
+    .btn-delete-exception {
+      padding: 6px 12px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .message-textarea {
+      width: 100%;
+      min-height: 90px;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #d1d7db;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    /* Blacklist */
+    .blacklist-container {
+      display: none;
+    }
+
+    .blacklist-container.active {
+      display: block;
+    }
+
+    .blacklist-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .blacklist-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .blacklist-form textarea,
+    .blacklist-form input {
+      padding: 10px 12px;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .blacklist-form textarea {
+      grid-column: 1 / -1;
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .blacklist-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #111;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .blacklist-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .blacklist-table th,
+    .blacklist-table td {
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .btn-danger {
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    /* Toast de Alerta */
+    .custom-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 16px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10000;
+      animation: slideInRight 0.3s ease;
+      max-width: 350px;
+      border-left: 4px solid #00a884;
+    }
+
+    .custom-toast.error {
+      border-left-color: #ff6b6b;
+    }
+
+    .custom-toast.warning {
+      border-left-color: #ffa500;
+    }
+
+    .custom-toast-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .custom-toast-message {
+      flex: 1;
+      font-size: 14px;
+      color: #111;
+    }
+
+    .custom-toast-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #667781;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+
+    .custom-toast.hiding {
+      animation: slideOutRight 0.3s ease;
+    }
+
     /* Modal */
     .modal {
       display: none;
@@ -494,16 +816,27 @@
       </div>
 
       <div class="sidebar-nav">
-        <div class="nav-item active" onclick="showSection('sellers')">
-          👨‍💼 Vendedores
+        <div class="nav-item active" data-section="sellers" onclick="showSection('sellers')">
+          <span>�</span>
+          Usuários
         </div>
-        <div class="nav-item" onclick="showSection('tickets')">
-          📋 Tickets
+        <div class="nav-item" data-section="tickets" onclick="showSection('tickets')">
+          <span>📋</span>
+          Tickets
+        </div>
+        <div class="nav-item" data-section="blacklist" onclick="showSection('blacklist')">
+          <span>🚫</span>
+          Blacklist
+        </div>
+        <div class="nav-item" data-section="hours" onclick="showSection('hours')">
+          <span>🗓️</span>
+          Horários de Funcionamento
         </div>
       </div>
 
       <div class="sidebar-footer">
         <button class="back-btn" onclick="goBackToChats()">← Voltar aos Chats</button>
+        <button class="whatsapp-logout-btn" onclick="disconnectWhatsApp()">Desconectar WhatsApp</button>
         <button class="logout-btn" onclick="logout()">Sair</button>
       </div>
     </div>
@@ -512,7 +845,7 @@
     <div class="main-content">
       <div class="header">
         <h1 id="sectionTitle">Gerenciar Vendedores</h1>
-        <button id="headerBtn" class="btn-new-seller" onclick="openNewSellerModal()">+ Novo Vendedor</button>
+        <button id="headerBtn" class="btn-new-seller" onclick="openNewSellerModal()">+ Novo Usuário</button>
       </div>
 
       <div class="content">
@@ -538,6 +871,77 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Blacklist Section -->
+        <div class="blacklist-container" id="blacklistSection">
+          <div class="blacklist-grid">
+            <div class="panel">
+              <h3>Adicionar número</h3>
+              <form id="blacklistForm" class="blacklist-form" onsubmit="addBlacklist(event)">
+                <input type="text" id="blacklistPhone" placeholder="Ex: 5511999999999@s.whatsapp.net ou 5511999999999" required>
+                <input type="text" id="blacklistReason" placeholder="Motivo (opcional)">
+                <textarea id="blacklistReasonDetails" placeholder="Detalhes adicionais (opcional)"></textarea>
+                <div class="blacklist-actions">
+                  <button class="btn-primary" type="submit">Adicionar</button>
+                  <button class="btn-secondary" type="reset">Limpar</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel">
+              <h3>Lista de números bloqueados</h3>
+              <table class="blacklist-table">
+                <thead>
+                  <tr>
+                    <th>Telefone</th>
+                    <th>Motivo</th>
+                    <th>Adicionado em</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="blacklistTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Business Hours Section -->
+        <div class="hours-container" id="hoursSection">
+          <div class="panel">
+            <h3>Mensagem automática fora do horário</h3>
+            <textarea id="outOfHoursMessage" class="message-textarea" placeholder="Digite a mensagem automática..."></textarea>
+            <div class="hours-actions">
+              <button class="btn-save-hours" onclick="saveOutOfHoursMessage()">Salvar mensagem</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Horários por dia</h3>
+            <div class="hours-grid" id="hoursGrid"></div>
+            <div class="hours-actions">
+              <button class="btn-save-hours" onclick="saveBusinessHours()">Salvar horários</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Datas de exceção (feriados)</h3>
+            <div class="exception-form">
+              <input type="date" id="exceptionDate">
+              <input type="text" id="exceptionReason" placeholder="Motivo (ex: feriado)">
+              <button onclick="addException()">Adicionar</button>
+            </div>
+            <table class="exceptions-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Motivo</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="exceptionsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -545,7 +949,7 @@
   <!-- Modal para criar/editar vendedor -->
   <div class="modal" id="sellerModal">
     <div class="modal-content">
-      <div class="modal-header" id="modalTitle">Novo Vendedor</div>
+      <div class="modal-header" id="modalTitle">Novo Usuário</div>
       
       <form id="sellerForm" onsubmit="saveSeller(event)">
         <div class="form-group">
@@ -566,11 +970,28 @@
     </div>
   </div>
 
+  <!-- Modal de confirmação -->
+  <div class="modal" id="confirmModal">
+    <div class="modal-content">
+      <div class="modal-header" id="confirmTitle">Confirmar ação</div>
+      <p id="confirmMessage" style="margin-bottom: 20px; color: #667781; font-size: 14px;"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-modal btn-cancel" onclick="closeConfirmModal()">Cancelar</button>
+        <button type="button" class="btn-modal btn-save" onclick="confirmModalAction()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API_URL = `http://${window.location.hostname}:3001`;
     let sellers = [];
     let tickets = [];
     let editingId = null;
+    let businessHours = [];
+    let exceptions = [];
+    const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    let blacklist = [];
+    let confirmCallback = null;
 
     // Verificar autenticação via sessão
     async function checkAuth() {
@@ -597,6 +1018,30 @@
       }
     }
 
+    async function disconnectWhatsApp() {
+      openConfirmModal('Desconectar WhatsApp? Isso vai limpar os dados do atendimento.', async () => {
+        try {
+          await fetch(`${API_URL}/whatsapp/logout`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } catch (error) {
+          // Ignora
+        }
+
+        try {
+          await fetch(`${API_URL}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } catch (error) {
+          // Ignora
+        }
+
+        window.location.href = '/whatsapp-qr';
+      });
+    }
+
     async function logout() {
       try {
         await fetch(`${API_URL}/auth/logout`, {
@@ -611,7 +1056,7 @@
 
     function showSection(section) {
       document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
+        item.classList.toggle('active', item.dataset.section === section);
       });
       
       document.querySelectorAll('[id$="Section"]').forEach(div => {
@@ -619,59 +1064,86 @@
       });
 
       if (section === 'sellers') {
-        document.querySelector('.nav-item').classList.add('active');
         document.getElementById('sellersSection').classList.add('active');
-        document.getElementById('sectionTitle').textContent = 'Gerenciar Vendedores';
+        document.getElementById('sectionTitle').textContent = 'Gerenciar Usuários';
         document.getElementById('headerBtn').style.display = 'block';
-        document.getElementById('headerBtn').textContent = '+ Novo Vendedor';
+        document.getElementById('headerBtn').textContent = '+ Novo Usuário';
         document.getElementById('headerBtn').onclick = openNewSellerModal;
-        loadSellers();
+        loadUsers();
       } else if (section === 'tickets') {
-        document.querySelectorAll('.nav-item')[1].classList.add('active');
         document.getElementById('ticketsSection').classList.add('active');
         document.getElementById('sectionTitle').textContent = 'Tickets';
         document.getElementById('headerBtn').style.display = 'none';
         loadTickets();
+      } else if (section === 'blacklist') {
+        document.getElementById('blacklistSection').classList.add('active');
+        document.getElementById('sectionTitle').textContent = 'Blacklist';
+        document.getElementById('headerBtn').style.display = 'none';
+        loadBlacklist();
+      } else if (section === 'hours') {
+        document.getElementById('hoursSection').classList.add('active');
+        document.getElementById('sectionTitle').textContent = 'Horários de Funcionamento';
+        document.getElementById('headerBtn').style.display = 'none';
+        loadBusinessHours();
+        loadExceptions();
+        loadOutOfHoursMessage();
       }
     }
 
-    async function loadSellers() {
+    async function loadUsers() {
       try {
-        const response = await fetch(`${API_URL}/sellers`, {
+        const response = await fetch(`${API_URL}/users`, {
           credentials: 'include'
         });
+        
+        if (!response.ok) {
+          console.error('Erro ao carregar usuários:', response.status);
+          showToast('Erro ao carregar usuários', 'error');
+          return;
+        }
+        
         sellers = await response.json();
-        renderSellers();
+        renderUsers();
       } catch (error) {
-        // Erro ao carregar vendedores
+        console.error('Erro ao carregar usuários:', error);
+        showToast('Erro ao carregar usuários', 'error');
       }
     }
 
-    function renderSellers() {
+    function renderUsers() {
       const container = document.getElementById('sellersList');
       
       if (sellers.length === 0) {
-        container.innerHTML = '<p style="color: #667781; text-align: center;">Nenhum vendedor cadastrado</p>';
+        container.innerHTML = '<p style="color: #667781; text-align: center;">Nenhum usuário cadastrado</p>';
         return;
       }
 
-      container.innerHTML = sellers.map(seller => `
+      container.innerHTML = sellers.map(user => {
+        const type = [];
+        if (user.isAdmin) type.push('👑 Admin');
+        if (user.isSeller) type.push('👨‍💼 Vendedor');
+        const typeText = type.length > 0 ? type.join(' • ') : 'Sem papel';
+        
+        return `
         <div class="seller-card">
           <div class="seller-header">
-            <div class="seller-name">${seller.name}</div>
-            <div class="seller-status ${seller.active ? 'status-active' : 'status-inactive'}">
-              ${seller.active ? 'Ativo' : 'Inativo'}
+            <div class="seller-name">${user.name}</div>
+            <div class="seller-status ${(user.isAdmin || (user.isSeller && user.sellerActive)) ? 'status-active' : 'status-inactive'}">
+              ${typeText}
             </div>
           </div>
           <div class="seller-info">
-            Criado em: ${new Date(seller.created_at).toLocaleDateString('pt-BR')}
+            Criado em: ${new Date(user.created_at).toLocaleDateString('pt-BR')}
           </div>
           <div class="seller-actions">
-            <button class="btn-small btn-edit" onclick="editSeller(${seller.id}, '${seller.name}')">Editar</button>
-            <button class="btn-small btn-delete" onclick="deleteSeller(${seller.id})">Deletar</button>
+            ${!user.isAdmin ? `<button class="btn-small btn-edit" onclick="makeAdminUser('${user.name}')">👑 Fazer Admin</button>` : ''}
+            ${user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="makeSellerAdmin('${user.name}')">👨‍💼 Fazer Vendedor</button>` : ''}
+            ${user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerAdmin('${user.name}')">❌ Remover Vendedor</button>` : ''}
+            ${!user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerOnly(${user.id || 'null'}, '${user.name}')">❌ Remover</button>` : ''}
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     async function loadTickets() {
@@ -712,9 +1184,280 @@
       `).join('');
     }
 
+    async function loadBusinessHours() {
+      try {
+        const response = await fetch(`${API_URL}/business-hours`, {
+          credentials: 'include'
+        });
+        businessHours = await response.json();
+        renderBusinessHours();
+      } catch (error) {
+        // Erro ao carregar horários
+      }
+    }
+
+    function renderBusinessHours() {
+      const grid = document.getElementById('hoursGrid');
+      const ordered = [...businessHours].sort((a, b) => a.day - b.day);
+
+      if (!ordered.length) {
+        grid.innerHTML = '<p style="color: #667781;">Nenhum horário configurado.</p>';
+        return;
+      }
+
+      grid.innerHTML = ordered.map(item => `
+        <div class="hours-row">
+          <div>${DAYS[item.day]}</div>
+          <label>
+            <input type="checkbox" class="hours-enabled" data-day="${item.day}" ${item.enabled ? 'checked' : ''}>
+            Aberto
+          </label>
+          <input type="time" data-day="${item.day}" data-field="open_time" value="${item.open_time || ''}">
+          <input type="time" data-day="${item.day}" data-field="close_time" value="${item.close_time || ''}">
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.hours-enabled').forEach(cb => {
+        const day = cb.dataset.day;
+        const inputs = document.querySelectorAll(`input[data-day="${day}"][data-field]`);
+        inputs.forEach(input => {
+          input.disabled = !cb.checked;
+        });
+        cb.addEventListener('change', () => {
+          inputs.forEach(input => {
+            input.disabled = !cb.checked;
+          });
+        });
+      });
+    }
+
+    async function saveBusinessHours() {
+      try {
+        const hours = DAYS.map((_, day) => {
+          const enabled = document.querySelector(`.hours-enabled[data-day="${day}"]`)?.checked;
+          const open = document.querySelector(`input[data-day="${day}"][data-field="open_time"]`)?.value;
+          const close = document.querySelector(`input[data-day="${day}"][data-field="close_time"]`)?.value;
+          return {
+            day,
+            enabled: !!enabled,
+            open_time: open || null,
+            close_time: close || null
+          };
+        });
+
+        const response = await fetch(`${API_URL}/business-hours`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ hours })
+        });
+
+        if (!response.ok) throw new Error('Erro ao salvar horários');
+        showToast('Horários atualizados', 'success');
+        loadBusinessHours();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function loadExceptions() {
+      try {
+        const response = await fetch(`${API_URL}/business-exceptions`, {
+          credentials: 'include'
+        });
+        exceptions = await response.json();
+        renderExceptions();
+      } catch (error) {
+        // Erro ao carregar exceções
+      }
+    }
+
+    async function loadBlacklist() {
+      try {
+        const response = await fetch(`${API_URL}/blacklist`, {
+          credentials: 'include'
+        });
+        blacklist = await response.json();
+        renderBlacklist();
+      } catch (error) {
+        showToast('Erro ao carregar blacklist', 'error');
+      }
+    }
+
+    function renderBlacklist() {
+      const tbody = document.getElementById('blacklistTableBody');
+      if (!Array.isArray(blacklist) || blacklist.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #667781;">Nenhum número bloqueado</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = blacklist.map(item => `
+        <tr>
+          <td>${item.phone}</td>
+          <td>${item.reason || '—'}</td>
+          <td>${new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
+          <td><button class="btn-danger" onclick="removeBlacklist('${item.phone}')">Remover</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function addBlacklist(event) {
+      event.preventDefault();
+
+      let phone = document.getElementById('blacklistPhone').value.trim();
+      const reason = document.getElementById('blacklistReason').value.trim();
+      const details = document.getElementById('blacklistReasonDetails').value.trim();
+      const fullReason = [reason, details].filter(Boolean).join(' - ');
+
+      if (!phone.includes('@')) {
+        phone = phone.replace(/\D/g, '') + '@s.whatsapp.net';
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/blacklist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ phone, reason: fullReason })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao adicionar');
+        }
+
+        showToast('Número adicionado com sucesso', 'success');
+        document.getElementById('blacklistForm').reset();
+        loadBlacklist();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function removeBlacklist(phone) {
+      openConfirmModal(`Remover ${phone} da blacklist?`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/blacklist/${encodeURIComponent(phone)}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Erro ao remover');
+          }
+
+          showToast('Número removido com sucesso', 'success');
+          loadBlacklist();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    function formatDateBR(dateStr) {
+      if (!dateStr) return '-';
+      const date = new Date(`${dateStr}T00:00:00`);
+      return date.toLocaleDateString('pt-BR');
+    }
+
+    function renderExceptions() {
+      const tbody = document.getElementById('exceptionsTableBody');
+      if (!exceptions.length) {
+        tbody.innerHTML = '<tr><td colspan="3" style="color: #667781; text-align: center;">Nenhuma exceção cadastrada</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = exceptions.map(ex => `
+        <tr>
+          <td>${formatDateBR(ex.date)}</td>
+          <td>${ex.reason || '-'}</td>
+          <td><button class="btn-delete-exception" onclick="deleteException(${ex.id})">Remover</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function addException() {
+      const date = document.getElementById('exceptionDate').value;
+      const reason = document.getElementById('exceptionReason').value;
+
+      if (!date) {
+        showToast('Informe uma data', 'warning');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/business-exceptions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ date, closed: true, reason })
+        });
+
+        if (!response.ok) throw new Error('Erro ao salvar exceção');
+
+        document.getElementById('exceptionDate').value = '';
+        document.getElementById('exceptionReason').value = '';
+        loadExceptions();
+        showToast('Exceção adicionada', 'success');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function deleteException(id) {
+      openConfirmModal('Remover esta exceção?', async () => {
+        try {
+          const response = await fetch(`${API_URL}/business-exceptions/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao remover exceção');
+          loadExceptions();
+          showToast('Exceção removida', 'success');
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function loadOutOfHoursMessage() {
+      try {
+        const response = await fetch(`${API_URL}/business-message`, {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        document.getElementById('outOfHoursMessage').value = data.message || '';
+      } catch (error) {
+        // Erro ao carregar mensagem
+      }
+    }
+
+    async function saveOutOfHoursMessage() {
+      const message = document.getElementById('outOfHoursMessage').value.trim();
+      if (!message) {
+        showToast('Digite uma mensagem', 'warning');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/business-message`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ message })
+        });
+
+        if (!response.ok) throw new Error('Erro ao salvar mensagem');
+        showToast('Mensagem atualizada', 'success');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
     function openNewSellerModal() {
       editingId = null;
-      document.getElementById('modalTitle').textContent = 'Novo Vendedor';
+      document.getElementById('modalTitle').textContent = 'Novo Usuário';
       document.getElementById('sellerName').value = '';
       document.getElementById('sellerPassword').value = '';
       document.getElementById('sellerPassword').required = true;
@@ -733,6 +1476,24 @@
 
     function closeSellerModal() {
       document.getElementById('sellerModal').classList.remove('active');
+    }
+
+    function openConfirmModal(message, onConfirm) {
+      document.getElementById('confirmMessage').textContent = message;
+      confirmCallback = onConfirm;
+      document.getElementById('confirmModal').classList.add('active');
+    }
+
+    function closeConfirmModal() {
+      confirmCallback = null;
+      document.getElementById('confirmModal').classList.remove('active');
+    }
+
+    function confirmModalAction() {
+      if (typeof confirmCallback === 'function') {
+        confirmCallback();
+      }
+      closeConfirmModal();
     }
 
     async function saveSeller(event) {
@@ -754,10 +1515,10 @@
           });
 
           if (!response.ok) throw new Error('Erro ao atualizar');
-          alert('Vendedor atualizado com sucesso');
+          showToast('Vendedor atualizado com sucesso', 'success');
         } else {
           if (!password) {
-            alert('Senha é obrigatória para novo vendedor');
+            showToast('Senha é obrigatória para Novo Usuário', 'warning');
             return;
           }
 
@@ -772,31 +1533,144 @@
             const error = await response.json();
             throw new Error(error.error || 'Erro ao criar');
           }
-          alert('Vendedor criado com sucesso');
+          showToast('Vendedor criado com sucesso', 'success');
         }
 
         closeSellerModal();
-        loadSellers();
+        loadUsers();
       } catch (error) {
-        alert(error.message);
+        showToast(error.message, 'error');
       }
     }
 
-    async function deleteSeller(id) {
-      if (!confirm('Tem certeza que deseja deletar este vendedor?')) return;
+    async function deleteSeller(id, name) {
+      openConfirmModal(`Tem certeza que deseja deletar este vendedor?`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/sellers/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
 
-      try {
-        const response = await fetch(`${API_URL}/sellers/${id}`, {
-          method: 'DELETE',
-          credentials: 'include'
-        });
+          if (!response.ok) throw new Error('Erro ao deletar');
+          showToast('Vendedor deletado com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
 
-        if (!response.ok) throw new Error('Erro ao deletar');
-        alert('Vendedor deletado com sucesso');
-        loadSellers();
-      } catch (error) {
-        alert(error.message);
-      }
+    async function makeAdminSeller(id, name) {
+      openConfirmModal(`Tornar ${name} admin? Ele terá acesso total ao sistema.`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/sellers/${id}/make-admin`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao tornar admin');
+          showToast('Admin criado com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function removeAdminSeller(id, name) {
+      openConfirmModal(`Remover status de admin de ${name}? Ele continuará como vendedor.`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/sellers/${id}/remove-admin`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao remover admin');
+          showToast('Admin removido com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function makeAdminUser(name) {
+      openConfirmModal(`Tornar ${name} admin? Ele terá acesso total ao sistema.`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/sellers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name, password: Math.random().toString(36).slice(2) })
+          });
+
+          if (!response.ok) throw new Error('Erro ao criar vendedor');
+          
+          const seller = await response.json();
+          
+          const response2 = await fetch(`${API_URL}/sellers/${seller.id}/make-admin`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response2.ok) throw new Error('Erro ao tornar admin');
+          showToast('Admin criado com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function makeSellerAdmin(name) {
+      openConfirmModal(`Fazer ${name} também ser vendedor?`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/users/${name}/make-seller`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao tornar vendedor');
+          showToast('Vendedor adicionado com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function removeSellerAdmin(name) {
+      openConfirmModal(`Remover ${name} de vendedor? Ele continuará como admin.`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/users/${name}/remove-seller`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao remover vendedor');
+          showToast('Vendedor removido com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function removeSellerOnly(id, name) {
+      openConfirmModal(`Deletar vendedor ${name}?`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/users/${id}/remove-seller-only`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (!response.ok) throw new Error('Erro ao deletar');
+          showToast('Vendedor deletado com sucesso', 'success');
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
     }
 
     async function assignTicket(ticketId, sellerId) {
@@ -809,9 +1683,10 @@
         });
 
         if (!response.ok) throw new Error('Erro ao atribuir');
+        showToast('Ticket atribuído com sucesso', 'success');
         loadTickets();
       } catch (error) {
-        alert(error.message);
+        showToast(error.message, 'error');
       }
     }
 
@@ -819,9 +1694,29 @@
       window.location.href = '/agent';
     }
 
+    // Sistema de Toast customizado
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = `custom-toast ${type}`;
+
+      const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '✅';
+      toast.innerHTML = `
+        <div class="custom-toast-icon">${icon}</div>
+        <div class="custom-toast-message">${message}</div>
+        <button class="custom-toast-close" onclick="this.parentElement.remove()">×</button>
+      `;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
     // Inicializar
     checkAuth();
-    loadSellers();
+    showSection('sellers');
   </script>
 </body>
 </html>

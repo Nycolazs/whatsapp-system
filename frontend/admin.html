@@ -1,7 +1,0 @@
-<h1>Admin</h1>
-<div id="tickets"></div>
-<script>
-fetch('http://localhost:3001/tickets')
-.then(r => r.json())
-.then(t => document.getElementById('tickets').innerHTML = JSON.stringify(t, null, 2));
-</script>
