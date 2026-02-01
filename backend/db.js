@@ -87,10 +87,20 @@ CREATE TABLE IF NOT EXISTS users (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 username TEXT,
 password TEXT,
-role TEXT
+role TEXT,
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `).run();
 
+// Migração: adiciona created_at na tabela users se não existir (bancos antigos)
+try {
+  const cols = db.prepare("PRAGMA table_info(users)").all();
+  if (!cols.some(c => c.name === 'created_at')) {
+    db.prepare('ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP').run();
+  }
+} catch (err) {
+  // ignora se já existir
+}
 
 db.prepare(`
 CREATE TABLE IF NOT EXISTS tickets (

@@ -78,24 +78,7 @@
       gap: 10px;
       margin-bottom: 30px;
     }
-
-    .user-type-btn {
-      flex: 1;
-      padding: 12px;
-      border: 2px solid #d1d7db;
-      background: white;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-
-    .user-type-btn.active {
-      border-color: #667eea;
-      background: #667eea;
-      color: white;
-    }
+    /* removed user type selector styles (single unified login) */
 
     .login-button {
       width: 100%;
@@ -171,14 +154,7 @@
       <p>WhatsApp System</p>
     </div>
 
-    <div class="user-type-selector">
-      <button class="user-type-btn active" data-type="seller" onclick="selectUserType('seller')">
-        👨‍💼 Vendedor
-      </button>
-      <button class="user-type-btn" data-type="admin" onclick="selectUserType('admin')">
-        👨‍💻 Admin
-      </button>
-    </div>
+    <!-- user type selection removed: unified login -->
 
     <div id="errorMessage" class="error-message"></div>
 
@@ -210,16 +186,6 @@
 
   <script>
     const API_URL = `http://${window.location.hostname}:3001`;
-    let selectedUserType = 'seller';
-
-    function selectUserType(type) {
-      selectedUserType = type;
-      
-      const buttons = document.querySelectorAll('.user-type-btn');
-      buttons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.type === type);
-      });
-    }
 
     async function handleLogin(event) {
       event.preventDefault();
@@ -238,11 +204,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // Importante para cookies de sessão
-          body: JSON.stringify({
-            username,
-            password,
-            isAdmin: selectedUserType === 'admin'
-          })
+          body: JSON.stringify({ username, password })
         });
 
         const data = await response.json();
@@ -251,12 +213,8 @@
           throw new Error(data.error || 'Erro ao fazer login');
         }
 
-        // Redireciona baseado no tipo de usuário
-        if (data.userType === 'admin') {
-          window.location.href = '/agent';
-        } else {
-          window.location.href = '/agent';
-        }
+        // Redirecionamento será determinado pelo backend/session
+        window.location.href = '/agent';
       } catch (error) {
         errorDiv.textContent = error.message;
         errorDiv.style.display = 'block';

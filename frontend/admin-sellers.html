@@ -817,7 +817,7 @@
 
       <div class="sidebar-nav">
         <div class="nav-item active" data-section="sellers" onclick="showSection('sellers')">
-          <span>�</span>
+          <span>👨‍💼</span>
           Usuários
         </div>
         <div class="nav-item" data-section="tickets" onclick="showSection('tickets')">
@@ -1097,8 +1097,17 @@
         });
         
         if (!response.ok) {
-          console.error('Erro ao carregar usuários:', response.status);
-          showToast('Erro ao carregar usuários', 'error');
+          let msg = 'Erro ao carregar usuários';
+          if (response.status === 401) msg = 'Sessão expirada. Faça login novamente.';
+          else if (response.status === 403) msg = 'Acesso negado. Apenas administradores.';
+          else {
+            try {
+              const err = await response.json();
+              if (err && err.error) msg = err.error;
+            } catch (_) {}
+          }
+          console.error('Erro ao carregar usuários:', response.status, msg);
+          showToast(msg, 'error');
           return;
         }
         
@@ -1106,8 +1115,19 @@
         renderUsers();
       } catch (error) {
         console.error('Erro ao carregar usuários:', error);
-        showToast('Erro ao carregar usuários', 'error');
+        showToast('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
       }
+    }
+
+    function formatCreatedAt(value) {
+      if (value == null || value === '') return '—';
+      const str = String(value).trim();
+      if (!str) return '—';
+      const normalized = str.replace(' ', 'T').replace(/\.\d{3}Z?$/i, '');
+      let d = new Date(normalized);
+      if (isNaN(d.getTime())) d = new Date(str);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
 
     function renderUsers() {
@@ -1133,13 +1153,15 @@
             </div>
           </div>
           <div class="seller-info">
-            Criado em: ${new Date(user.created_at).toLocaleDateString('pt-BR')}
+            Criado em: ${formatCreatedAt(user.created_at)}
           </div>
           <div class="seller-actions">
-            ${!user.isAdmin ? `<button class="btn-small btn-edit" onclick="makeAdminUser('${user.name}')">👑 Fazer Admin</button>` : ''}
-            ${user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="makeSellerAdmin('${user.name}')">👨‍💼 Fazer Vendedor</button>` : ''}
-            ${user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerAdmin('${user.name}')">❌ Remover Vendedor</button>` : ''}
-            ${!user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerOnly(${user.id || 'null'}, '${user.name}')">❌ Remover</button>` : ''}
+            ${!user.isAdmin && user.isSeller ? `<button class="btn-small btn-edit" onclick="makeAdminSeller('${user.id}', '${(user.name || '').replace(/'/g, "\\'")}')">👑 Fazer Admin</button>` : ''}
+            ${!user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="makeAdminUser('${(user.name || '').replace(/'/g, "\\'")}')">👑 Fazer Admin</button>` : ''}
+            ${user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="revertToSeller('${(user.name || '').replace(/'/g, "\\'")}')">👨‍💼 Tornar apenas vendedor</button>` : ''}
+            ${user.isAdmin && user.isSeller ? `<button class="btn-small btn-edit" onclick="revertToSeller('${(user.name || '').replace(/'/g, "\\'")}')">👨‍💼 Tornar apenas vendedor</button>` : ''}
+            ${user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerAdmin('${(user.name || '').replace(/'/g, "\\'")}')">❌ Remover Vendedor</button>` : ''}
+            ${!user.isAdmin && user.isSeller ? `<button class="btn-small btn-delete" onclick="removeSellerOnly('${user.id || ''}', '${(user.name || '').replace(/'/g, "\\'")}')">❌ Remover</button>` : ''}
           </div>
         </div>
       `;
@@ -1561,15 +1583,19 @@
     }
 
     async function makeAdminSeller(id, name) {
-      openConfirmModal(`Tornar ${name} admin? Ele terá acesso total ao sistema.`, async () => {
+      const numId = (typeof id === 'string' && id.startsWith('seller_')) ? id.replace('seller_', '') : id;
+      openConfirmModal(`Tornar ${name} admin? Ele deixará de ser vendedor e poderá acessar a tela de administração.`, async () => {
         try {
-          const response = await fetch(`${API_URL}/sellers/${id}/make-admin`, {
+          const response = await fetch(`${API_URL}/sellers/${numId}/make-admin`, {
             method: 'POST',
             credentials: 'include'
           });
 
-          if (!response.ok) throw new Error('Erro ao tornar admin');
-          showToast('Admin criado com sucesso', 'success');
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erro ao tornar admin');
+          }
+          showToast('Vendedor promovido a admin com sucesso', 'success');
           loadUsers();
         } catch (error) {
           showToast(error.message, 'error');
@@ -1642,7 +1668,7 @@
     async function removeSellerAdmin(name) {
       openConfirmModal(`Remover ${name} de vendedor? Ele continuará como admin.`, async () => {
         try {
-          const response = await fetch(`${API_URL}/users/${name}/remove-seller`, {
+          const response = await fetch(`${API_URL}/users/${encodeURIComponent(name)}/remove-seller`, {
             method: 'POST',
             credentials: 'include'
           });
@@ -1656,15 +1682,46 @@
       });
     }
 
-    async function removeSellerOnly(id, name) {
-      openConfirmModal(`Deletar vendedor ${name}?`, async () => {
+    async function revertToSeller(name) {
+      const displayName = (name || '').trim();
+      openConfirmModal(`Tornar ${displayName} apenas vendedor? Ele deixará de ser admin e só poderá acessar a tela de vendedor.`, async () => {
         try {
-          const response = await fetch(`${API_URL}/users/${id}/remove-seller-only`, {
+          const response = await fetch(`${API_URL}/users/${encodeURIComponent(String(name))}/revert-to-seller`, {
             method: 'POST',
             credentials: 'include'
           });
 
-          if (!response.ok) throw new Error('Erro ao deletar');
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(data.error || 'Erro ao reverter para vendedor');
+          }
+          showToast(data.message || 'Usuário agora é apenas vendedor', 'success');
+          if (data.sessionDestroyed) {
+            window.location.href = '/login';
+            return;
+          }
+          loadUsers();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+    }
+
+    async function removeSellerOnly(id, name) {
+      const numId = (typeof id === 'string' && id.startsWith('seller_')) ? id.replace('seller_', '') : id;
+      if (!numId) {
+        showToast('ID do vendedor inválido', 'error');
+        return;
+      }
+      openConfirmModal(`Deletar vendedor ${name}? Esta ação não pode ser desfeita.`, async () => {
+        try {
+          const response = await fetch(`${API_URL}/users/${numId}/remove-seller-only`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || 'Erro ao deletar vendedor');
           showToast('Vendedor deletado com sucesso', 'success');
           loadUsers();
         } catch (error) {
