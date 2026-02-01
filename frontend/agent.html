@@ -201,6 +201,11 @@
       color: #856404;
     }
 
+    .status-aguardando {
+      background: #fff0e0;
+      color: #7a4b00;
+    }
+
     .status-em_atendimento {
       background: #d1ecf1;
       color: #0c5460;
@@ -843,7 +848,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/frontend/ui.css">
 </head>
 <body>
   <div class="container">
@@ -896,6 +901,7 @@
             </div>
             <select id="statusSelect" onchange="updateTicketStatus()">
               <option value="pendente">Pendente</option>
+              <option value="aguardando">Aguardando</option>
               <option value="em_atendimento">Em Atendimento</option>
               <option value="resolvido">Resolvido</option>
             </select>
@@ -1004,7 +1010,8 @@
       try {
         const endpoint = userType === 'admin' ? `${API_URL}/sellers` : `${API_URL}/sellers/active`;
         const response = await fetch(endpoint, {
-          credentials: 'include'
+          credentials: 'include',
+          cache: 'no-store'
         });
 
         if (!response.ok) {
@@ -1109,7 +1116,8 @@
           div.onclick = () => selectTicket(ticket);
 
           const statusClass = `status-${ticket.status}`;
-          const statusLabel = ticket.status === 'pendente' ? 'Pendente' : 
+          const statusLabel = ticket.status === 'pendente' ? 'Pendente' :
+                             ticket.status === 'aguardando' ? 'Aguardando' :
                              ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
 
           // Placeholder avatar (will be replaced when loaded)
@@ -1157,10 +1165,49 @@
             }
           })();
         }
+        // expose latest tickets and refresh header selects if a ticket is open
+        window.latestTickets = tickets;
+        if (currentTicket) {
+          const refreshed = tickets.find(t => t.id === currentTicket.id);
+          if (refreshed) {
+            currentTicket = refreshed;
+            // update header selects/status
+            try { updateHeaderFromTicket(currentTicket); } catch (e) {}
+          }
+        }
       } catch (error) {
         // Erro ao carregar tickets
       } finally {
         isLoadingTickets = false;
+      }
+    }
+
+    // Atualiza selects no header (vendedor e status) com base no currentTicket
+    function updateHeaderFromTicket(ticket) {
+      if (!ticket) return;
+      const statusSelectEl = document.getElementById('statusSelect');
+      if (statusSelectEl) {
+        statusSelectEl.value = ticket.status;
+        const pendOpt = statusSelectEl.querySelector('option[value="pendente"]');
+        if (pendOpt) pendOpt.disabled = ticket.status !== 'pendente';
+        updateCustomSelect('statusSelect');
+      }
+
+      const sellerSelect = document.getElementById('sellerSelect');
+      if (sellerSelect) {
+        // repopula opções para admin
+        if (userType === 'admin') {
+          sellerSelect.innerHTML = '<option value="">Não atribuído</option>';
+          sellers.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            opt.selected = ticket.seller_id === s.id;
+            sellerSelect.appendChild(opt);
+          });
+        }
+        if (ticket.seller_id) sellerSelect.value = String(ticket.seller_id); else sellerSelect.value = '';
+        updateCustomSelect('sellerSelect');
       }
     }
 
@@ -1241,7 +1288,30 @@
         document.getElementById('currentStatus').textContent = '';
       }
       
-      document.getElementById('statusSelect').value = ticket.status;
+      const statusSelectEl = document.getElementById('statusSelect');
+      statusSelectEl.value = ticket.status;
+
+      // Não permitir voltar para 'pendente' via UI: desativa/oculta a opção quando o ticket não está em pendente
+      const pendOpt = statusSelectEl.querySelector('option[value="pendente"]');
+      if (pendOpt) pendOpt.disabled = ticket.status !== 'pendente';
+
+      // Atualiza também o custom-select visual (se existir)
+      const wrapper = document.querySelector('[data-select-id="statusSelect"]');
+      if (wrapper) {
+        const optionDivs = wrapper.querySelectorAll('.custom-select-option');
+        optionDivs.forEach(div => {
+          if (div.dataset.value === 'pendente') {
+            div.style.display = ticket.status !== 'pendente' ? 'none' : '';
+            if (ticket.status === 'pendente') div.classList.add('selected'); else div.classList.remove('selected');
+          }
+        });
+        const trigger = wrapper.querySelector('.custom-select-trigger');
+        if (trigger) {
+          const selectedText = statusSelectEl.options[statusSelectEl.selectedIndex]?.text || '';
+          trigger.textContent = selectedText;
+        }
+      }
+      updateCustomSelect('statusSelect');
       
       // Se for admin ou vendedor, mostra o select de vendedor
       if (userType === 'admin' || userType === 'seller') {
@@ -1268,20 +1338,31 @@
           } else {
             sellerSelect.innerHTML = '<option value="">Selecionar vendedor</option>';
             const currentUserId = parseInt(userId, 10);
-            sellers
-              .filter(s => s.id !== currentUserId)
-              .forEach(s => {
-                const option = document.createElement('option');
-                option.value = s.id;
-                option.textContent = s.name;
-                sellerSelect.appendChild(option);
-              });
+            // Inclui todos os sellers (incluindo o próprio usuário) para que
+            // o dropdown mostre corretamente o vendedor atribuído, mesmo
+            // quando for o próprio usuário.
+            sellers.forEach(s => {
+              const option = document.createElement('option');
+              option.value = s.id;
+              option.textContent = s.name;
+              option.selected = ticket.seller_id === s.id;
+              sellerSelect.appendChild(option);
+            });
+            // se o ticket estiver atribuído ao próprio vendedor, garante que apareça selecionado
+            if (ticket.seller_id && String(ticket.seller_id) === String(currentUserId)) {
+              sellerSelect.value = String(currentUserId);
+            }
           }
         }
       }
       
       // Inicializa os selects customizados
-      setTimeout(() => initCustomSelects(), 100);
+      setTimeout(() => {
+        initCustomSelects();
+        // Atualiza visualmente os selects após criação do custom-select
+        try { updateCustomSelect('sellerSelect'); } catch (e) {}
+        try { updateCustomSelect('statusSelect'); } catch (e) {}
+      }, 100);
       
       // Carrega foto de perfil no cabeçalho
       const avatarHtml = await getProfilePictureHtml(ticket.phone, 'chat');
@@ -1592,6 +1673,7 @@
           // Atualiza imediatamente as mensagens após enviar
           await loadMessages(currentTicket.id, true);
           await loadTickets();
+          try { updateHeaderFromTicket(currentTicket); } catch (e) {}
         } else {
           const error = await response.json();
           showToast(error.error || 'Erro ao enviar mensagem', 'error');
@@ -1611,13 +1693,7 @@
       const status = document.getElementById('statusSelect').value;
       const previousStatus = currentTicket.status;
 
-      // Se for admin, aplica direto sem confirmação
-      if (userType === 'admin') {
-        await applyStatusChange(status);
-        return;
-      }
-
-      // Se for vendedor e vai marcar como resolvido, pede confirmação via modal
+      // Se vai marcar como resolvido, pede confirmação (tanto para admin quanto vendedor)
       if (status === 'resolvido' && previousStatus !== 'resolvido') {
         pendingStatus = status;
         // Volta o select ao status anterior enquanto aguarda confirmação
@@ -1642,7 +1718,31 @@
         return;
       }
 
-      // Se mudou de outro status (não para resolvido), aplica direto
+      // Se for vendedor e vai marcar como 'aguardando', pede confirmação via modal
+      if (status === 'aguardando' && previousStatus !== 'aguardando') {
+        pendingStatus = status;
+        document.getElementById('statusSelect').value = previousStatus;
+        updateCustomSelect('statusSelect');
+
+        openConfirmModal({
+          header: '⚠️ Marcar como Aguardando?',
+          message: 'Tem certeza que deseja marcar esta conversa como <strong>Aguardando</strong>?\n\nEla ficará visível para todos os vendedores e será removida da atribuição atual.',
+          confirmText: 'Sim, Aguardar',
+          cancelText: 'Cancelar',
+          onConfirm: async () => {
+            if (pendingStatus) {
+              await applyStatusChange(pendingStatus);
+              pendingStatus = null;
+            }
+          },
+          onCancel: () => {
+            pendingStatus = null;
+          }
+        });
+        return;
+      }
+
+      // Se mudou de outro status (não para resolvido/aguardando), aplica direto
       await applyStatusChange(status);
     }
 
@@ -1699,7 +1799,17 @@
               emptyState.innerHTML = originalContent;
             }, 2000);
           }
-          
+          // Se marcou como aguardando, limpa atribuição localmente
+          if (status === 'aguardando') {
+            currentTicket.seller_id = null;
+            currentTicket.seller_name = null;
+            // Atualiza o sellerSelect para 'Não atribuído' quando existir
+            const sellerSelect = document.getElementById('sellerSelect');
+            if (sellerSelect) {
+              sellerSelect.value = '';
+              updateCustomSelect('sellerSelect');
+            }
+          }
           await loadTickets();
         }
       } catch (error) {
@@ -1726,6 +1836,13 @@
       await checkAuth(); // Verifica autenticação primeiro e aguarda
       checkConnectionStatus(); // Verifica conexão ao carregar
       loadTickets(); // Agora userType já está definido
+
+      // Garante que mudanças no select de status sempre acionem a função
+      const statusSelect = document.getElementById('statusSelect');
+      if (statusSelect) {
+        statusSelect.removeEventListener('change', updateTicketStatus);
+        statusSelect.addEventListener('change', updateTicketStatus);
+      }
       
       // Adaptive polling: use timeouts so we can vary the delay when tab not focused
       const POLL_TICKETS_ACTIVE = 1200; // ms when focused
@@ -1872,6 +1989,10 @@
       optionsContainer.className = 'custom-select-options';
       
       Array.from(selectElement.options).forEach((option, index) => {
+        // Se for o select de status e o ticket atual não estiver em 'pendente', não adiciona a opção 'pendente'
+        if (id === 'statusSelect' && option.value === 'pendente' && typeof currentTicket !== 'undefined' && currentTicket && currentTicket.status !== 'pendente') {
+          return;
+        }
         const optionDiv = document.createElement('div');
         optionDiv.className = 'custom-select-option';
         if (option.selected) optionDiv.classList.add('selected');
@@ -1930,10 +2051,11 @@
       if (selectElement && wrapper) {
         const trigger = wrapper.querySelector('.custom-select-trigger');
         trigger.textContent = selectElement.options[selectElement.selectedIndex].text;
-        
+
         const optionsContainer = wrapper.querySelector('.custom-select-options');
-        optionsContainer.querySelectorAll('.custom-select-option').forEach((optionDiv, index) => {
-          if (index === selectElement.selectedIndex) {
+        optionsContainer.querySelectorAll('.custom-select-option').forEach((optionDiv) => {
+          const optIndex = parseInt(optionDiv.dataset.index, 10);
+          if (!Number.isNaN(optIndex) && optIndex === selectElement.selectedIndex) {
             optionDiv.classList.add('selected');
           } else {
             optionDiv.classList.remove('selected');
@@ -1942,6 +2064,6 @@
       }
     }
   </script>
-  <script src="ui.js"></script>
+  <script src="/frontend/ui.js"></script>
 </body>
 </html>

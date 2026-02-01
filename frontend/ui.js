@@ -57,6 +57,29 @@
   // Expose globally
   window.showNotification = showNotification;
   window.navigateTo = navigateTo;
+  window.ensureConnected = async function ensureConnected() {
+    try {
+      const qrResponse = await fetch('/whatsapp/qr', { cache: 'no-store' });
+      const qrData = await qrResponse.json();
+      if (!qrData.connected) {
+        if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
+        return false;
+      }
+
+      const adminResponse = await fetch('/auth/has-admin', { cache: 'no-store' });
+      const adminData = await adminResponse.json();
+      if (!adminData.hasAdmin) {
+        if (typeof navigateTo === 'function') navigateTo('/setup-admin'); else window.location.href = '/setup-admin';
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      // fallback: redirect to QR if we can't confirm status
+      if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
+      return false;
+    }
+  };
   // Backwards compatibility: many pages use showToast(type: 'success'|'error'|'warning')
   window.showToast = function (message, type = 'success', duration) {
     const mapped = type === 'success' ? 'info' : type;

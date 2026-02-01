@@ -315,6 +315,16 @@ try {
   // Ignora erros de seed
 }
 
+// Seed inicial: configuração de tempo para mover automaticamente para 'aguardando'
+try {
+  const existingAwait = db.prepare('SELECT value FROM settings WHERE key = ?').get('await_minutes');
+  if (!existingAwait) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('await_minutes', '0');
+  }
+} catch (err) {
+  // Ignora erros de seed
+}
+
 function clearOperationalData() {
   try {
     db.exec(`

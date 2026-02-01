@@ -91,7 +91,7 @@
       margin-bottom: 12px;
     }
   </style>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/frontend/ui.css">
 </head>
 <body>
   <div class="card">
@@ -116,33 +116,8 @@
   </div>
 
   <script>
-    async function ensureConnected() {
-      try {
-        const waResponse = await fetch('/whatsapp/qr', { cache: 'no-store' });
-        const waData = await waResponse.json();
-        if (!waData.connected) {
-          if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
-          return false;
-        }
-
-        const response = await fetch('/auth/has-admin');
-        const data = await response.json();
-        if (data.hasAdmin) {
-          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
-          return false;
-        }
-        return true;
-      } catch (error) {
-        if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
-        return false;
-      }
-    }
-
     async function handleSetup(event) {
       event.preventDefault();
-
-      const ok = await ensureConnected();
-      if (!ok) return;
 
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
@@ -171,9 +146,7 @@
         button.disabled = false;
       }
     }
-
-    ensureConnected();
   </script>
-  <script src="ui.js"></script>
+  <script src="/frontend/ui.js"></script>
 </body>
 </html>

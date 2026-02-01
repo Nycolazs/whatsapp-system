@@ -146,7 +146,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/frontend/ui.css">
 </head>
 <body>
   <div class="login-container">
@@ -185,7 +185,7 @@
 
   </div>
 
-  <script src="ui.js"></script>
+  <script src="/frontend/ui.js"></script>
   <script>
     const API_URL = `http://${window.location.hostname}:3001`;
 
@@ -230,10 +230,11 @@
     }
 
     // Verifica conexão ao abrir a tela
-    ensureConnected();
-
-    // Auto-focus no username
-    document.getElementById('username').focus();
+    (async () => {
+      const result = await ensureConnected();
+      if (!result) return;
+      document.getElementById('username').focus();
+    })();
   </script>
 </body>
 </html>

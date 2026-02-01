@@ -162,7 +162,8 @@
     .sellers-container,
     .tickets-container,
     .blacklist-container,
-    .hours-container {
+    .hours-container,
+    .await-container {
       opacity: 0;
       max-height: 0;
       overflow: hidden;
@@ -174,7 +175,8 @@
     .sellers-container.active,
     .tickets-container.active,
     .blacklist-container.active,
-    .hours-container.active {
+    .hours-container.active,
+    .await-container.active {
       opacity: 1;
       max-height: 2000px; /* large enough to show content */
       transform: none;
@@ -349,6 +351,10 @@
     .status-resolvido {
       background: #d4edda;
       color: #155724;
+    }
+    .status-aguardando {
+      background: #fff0e0;
+      color: #7a4b00;
     }
 
     .assign-select {
@@ -819,7 +825,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/frontend/ui.css">
 </head>
 <body>
   <div class="container">
@@ -835,6 +841,8 @@
           <span>👨‍💼</span>
           Usuários
         </div>
+
+        
         <div class="nav-item" data-section="tickets" onclick="showSection('tickets')">
           <span>📋</span>
           Tickets
@@ -846,6 +854,10 @@
         <div class="nav-item" data-section="hours" onclick="showSection('hours')">
           <span>🗓️</span>
           Horários de Funcionamento
+        </div>
+        <div class="nav-item" data-section="await" onclick="showSection('await')">
+          <span>⏳</span>
+          Aguardando automático
         </div>
       </div>
 
@@ -937,6 +949,7 @@
               <button class="btn-save-hours" onclick="saveBusinessHours()">Salvar horários</button>
             </div>
           </div>
+          
 
           <div class="panel">
             <h3>Datas de exceção (feriados)</h3>
@@ -955,6 +968,21 @@
               </thead>
               <tbody id="exceptionsTableBody"></tbody>
             </table>
+          </div>
+        </div>
+        
+        <!-- Await Configuration Section -->
+        <div class="await-container" id="awaitSection">
+          <div class="panel">
+            <h3>Configuração: Aguardando automático</h3>
+            <p style="color: #667781; font-size: 13px; margin-bottom: 8px;">Defina quantos minutos de inatividade em "Em Atendimento" fazem o ticket passar automaticamente para "Aguardando".</p>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input type="number" id="awaitMinutes" min="0" style="width: 120px; padding: 8px; border: 1px solid #d1d7db; border-radius: 6px;" />
+              <div style="flex: 1; color: #667781; font-size: 13px;">Minutos (0 para desativar)</div>
+            </div>
+            <div class="hours-actions" style="margin-top: 12px;">
+              <button class="btn-save-hours" onclick="saveAwaitConfig()">Salvar configuração</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1104,6 +1132,11 @@
           loadBusinessHours();
           loadExceptions();
           loadOutOfHoursMessage();
+        } else if (section === 'await') {
+          document.getElementById('awaitSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Aguardando automático';
+          document.getElementById('headerBtn').style.display = 'none';
+          loadAwaitConfig();
         }
 
         // reveal new active
@@ -1553,6 +1586,48 @@
       }
     }
 
+    // Configuração: Aguardando automático (mover de 'Em Atendimento' -> 'Aguardando')
+    async function loadAwaitConfig() {
+      try {
+        const response = await fetch(`${API_URL}/admin/await-config`, {
+          credentials: 'include'
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const minutes = (data && typeof data.minutes === 'number') ? data.minutes : 0;
+        document.getElementById('awaitMinutes').value = minutes;
+      } catch (error) {
+        // falha silenciosa
+      }
+    }
+
+    async function saveAwaitConfig() {
+      const raw = document.getElementById('awaitMinutes').value;
+      const minutes = parseInt(raw, 10);
+      if (Number.isNaN(minutes) || minutes < 0) {
+        showToast('Informe um número válido de minutos (0 ou mais)', 'warning');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/admin/await-config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ minutes })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || 'Erro ao salvar configuração');
+        }
+
+        showToast('Configuração salva', 'success');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
     function openNewSellerModal() {
       editingId = null;
       document.getElementById('modalTitle').textContent = 'Novo Usuário';
@@ -1577,9 +1652,36 @@
     }
 
     function openConfirmModal(message, onConfirm) {
-      document.getElementById('confirmMessage').textContent = message;
+      const modal = document.getElementById('confirmModal');
+      const title = document.getElementById('confirmTitle');
+      const messageEl = document.getElementById('confirmMessage');
+      const buttons = modal.querySelectorAll('.modal-actions .btn-modal');
+      const cancelBtn = buttons[0];
+      const confirmBtn = buttons[1];
+
+      title.textContent = 'Confirmar ação';
+      messageEl.textContent = message;
       confirmCallback = onConfirm;
-      document.getElementById('confirmModal').classList.add('active');
+      cancelBtn.style.display = '';
+      cancelBtn.textContent = 'Cancelar';
+      confirmBtn.textContent = 'Confirmar';
+      modal.classList.add('active');
+    }
+
+    function openAlertModal(message, titleText = 'Atenção') {
+      const modal = document.getElementById('confirmModal');
+      const title = document.getElementById('confirmTitle');
+      const messageEl = document.getElementById('confirmMessage');
+      const buttons = modal.querySelectorAll('.modal-actions .btn-modal');
+      const cancelBtn = buttons[0];
+      const confirmBtn = buttons[1];
+
+      title.textContent = titleText;
+      messageEl.textContent = message;
+      confirmCallback = null;
+      cancelBtn.style.display = 'none';
+      confirmBtn.textContent = 'Entendi';
+      modal.classList.add('active');
     }
 
     function closeConfirmModal() {
@@ -1687,7 +1789,14 @@
             credentials: 'include'
           });
 
-          if (!response.ok) throw new Error('Erro ao remover admin');
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            if (response.status === 409) {
+              openAlertModal(data.error || 'Não é permitido remover o último admin do sistema.');
+              return;
+            }
+            throw new Error(data.error || 'Erro ao remover admin');
+          }
           showToast('Admin removido com sucesso', 'success');
           loadUsers();
         } catch (error) {
@@ -1769,6 +1878,10 @@
 
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
+            if (response.status === 409) {
+              openAlertModal(data.error || 'Não é permitido remover o último admin do sistema.');
+              return;
+            }
             throw new Error(data.error || 'Erro ao reverter para vendedor');
           }
           showToast(data.message || 'Usuário agora é apenas vendedor', 'success');
@@ -1851,6 +1964,6 @@
     checkAuth();
     showSection('sellers');
   </script>
-  <script src="ui.js"></script>
+  <script src="/frontend/ui.js"></script>
 </body>
 </html>

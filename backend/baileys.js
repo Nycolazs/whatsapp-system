@@ -43,8 +43,8 @@ function clearOperationalDataFor(state) {
   if (lastClearedState === state) return;
   try {
     if (state === 'disconnected') {
-      // Limpa TUDO quando desconecta
-      db.clearAllData();
+      // Em desconexões transitórias, não apaga usuários/tickets
+      db.clearOperationalData();
       clearMediaFiles();
     } else {
       // Em outros estados, limpa apenas operacional

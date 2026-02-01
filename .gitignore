@@ -9,3 +9,4 @@ db.sqlite
 backend/db.sqlite
 data/db/*
 backend/node_modules/
+backend/whatsapp.db

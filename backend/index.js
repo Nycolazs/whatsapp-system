@@ -62,6 +62,14 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+function getAdminCount() {
+  try {
+    return db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count || 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
 // Middleware para verificar autenticação via sessão
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) {
@@ -239,8 +247,8 @@ app.post('/tickets/:id/send', requireAuth, async (req, res) => {
     const messageWithSender = `*${req.userName}:*\n\n${message}`;
     await sock.sendMessage(jid, { text: messageWithSender });
 
-    // Se o ticket não tem seller_id e o usuário não é admin, atribui ao vendedor que respondeu
-    if (!ticket.seller_id && req.userType === 'seller') {
+    // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
+    if (req.userType === 'seller' && (ticket.status === 'aguardando' || !ticket.seller_id)) {
       db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
     }
 
@@ -265,27 +273,75 @@ app.patch('/tickets/:id/status', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  if (!['pendente', 'em_atendimento', 'resolvido'].includes(status)) {
+  if (!['pendente', 'aguardando', 'em_atendimento', 'resolvido'].includes(status)) {
     return res.status(400).json({ error: 'Status inválido' });
   }
 
   try {
+    // Busca o ticket atual
+    const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket não encontrado' });
+    }
+
+    // Não é permitido voltar um ticket para 'pendente' depois que ele saiu desse estado inicial
+    if (status === 'pendente' && ticket.status !== 'pendente') {
+      return res.status(400).json({ error: 'Não é permitido voltar para pendente' });
+    }
+
     // Se está marcando como resolvido, envia mensagem de encerramento ao cliente
     if (status === 'resolvido') {
-      const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
-      
-      if (ticket) {
+      try {
         const sock = getSocket();
         if (sock) {
           const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
-          await sock.sendMessage(jid, { 
-            text: '✅ Seu atendimento foi encerrado. Obrigado por entrar em contato! Se precisar de ajuda novamente, é só enviar uma mensagem.' 
+          await sock.sendMessage(jid, {
+            text: '✅ Seu atendimento foi encerrado. Obrigado por entrar em contato! Se precisar de ajuda novamente, é só enviar uma mensagem.'
           });
         }
+      } catch (e) {
+        // ignora erro de envio
       }
     }
     
-    db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+    if (status === 'aguardando') {
+      db.prepare('UPDATE tickets SET status = ?, seller_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+    } else if (status === 'em_atendimento') {
+      // Quando alguém marca como 'em_atendimento', atribui ao usuário.
+      // - Se for seller, usa req.userId
+      // - Se for admin, procura um seller com o mesmo nome e atribui se existir
+      let assignId = null;
+      if (req.userType === 'seller') {
+        assignId = req.userId;
+      } else if (req.userType === 'admin' && req.userName) {
+        let s = db.prepare('SELECT id FROM sellers WHERE name = ?').get(req.userName);
+        if (s && s.id) {
+          assignId = s.id;
+        } else {
+          // cria um seller automaticamente para esse admin e atribui
+          try {
+            const insert = db.prepare('INSERT INTO sellers (name, password, active) VALUES (?, ?, 1)');
+            const randomPass = Math.random().toString(36).slice(2);
+            const info = insert.run(req.userName, randomPass);
+            if (info && info.lastInsertRowid) {
+              assignId = info.lastInsertRowid;
+            }
+          } catch (e) {
+            // se falhar por conflito ou outro motivo, tenta recuperar
+            const fallback = db.prepare('SELECT id FROM sellers WHERE name = ?').get(req.userName);
+            if (fallback && fallback.id) assignId = fallback.id;
+          }
+        }
+      }
+
+      if (assignId) {
+        db.prepare('UPDATE tickets SET status = ?, seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, assignId, id);
+      } else {
+        db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+      }
+    } else {
+      db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+    }
     res.json({ success: true, message: 'Status atualizado' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar status' });
@@ -762,6 +818,11 @@ app.post('/sellers/:id/remove-admin', requireAdmin, (req, res) => {
       return res.status(404).json({ error: 'Vendedor não encontrado' });
     }
 
+    const adminCount = getAdminCount();
+    if (adminCount <= 1) {
+      return res.status(409).json({ error: 'Não é permitido remover o último admin do sistema.' });
+    }
+
     const result = db.prepare("DELETE FROM users WHERE username = ? AND role = 'admin'").run(seller.name);
     
     if (result.changes === 0) {
@@ -836,6 +897,11 @@ app.post('/users/:name/revert-to-seller', requireAdmin, (req, res) => {
     const adminUser = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(name);
     if (!adminUser) {
       return res.status(404).json({ error: 'Admin não encontrado' });
+    }
+
+    const adminCount = getAdminCount();
+    if (adminCount <= 1) {
+      return res.status(409).json({ error: 'Não é permitido remover o último admin do sistema.' });
     }
 
     const existingSeller = db.prepare('SELECT id FROM sellers WHERE name = ?').get(name);
@@ -944,7 +1010,7 @@ app.get('/tickets/seller/:sellerId', requireAuth, (req, res) => {
              (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
       FROM tickets t 
       LEFT JOIN sellers s ON t.seller_id = s.id
-      WHERE (t.seller_id = ? OR t.seller_id IS NULL)
+      WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
         AND t.status != 'resolvido'
         AND t.phone LIKE '55%'
         AND t.phone NOT LIKE '%@%'
@@ -1111,9 +1177,60 @@ app.put('/business-message', requireAdmin, (req, res) => {
   }
 });
 
+// ===== API: configuração do Await (mover de 'em_atendimento' -> 'aguardando') =====
+app.get('/admin/await-config', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('await_minutes');
+    const minutes = row ? parseInt(row.value || '0', 10) : 0;
+    res.json({ minutes: Number.isFinite(minutes) ? minutes : 0 });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao carregar configuração' });
+  }
+});
+
+app.put('/admin/await-config', requireAdmin, (req, res) => {
+  const { minutes } = req.body;
+  const m = parseInt(minutes, 10);
+  if (Number.isNaN(m) || m < 0) {
+    return res.status(400).json({ error: 'Valor inválido para minutes' });
+  }
+
+  try {
+    db.prepare(`
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run('await_minutes', String(m));
+
+    res.json({ success: true, minutes: m });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar configuração' });
+  }
+});
+
 startBot().then(() => {
   // Bot iniciado
 });
+
+// Job periódico: verifica tickets em 'em_atendimento' e move para 'aguardando' se ultrapassar o timeout configurado
+function processAutoAwait() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('await_minutes');
+    const minutes = row ? parseInt(row.value || '0', 10) : 0;
+    if (!minutes || minutes <= 0) return;
+
+    const cutoff = new Date(Date.now() - minutes * 60000).toISOString().replace('T', ' ').slice(0, 19);
+    const result = db.prepare("UPDATE tickets SET status = 'aguardando', seller_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE status = 'em_atendimento' AND updated_at <= ?").run(cutoff);
+    if (result && result.changes > 0) {
+      console.log(`Auto-await: moved ${result.changes} tickets to 'aguardando' (timeout ${minutes} min)`);
+    }
+  } catch (err) {
+    console.error('Error processing auto-await:', err);
+  }
+}
+
+// Roda a cada 60 segundos
+setInterval(processAutoAwait, 60 * 1000);
 
 const server = app.listen(3001, '0.0.0.0', () => console.log('🚀 Servidor rodando na porta 3001'));
 
