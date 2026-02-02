@@ -10,6 +10,9 @@ const pino = require('pino')
 const db = require('./db')
 const fs = require('fs')
 const path = require('path')
+const accountManager = require('./accountManager');
+
+const fsp = fs.promises
 
 let activeSock = null; // Socket ativo para exportar
 let currentSock = null;
@@ -17,6 +20,26 @@ let latestQr = null;
 let latestQrAt = null;
 let connectionState = 'starting';
 let lastClearedState = null;
+
+let lastConnectedAt = null;
+let lastDisconnectedAt = null;
+let lastDisconnectCode = null;
+let lastDisconnectReason = null;
+
+let startInProgress = false;
+let reconnectTimer = null;
+let consecutiveConflicts = 0;
+const MAX_CONSECUTIVE_CONFLICTS = 1; // Força logout no primeiro conflito
+
+function scheduleReconnect(delayMs = 2000) {
+  try {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+  } catch (e) {}
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    startBot();
+  }, delayMs);
+}
 
 function clearMediaFiles() {
   const mediaDirs = [
@@ -43,9 +66,12 @@ function clearOperationalDataFor(state) {
   if (lastClearedState === state) return;
   try {
     if (state === 'disconnected') {
-      // Em desconexões transitórias, não apaga usuários/tickets
+      // Em desconexões transitórias, não apaga usuários/tickets.
+      // NÃO apaga mídias por padrão (isso degrada muito em produção).
       db.clearOperationalData();
-      clearMediaFiles();
+      if (process.env.CLEAR_MEDIA_ON_DISCONNECT === '1') {
+        clearMediaFiles();
+      }
     } else {
       // Em outros estados, limpa apenas operacional
       db.clearOperationalData();
@@ -54,6 +80,13 @@ function clearOperationalDataFor(state) {
   } catch (err) {
     // Ignora
   }
+}
+
+async function writeMediaFile(dir, fileName, buffer) {
+  await fsp.mkdir(dir, { recursive: true })
+  const filePath = path.join(dir, fileName)
+  await fsp.writeFile(filePath, buffer)
+  return filePath
 }
 
 const OUT_OF_HOURS_COOLDOWN_MINUTES = 120;
@@ -193,9 +226,23 @@ function clearAuthFiles() {
 }
 
 async function startBot() {
+  if (startInProgress) {
+    return currentSock;
+  }
+  startInProgress = true;
+  
+  // Limpa socket anterior se existir
+  if (currentSock) {
+    try {
+      currentSock.ev.removeAllListeners();
+      currentSock.ws?.close();
+    } catch (_) {}
+    currentSock = null;
+  }
+  
   try {
     const { version } = await fetchLatestBaileysVersion()
-    const authPath = path.join(__dirname, 'auth')
+    const authPath = accountManager.getAuthPathForStartup();
     const { state, saveCreds } = await useMultiFileAuthState(authPath)
     const sock = makeWASocket({
       auth: state,
@@ -204,6 +251,7 @@ async function startBot() {
       browser: ['Baileys', 'Chrome', '120.0'],
       syncFullHistory: false,
       defaultQueryTimeoutMs: 60_000,
+      retryRequestDelayMs: 500,
     })
     currentSock = sock;
 
@@ -226,6 +274,24 @@ async function startBot() {
         activeSock = sock; // Atualiza o socket ativo
         latestQr = null
         connectionState = 'open'
+        lastConnectedAt = Date.now();
+        lastDisconnectCode = null;
+        lastDisconnectReason = null;
+        consecutiveConflicts = 0; // Reset conflitos ao conectar
+        console.log('[CONNECTED] WhatsApp conectado com sucesso');
+
+        // Ativa conta por número (isola DB/sessions/auth por WhatsApp)
+        try {
+          const num = accountManager.extractNumberFromBaileysUser(sock.user);
+          if (num) {
+            const result = accountManager.activateAccountFromConnectedWhatsApp(num, authPath);
+            if (result && result.changed) {
+              // Garante que o proxy do DB aponte para a conta atual imediatamente
+              try { db.switchToActiveAccount && db.switchToActiveAccount(); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
         clearOperationalDataFor('connected')
       }
       
@@ -235,11 +301,54 @@ async function startBot() {
         clearOperationalDataFor('disconnected')
         const code = lastDisconnect?.error?.output?.statusCode
 
-        if (code === 401 || code === 405) {
-          clearAuthFiles()
+        lastDisconnectedAt = Date.now();
+        lastDisconnectCode = code ?? null;
+        try {
+          lastDisconnectReason = lastDisconnect?.error?.output?.payload?.message || lastDisconnect?.error?.message || null;
+        } catch (e) {
+          lastDisconnectReason = null;
         }
 
-        setTimeout(startBot, 2000)
+        // Limpa socket anterior para evitar leak
+        if (currentSock && currentSock !== sock) {
+          try {
+            currentSock.ev.removeAllListeners();
+            currentSock.ws?.close();
+          } catch (_) {}
+        }
+        currentSock = null;
+
+        if (code === 401 || code === 405) {
+          // Credenciais inválidas: limpa o auth em uso (staging ou conta)
+          try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
+        }
+
+        // Detecta conflito (outra sessão ativa)
+        const isConflict = lastDisconnectReason && lastDisconnectReason.includes('conflict');
+        
+        if (isConflict) {
+          consecutiveConflicts++;
+          console.log(`[CONFLICT] Conflito detectado (${consecutiveConflicts}/${MAX_CONSECUTIVE_CONFLICTS})`);
+          
+          // Se tiver muitos conflitos consecutivos, força logout
+          if (consecutiveConflicts >= MAX_CONSECUTIVE_CONFLICTS) {
+            console.log('[CONFLICT] Muitos conflitos. Limpando sessão. Escaneie novo QR.');
+            try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
+            consecutiveConflicts = 0;
+            activeSock = null;
+            currentSock = null;
+            latestQr = null;
+            connectionState = 'qr';
+            // Não reconecta automaticamente - aguarda usuário escanear novo QR
+            setTimeout(() => startBot(), 3000);
+            return;
+          }
+          
+          scheduleReconnect(10000); // 10s em conflito
+        } else {
+          consecutiveConflicts = 0; // Reset se não for conflito
+          scheduleReconnect(2000);
+        }
       }
     })
 
@@ -253,14 +362,8 @@ async function startBot() {
       const phoneNumber = normalizePhoneFromMessage(msg)
       if (!phoneNumber) return
 
-      let blacklistEntry = null
-      try {
-        blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone LIKE ?').get(`%${phoneNumber}%`)
-      } catch (e) {}
-
-      if (!blacklistEntry) {
-        return
-      }
+      // Processa mensagem ANTES de checar blacklist para resposta rápida
+      // A blacklist é apenas para filtrar respostas automáticas, não para ignorar mensagens
 
       const now = new Date()
       const businessStatus = getBusinessStatus(now)
@@ -286,20 +389,15 @@ async function startBot() {
           const fileName = `img_${timestamp}.${ext}`
           const dir = path.join(__dirname, '..', 'media', 'images')
           
-          // Tenta salvar em arquivo
           try {
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true })
-            }
-            const filePath = path.join(dir, fileName)
-            fs.writeFileSync(filePath, buffer)
+            await writeMediaFile(dir, fileName, buffer)
             mediaUrl = `/media/images/${fileName}`
             console.log(`[IMAGE] Imagem salva em arquivo: ${mediaUrl}`)
           } catch (fsError) {
-            // Se falhar em salvar arquivo, usa base64
-            console.log(`[IMAGE] Erro ao salvar arquivo, usando base64: ${fsError.message}`)
-            const base64 = buffer.toString('base64')
-            mediaUrl = `data:${mime};base64,${base64}`
+            // Não usa base64 no DB (explode payload/DB). Marca como erro.
+            console.log(`[IMAGE] Erro ao salvar arquivo: ${fsError.message}`)
+            mediaUrl = null
+            messageContent = '[Imagem - erro ao salvar]'
           }
         } catch (error) {
           mediaUrl = null
@@ -320,17 +418,13 @@ async function startBot() {
           const dir = path.join(__dirname, '..', 'media', 'videos')
 
           try {
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true })
-            }
-            const filePath = path.join(dir, fileName)
-            fs.writeFileSync(filePath, buffer)
+            await writeMediaFile(dir, fileName, buffer)
             mediaUrl = `/media/videos/${fileName}`
             console.log(`[VIDEO] Vídeo salvo em arquivo: ${mediaUrl}`)
           } catch (fsError) {
-            console.log(`[VIDEO] Erro ao salvar arquivo, usando base64: ${fsError.message}`)
-            const base64 = buffer.toString('base64')
-            mediaUrl = `data:${mime};base64,${base64}`
+            console.log(`[VIDEO] Erro ao salvar arquivo: ${fsError.message}`)
+            mediaUrl = null
+            messageContent = '[Vídeo - erro ao salvar]'
           }
         } catch (error) {
           mediaUrl = null
@@ -340,7 +434,7 @@ async function startBot() {
       } else if (msg.message.audioMessage) {
         messageContent = '🎤 Áudio'
         messageType = 'audio'
-        mediaUrl = 'loading' // Flag temporária
+        mediaUrl = 'loading' // Flag temporária (será substituída rapidamente)
       } else if (msg.message.documentMessage) {
         messageContent = `[Documento: ${msg.message.documentMessage.fileName || 'arquivo'}]`
         messageType = 'document'
@@ -356,20 +450,14 @@ async function startBot() {
           const fileName = `sticker_${timestamp}.${ext}`
           const dir = path.join(__dirname, '..', 'media', 'stickers')
           
-          // Tenta salvar em arquivo
           try {
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true })
-            }
-            const filePath = path.join(dir, fileName)
-            fs.writeFileSync(filePath, buffer)
+            await writeMediaFile(dir, fileName, buffer)
             mediaUrl = `/media/stickers/${fileName}`
             console.log(`[STICKER] Figurinha salva em arquivo: ${mediaUrl}`)
           } catch (fsError) {
-            // Se falhar em salvar arquivo, usa base64
-            console.log(`[STICKER] Erro ao salvar arquivo, usando base64: ${fsError.message}`)
-            const base64 = buffer.toString('base64')
-            mediaUrl = `data:${mime};base64,${base64}`
+            console.log(`[STICKER] Erro ao salvar arquivo: ${fsError.message}`)
+            mediaUrl = null
+            messageContent = '[Figurinha - erro ao salvar]'
           }
         } catch (error) {
           mediaUrl = null
@@ -409,59 +497,68 @@ async function startBot() {
         }
       }
 
-      db.prepare('INSERT INTO messages (ticket_id, sender, content, message_type, media_url) VALUES (?, ?, ?, ?, ?)').run(
-        ticket.id, 
-        'client', 
-        messageContent, 
-        messageType, 
+      const inserted = db.prepare(`
+        INSERT INTO messages (ticket_id, sender, content, message_type, media_url, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        ticket.id,
+        'client',
+        messageContent,
+        messageType,
         mediaUrl
       )
 
-      // Se for áudio, processa em background (é mais leve)
-      if (mediaUrl === 'loading' && messageType === 'audio') {
-        const ticketId = ticket.id
-        const msgToProcess = msg
-        
-        setImmediate(async () => {
+      // Atualiza timestamp do ticket para manter ordenação correta
+      try {
+        db.prepare('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(ticket.id)
+      } catch (_) {}
+
+      const messageId = inserted?.lastInsertRowid
+
+      // Áudio: processa imediatamente (evita ficar preso em "Processando áudio")
+      if (mediaUrl === 'loading' && messageType === 'audio' && messageId) {
+        try {
+          const buffer = await downloadMediaMessage(msg, 'buffer', {})
+          const timestamp = Date.now()
+          const fileName = `audio_${timestamp}.ogg`
+          const dir = path.join(__dirname, '..', 'media', 'audios')
+
+          await writeMediaFile(dir, fileName, buffer)
+
+          const audioUrl = `/media/audios/${fileName}`
+          db.prepare("UPDATE messages SET media_url = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f','now') WHERE id = ?").run(audioUrl, messageId)
+        } catch (error) {
           try {
-            const buffer = await downloadMediaMessage(msgToProcess, 'buffer', {})
-            const timestamp = Date.now()
-            const fileName = `audio_${timestamp}.ogg`
-            const dir = path.join(__dirname, '..', 'media', 'audios')
-            
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true })
-            }
-            
-            const filePath = path.join(dir, fileName)
-            fs.writeFileSync(filePath, buffer)
-            
-            const audioUrl = `/media/audios/${fileName}`
-            
-            // Atualiza a mensagem no banco com o URL real
-            db.prepare(`
-              UPDATE messages 
-              SET media_url = ? 
-              WHERE ticket_id = ? AND media_url = ? AND message_type = ?
-            `).run(audioUrl, ticketId, 'loading', 'audio')
-          } catch (error) {
-            // Erro ao processar áudio
-          }
-        })
+            db.prepare("UPDATE messages SET media_url = NULL, content = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f','now') WHERE id = ?").run('[Áudio - erro ao carregar]', messageId)
+          } catch (e) {}
+        }
       }
 
-      if (!businessStatus.isOpen) {
-        if (shouldSendOutOfHours(phoneNumber, now) && outOfHoursMessage) {
-          await sock.sendMessage(jid, { text: outOfHoursMessage })
+      // Check blacklist AFTER saving message (non-blocking for message reception)
+      let blacklistEntry = null
+      try {
+        // Query otimizada sem LIKE para melhor performance na blacklist
+        blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
+      } catch (e) {}
+
+      // Só envia respostas automáticas se não estiver na blacklist
+      if (blacklistEntry) {
+        if (!businessStatus.isOpen) {
+          if (shouldSendOutOfHours(phoneNumber, now) && outOfHoursMessage) {
+            await sock.sendMessage(jid, { text: outOfHoursMessage })
+          }
+        } else if (isNewTicket) {
+          await sock.sendMessage(jid, { text: '👋 Olá! Recebi sua mensagem, um atendente já vai te responder.' })
         }
-      } else if (isNewTicket) {
-        await sock.sendMessage(jid, { text: '👋 Olá! Recebi sua mensagem, um atendente já vai te responder.' })
       }
     })
 
     return sock
   } catch (error) {
-    setTimeout(startBot, 3001)
+    scheduleReconnect(3001)
+    return null;
+  } finally {
+    startInProgress = false;
   }
 }
 
@@ -472,7 +569,12 @@ module.exports.getQrState = () => ({
   qr: latestQr,
   qrAt: latestQrAt,
   connectionState,
-  connected: activeSock !== null
+  connected: activeSock !== null,
+  stableConnected: (activeSock !== null) || (typeof lastConnectedAt === 'number' && (Date.now() - lastConnectedAt) < 15_000),
+  lastConnectedAt,
+  lastDisconnectedAt,
+  lastDisconnectCode,
+  lastDisconnectReason,
 });
 module.exports.forceNewQr = async (allowWhenConnected = false) => {
   if (activeSock && !allowWhenConnected) {
@@ -493,11 +595,12 @@ module.exports.forceNewQr = async (allowWhenConnected = false) => {
   latestQr = null;
   latestQrAt = null;
   connectionState = 'close';
+  lastDisconnectedAt = Date.now();
+  lastDisconnectCode = 'forced';
+  lastDisconnectReason = 'forceNewQr';
 
   // Reinicia o bot após 1 segundo
-  setTimeout(() => {
-    startBot();
-  }, 1000);
+  scheduleReconnect(1000);
 
   return { ok: true };
 };

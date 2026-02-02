@@ -132,7 +132,7 @@
       color: #64748b;
     }
   </style>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/frontend/ui.css">
 </head>
 <body>
   <div class="card">
@@ -164,6 +164,8 @@
     const statusText = document.getElementById('statusText');
 
     let polling = null;
+    let connectedStreak = 0;
+    let redirecting = false;
 
     function setStatus(text, isConnected = false) {
       statusText.innerHTML = `Status: <strong class="${isConnected ? 'connected' : ''}">${text}</strong>`;
@@ -174,7 +176,19 @@
         const response = await fetch('/whatsapp/qr', { cache: 'no-store' });
         const data = await response.json();
 
-        if (data.connected) {
+        const isConnected = !!data.connected || !!data.stableConnected;
+        const needsQr = !!data.qrDataUrl || data.connectionState === 'qr';
+
+        if (isConnected) {
+          connectedStreak += 1;
+        } else {
+          connectedStreak = 0;
+        }
+
+        // Only redirect after the connection stays up for a couple polls.
+        if (isConnected && connectedStreak >= 2) {
+          if (redirecting) return;
+          redirecting = true;
           qrImage.style.display = 'none';
           qrPlaceholder.style.display = 'block';
           qrPlaceholder.textContent = 'WhatsApp conectado ✅';
@@ -191,7 +205,7 @@
           return;
         }
 
-        if (data.qrDataUrl) {
+        if (needsQr && data.qrDataUrl) {
           qrImage.src = data.qrDataUrl;
           qrImage.style.display = 'block';
           qrPlaceholder.style.display = 'none';
@@ -201,8 +215,20 @@
 
         qrImage.style.display = 'none';
         qrPlaceholder.style.display = 'block';
-        qrPlaceholder.textContent = 'Gerando QR Code...';
-        setStatus('Aguardando QR');
+
+        if (needsQr) {
+          qrPlaceholder.textContent = 'Gerando QR Code...';
+          setStatus('Aguardando QR');
+        } else {
+          // Reconnecting/starting: avoid confusing users with QR flashes
+          const code = data.lastDisconnectCode;
+          const reason = (data.lastDisconnectReason || '').toLowerCase();
+          const replaced = reason.includes('replaced') || reason.includes('conflict') || String(code) === '440';
+          qrPlaceholder.textContent = replaced
+            ? 'Sessão desconectada (conexão substituída). Abra o WhatsApp e reconecte por aqui.'
+            : 'Reconectando ao WhatsApp...';
+          setStatus(replaced ? 'Sessão substituída' : 'Reconectando');
+        }
       } catch (error) {
         qrImage.style.display = 'none';
         qrPlaceholder.style.display = 'block';

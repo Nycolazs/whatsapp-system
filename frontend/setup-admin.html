@@ -111,7 +111,7 @@
         <input id="password" type="password" required />
       </div>
 
-      <button class="btn" type="submit">Criar Admin</button>
+      <button class="btn" type="submit" id="submitBtn" disabled>Criar Admin</button>
     </form>
   </div>
 
@@ -122,7 +122,7 @@
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
       const errorDiv = document.getElementById('errorMessage');
-      const button = document.querySelector('.btn');
+      const button = document.getElementById('submitBtn');
 
       errorDiv.style.display = 'none';
       button.disabled = true;
@@ -146,6 +146,42 @@
         button.disabled = false;
       }
     }
+
+    async function guardWhatsAppConnection() {
+      const button = document.getElementById('submitBtn');
+      const errorDiv = document.getElementById('errorMessage');
+      
+      try {
+        // Apenas verifica se o WhatsApp está conectado, SEM verificar se tem admin
+        const res = await fetch('/whatsapp/qr', { cache: 'no-store' });
+        const qrData = await res.json();
+        
+        const isConnected = !!qrData.connected || !!qrData.stableConnected;
+        const needsQr = !!qrData.qrDataUrl || qrData.connectionState === 'qr';
+        
+        if (needsQr) {
+          if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
+          return;
+        }
+        
+        if (!isConnected) {
+          errorDiv.textContent = 'Aguardando conexão do WhatsApp...';
+          errorDiv.style.display = 'block';
+          if (button) button.disabled = true;
+          setTimeout(guardWhatsAppConnection, 2000); // Tenta novamente em 2s
+          return;
+        }
+        
+        // WhatsApp conectado, habilita o botão
+        if (button) button.disabled = false;
+      } catch (e) {
+        errorDiv.textContent = 'Erro ao verificar conexão do WhatsApp.';
+        errorDiv.style.display = 'block';
+        if (button) button.disabled = true;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', guardWhatsAppConnection);
   </script>
   <script src="/frontend/ui.js"></script>
 </body>

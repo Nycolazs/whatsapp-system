@@ -16,9 +16,10 @@ if [[ "$CONFIRM" != "RESET" ]]; then
   exit 0
 fi
 
-# Banco e sessões
+# Banco e sessões (remove também arquivos WAL do SQLite)
 if [[ -d "$DB_DIR" ]]; then
-  rm -f "$DB_DIR/db.sqlite" "$DB_DIR/sessions.db"
+  rm -f "$DB_DIR/db.sqlite" "$DB_DIR/db.sqlite-shm" "$DB_DIR/db.sqlite-wal"
+  rm -f "$DB_DIR/sessions.db" "$DB_DIR/sessions.db-shm" "$DB_DIR/sessions.db-wal"
 fi
 
 # Auth do WhatsApp

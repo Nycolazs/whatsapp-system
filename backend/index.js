@@ -7,28 +7,131 @@ const Database = require('better-sqlite3');
 const startBot = require('./baileys');
 const { getSocket, getQrState, forceNewQr } = require('./baileys');
 const db = require('./db');
+const accountContext = require('./accountContext');
+const accountManager = require('./accountManager');
 const crypto = require('crypto');
 const qrcode = require('qrcode');
 
 const app = express();
 
-// Configurar sessões com armazenamento persistente
-const sessionDb = new Database(path.join(__dirname, '..', 'data', 'db', 'sessions.db'));
-app.use(session({
-  store: new SqliteStore({
-    client: sessionDb,
+// Cache simples de foto de perfil (reduz chamadas ao WhatsApp em listas grandes)
+const profilePicCache = new Map(); // phone -> { url, expiresAt }
+const profilePicInFlight = new Map(); // phone -> Promise<{url}>
+let activeProfilePicFetches = 0;
+const MAX_PROFILE_PIC_FETCHES = Number(process.env.MAX_PROFILE_PIC_FETCHES || 3);
+const PROFILE_PIC_TTL_MS = Number(process.env.PROFILE_PIC_TTL_MS || 6 * 60 * 60 * 1000); // 6h
+const PROFILE_PIC_TTL_NULL_MS = Number(process.env.PROFILE_PIC_TTL_NULL_MS || 60 * 60 * 1000); // 1h
+
+async function withProfilePicConcurrencyLimit(fn) {
+  while (activeProfilePicFetches >= MAX_PROFILE_PIC_FETCHES) {
+    await new Promise(r => setTimeout(r, 50));
+  }
+  activeProfilePicFetches++;
+  try {
+    return await fn();
+  } finally {
+    activeProfilePicFetches--;
+  }
+}
+
+app.disable('x-powered-by');
+
+// compressão é opcional (só ativa se a dependência estiver instalada)
+try {
+  // eslint-disable-next-line import/no-extraneous-dependencies
+  const compression = require('compression');
+  app.use(compression());
+} catch (_) {}
+
+// Configurar sessões com armazenamento persistente (por conta)
+let sessionDb = null;
+let currentSessionDbPath = null;
+
+function configureSessionPragmas(client) {
+  try {
+    client.pragma('journal_mode = WAL');
+    client.pragma(`synchronous = ${process.env.SQLITE_SYNCHRONOUS || 'NORMAL'}`);
+    client.pragma(`busy_timeout = ${Number(process.env.SQLITE_BUSY_TIMEOUT_MS || 5000)}`);
+    client.pragma(`wal_autocheckpoint = ${Number(process.env.SQLITE_WAL_AUTOCHECKPOINT || 1000)}`);
+  } catch (_) {}
+}
+
+function openSessionDb(filePath) {
+  const dir = path.dirname(filePath);
+  try { require('fs').mkdirSync(dir, { recursive: true }); } catch (_) {}
+  const client = new Database(filePath);
+  configureSessionPragmas(client);
+  return client;
+}
+
+function makeSqliteSessionStore(client) {
+  return new SqliteStore({
+    client,
     expired: {
       clear: true,
       intervalMs: 900000 // 15 minutos
     }
-  }),
+  });
+}
+
+class DynamicSessionStore extends session.Store {
+  constructor() {
+    super();
+    this._inner = null;
+  }
+
+  setInner(store) {
+    this._inner = store;
+  }
+
+  _call(method, args) {
+    const s = this._inner;
+    if (!s || typeof s[method] !== 'function') {
+      const cb = args && args.length ? args[args.length - 1] : null;
+      if (typeof cb === 'function') cb(new Error('Session store not ready'));
+      return;
+    }
+    return s[method](...args);
+  }
+
+  get(sid, cb) { return this._call('get', [sid, cb]); }
+  set(sid, sess, cb) { return this._call('set', [sid, sess, cb]); }
+  destroy(sid, cb) { return this._call('destroy', [sid, cb]); }
+  touch(sid, sess, cb) { return this._call('touch', [sid, sess, cb]); }
+  all(cb) { return this._call('all', [cb]); }
+  length(cb) { return this._call('length', [cb]); }
+  clear(cb) { return this._call('clear', [cb]); }
+}
+
+const dynamicStore = new DynamicSessionStore();
+
+function ensureSessionStoreForActiveAccount() {
+  const desired = accountManager.getSessionsPathForActiveOrDefault();
+  if (sessionDb && currentSessionDbPath === desired) return;
+
+  const oldDb = sessionDb;
+  sessionDb = openSessionDb(desired);
+  currentSessionDbPath = desired;
+  dynamicStore.setInner(makeSqliteSessionStore(sessionDb));
+  try { if (oldDb) oldDb.close(); } catch (_) {}
+}
+
+ensureSessionStoreForActiveAccount();
+try {
+  accountContext.emitter.on('changed', () => {
+    ensureSessionStoreForActiveAccount();
+  });
+} catch (_) {}
+
+app.use(session({
+  store: dynamicStore,
   secret: 'whatsapp-system-secret-key-fixed-2024',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
-    secure: false, // mudar para true em produção com HTTPS
+  cookie: {
+    secure: false,
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 dias
+    maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
 
@@ -36,9 +139,12 @@ app.use(cors({
   origin: true,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 app.use(express.static(path.join(__dirname, '../')));
-app.use('/media', express.static(path.join(__dirname, '../media')));
+app.use('/media', express.static(path.join(__dirname, '../media'), {
+  maxAge: process.env.MEDIA_CACHE_MAXAGE || '30d',
+  immutable: true,
+}));
 
 const frontendDir = path.join(__dirname, '../frontend');
 
@@ -52,7 +158,13 @@ app.get('/login', (req, res) => {
 app.get('/agent', (req, res) => res.sendFile(path.join(frontendDir, 'agent.html')));
 app.get('/admin-sellers', (req, res) => res.sendFile(path.join(frontendDir, 'admin-sellers.html')));
 app.get('/whatsapp-qr', (req, res) => res.sendFile(path.join(frontendDir, 'whatsapp-qr.html')));
-app.get('/setup-admin', (req, res) => res.sendFile(path.join(frontendDir, 'setup-admin.html')));
+app.get('/setup-admin', (req, res) => {
+  const qrState = getQrState();
+  if (!qrState?.connected) {
+    return res.redirect('/whatsapp-qr');
+  }
+  return res.sendFile(path.join(frontendDir, 'setup-admin.html'));
+});
 
 const fs = require('fs')
 const authDir = path.join(__dirname, 'auth')
@@ -116,8 +228,13 @@ app.get('/whatsapp/qr', async (req, res) => {
     if (qrState.connected) {
       return res.json({
         connected: true,
+        stableConnected: !!qrState.stableConnected,
         connectionState: qrState.connectionState,
         qrAt: qrState.qrAt,
+        lastConnectedAt: qrState.lastConnectedAt,
+        lastDisconnectedAt: qrState.lastDisconnectedAt,
+        lastDisconnectCode: qrState.lastDisconnectCode,
+        lastDisconnectReason: qrState.lastDisconnectReason,
         qrDataUrl: null
       });
     }
@@ -125,8 +242,13 @@ app.get('/whatsapp/qr', async (req, res) => {
     if (!qrState.qr) {
       return res.json({
         connected: false,
+        stableConnected: !!qrState.stableConnected,
         connectionState: qrState.connectionState,
         qrAt: qrState.qrAt,
+        lastConnectedAt: qrState.lastConnectedAt,
+        lastDisconnectedAt: qrState.lastDisconnectedAt,
+        lastDisconnectCode: qrState.lastDisconnectCode,
+        lastDisconnectReason: qrState.lastDisconnectReason,
         qrDataUrl: null
       });
     }
@@ -134,15 +256,25 @@ app.get('/whatsapp/qr', async (req, res) => {
     const qrDataUrl = await qrcode.toDataURL(qrState.qr, { margin: 2, scale: 6 });
     res.json({
       connected: false,
+      stableConnected: !!qrState.stableConnected,
       connectionState: qrState.connectionState,
       qrAt: qrState.qrAt,
+      lastConnectedAt: qrState.lastConnectedAt,
+      lastDisconnectedAt: qrState.lastDisconnectedAt,
+      lastDisconnectCode: qrState.lastDisconnectCode,
+      lastDisconnectReason: qrState.lastDisconnectReason,
       qrDataUrl
     });
   } catch (error) {
     res.status(500).json({
       connected: false,
+      stableConnected: false,
       connectionState: 'error',
       qrAt: null,
+      lastConnectedAt: null,
+      lastDisconnectedAt: null,
+      lastDisconnectCode: 'error',
+      lastDisconnectReason: 'backend_error',
       qrDataUrl: null
     });
   }
@@ -175,15 +307,25 @@ app.post('/whatsapp/logout', requireAdmin, async (req, res) => {
 
 // �📋 Endpoints para Tickets
 app.get('/tickets', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
   const tickets = db.prepare(`
-    SELECT t.*, 
-           (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
-    FROM tickets t 
+    SELECT
+      t.*,
+      COALESCE(COUNT(m.id), 0) AS unread_count
+    FROM tickets t
+    LEFT JOIN messages m
+      ON m.ticket_id = t.id
+     AND m.sender = 'client'
     WHERE t.phone LIKE '55%'
       AND t.phone NOT LIKE '%@%'
       AND length(t.phone) BETWEEN 12 AND 13
-    ORDER BY updated_at DESC
-  `).all();
+    GROUP BY t.id
+    ORDER BY t.updated_at DESC
+    LIMIT ? OFFSET ?
+  `).all(limit, offset);
+
   res.json(tickets);
 });
 
@@ -218,7 +360,13 @@ app.get('/tickets/:id/messages', requireAuth, (req, res) => {
 // 🔔 Endpoint para obter apenas novas mensagens (polling otimizado)
 app.get('/tickets/:id/messages/since/:timestamp', requireAuth, (req, res) => {
   const { id, timestamp } = req.params;
-  const messages = db.prepare('SELECT * FROM messages WHERE ticket_id = ? AND created_at > ? ORDER BY created_at ASC').all(id, timestamp);
+  const messages = db.prepare(`
+    SELECT *
+    FROM messages
+    WHERE ticket_id = ?
+      AND (created_at > ? OR updated_at > ?)
+    ORDER BY created_at ASC, id ASC
+  `).all(id, timestamp, timestamp);
   res.json(messages);
 });
 
@@ -253,7 +401,7 @@ app.post('/tickets/:id/send', requireAuth, async (req, res) => {
     }
 
     // Salva mensagem no banco
-    db.prepare('INSERT INTO messages (ticket_id, sender, content, sender_name) VALUES (?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO messages (ticket_id, sender, content, sender_name, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
       id,
       'agent',
       message,
@@ -421,16 +569,58 @@ app.get('/profile-picture/:phone', async (req, res) => {
   
   const sock = getSocket();
   if (!sock) {
-    return res.json({ url: null }); // Retorna null ao invés de erro para não quebrar a UI
+    return res.json({ url: null, fromCache: false }); // Retorna null ao invés de erro para não quebrar a UI
   }
 
+  const key = String(phone || '').trim();
+  const now = Date.now();
+  let createdJob = false;
+
   try {
-    const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-    const profilePicUrl = await sock.profilePictureUrl(jid, 'image');
-    res.json({ url: profilePicUrl });
-  } catch (error) {
-    // Se não houver foto de perfil, retorna null
-    res.json({ url: null });
+    const cached = profilePicCache.get(key);
+    if (cached && cached.expiresAt && cached.expiresAt > now) {
+      // Se é uma URL válida, retorna com cache. Se é null, tenta novamente apenas se passou tempo suficiente
+      if (cached.url) {
+        return res.json({ url: cached.url, fromCache: true });
+      } else {
+        // Foto nula cacheada - só retorna do cache se não conseguir buscar nova (timeout)
+        // Mas continua para tentar buscar atualizada
+      }
+    }
+
+    const existing = profilePicInFlight.get(key);
+    if (existing) {
+      const result = await existing;
+      return res.json({ url: result.url || null, fromCache: false });
+    }
+
+    const job = (async () => {
+      const jid = key.includes('@') ? key : `${key}@s.whatsapp.net`;
+      try {
+        const url = await withProfilePicConcurrencyLimit(() => sock.profilePictureUrl(jid, 'image'));
+        if (url) {
+          profilePicCache.set(key, { url, expiresAt: now + PROFILE_PIC_TTL_MS });
+          return { url, success: true };
+        } else {
+          // Não cacheia nulo por muito tempo, tenta novamente em 5 minutos
+          profilePicCache.set(key, { url: null, expiresAt: now + (5 * 60 * 1000) });
+          return { url: null, success: false };
+        }
+      } catch (_) {
+        // Erro ao buscar - cacheia por 5 minutos apenas
+        profilePicCache.set(key, { url: null, expiresAt: now + (5 * 60 * 1000) });
+        return { url: null, success: false };
+      }
+    })();
+
+    profilePicInFlight.set(key, job);
+    createdJob = true;
+    const result = await job;
+    return res.json({ url: result.url || null, fromCache: false });
+  } finally {
+    if (createdJob) {
+      profilePicInFlight.delete(key);
+    }
   }
 });
 
@@ -1002,21 +1192,26 @@ app.post('/tickets/:id/assign', requireAuth, (req, res) => {
 // Buscar tickets (filtra por vendedor se não for admin)
 app.get('/tickets/seller/:sellerId', requireAuth, (req, res) => {
   const { sellerId } = req.params;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   
   try {
     const tickets = db.prepare(`
       SELECT t.*, 
              s.name as seller_name,
-             (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
+             COALESCE(COUNT(m.id), 0) as unread_count
       FROM tickets t 
       LEFT JOIN sellers s ON t.seller_id = s.id
+      LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
       WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
         AND t.status != 'resolvido'
         AND t.phone LIKE '55%'
         AND t.phone NOT LIKE '%@%'
         AND length(t.phone) BETWEEN 12 AND 13
-      ORDER BY updated_at DESC
-    `).all(sellerId === '0' ? null : sellerId);
+      GROUP BY t.id
+      ORDER BY t.updated_at DESC
+      LIMIT ? OFFSET ?
+    `).all(sellerId === '0' ? null : sellerId, limit, offset);
     
     res.json(tickets);
   } catch (error) {
@@ -1027,23 +1222,98 @@ app.get('/tickets/seller/:sellerId', requireAuth, (req, res) => {
 // Buscar todos os tickets com informações do vendedor (apenas admin)
 app.get('/admin/tickets', requireAdmin, (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
     const tickets = db.prepare(`
       SELECT t.*, 
              s.name as seller_name,
-             (SELECT COUNT(*) FROM messages WHERE ticket_id = t.id AND sender = 'client') as unread_count
+             COALESCE(COUNT(m.id), 0) as unread_count
       FROM tickets t 
       LEFT JOIN sellers s ON t.seller_id = s.id
+      LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
       WHERE t.phone LIKE '55%'
         AND t.phone NOT LIKE '%@%'
         AND length(t.phone) BETWEEN 12 AND 13
-      ORDER BY updated_at DESC
-    `).all();
+      GROUP BY t.id
+      ORDER BY t.updated_at DESC
+      LIMIT ? OFFSET ?
+    `).all(limit, offset);
     
     res.json(tickets);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao listar tickets' });
   }
 });
+
+// Healthcheck simples (útil para monitoramento em produção)
+app.get('/healthz', (req, res) => {
+  res.json({
+    ok: true,
+    uptime_s: Math.round(process.uptime()),
+    rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    node: process.version,
+    whatsapp: getQrState()?.connectionState || null,
+    account: (accountContext.getActiveAccount && accountContext.getActiveAccount()) || null,
+    dbPath: (db.getPath && db.getPath()) || null,
+    sessionsPath: currentSessionDbPath || null,
+  });
+});
+
+// Conta ativa / backup (admin)
+app.get('/admin/account', requireAdmin, (req, res) => {
+  res.json({
+    account: (accountContext.getActiveAccount && accountContext.getActiveAccount()) || null,
+    dbPath: (db.getPath && db.getPath()) || null,
+  });
+});
+
+app.post('/admin/account/switch', requireAdmin, (req, res) => {
+  const account = accountManager.normalizeAccountNumber(req.body?.account);
+  if (!account) return res.status(400).json({ error: 'account inválido' });
+  accountManager.ensureAccount(account);
+  accountManager.migrateLegacyToAccount(account);
+  accountManager.activateAccountFromConnectedWhatsApp(account, null);
+  try { db.switchToActiveAccount && db.switchToActiveAccount(); } catch (_) {}
+  res.json({ ok: true, account });
+});
+
+app.post('/admin/account/snapshot', requireAdmin, (req, res) => {
+  const account = accountManager.normalizeAccountNumber(req.body?.account) || (accountContext.getActiveAccount && accountContext.getActiveAccount());
+  if (!account) return res.status(400).json({ error: 'Nenhuma conta ativa' });
+  const dir = accountManager.snapshotAccount(account, req.body?.reason || 'manual');
+  res.json({ ok: true, account, snapshotDir: dir });
+});
+
+// Shutdown gracioso (evita corrupção/locks quando roda por muito tempo)
+let server = null;
+function installGracefulShutdown() {
+  const shutdown = (signal) => {
+    try {
+      console.log(`[shutdown] received ${signal}`);
+    } catch (_) {}
+
+    const closeServer = () => new Promise((resolve) => {
+      if (!server) return resolve();
+      try {
+        server.close(() => resolve());
+      } catch (_) {
+        resolve();
+      }
+    });
+
+    Promise.resolve()
+      .then(closeServer)
+      .finally(() => {
+        try { if (sessionDb) sessionDb.close(); } catch (_) {}
+        try { db.close && db.close(); } catch (_) {}
+        process.exit(0);
+      });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
 
 // 🗓️ Endpoints de Horários de Funcionamento (admin)
 app.get('/business-hours', requireAdmin, (req, res) => {
@@ -1232,20 +1502,5 @@ function processAutoAwait() {
 // Roda a cada 60 segundos
 setInterval(processAutoAwait, 60 * 1000);
 
-const server = app.listen(3001, '0.0.0.0', () => console.log('🚀 Servidor rodando na porta 3001'));
-
-// Encerramento gracioso para garantir flush do SQLite
-function shutdown() {
-  try {
-    server.close(() => {
-      try { db.close(); } catch (e) {}
-      process.exit(0);
-    });
-  } catch (err) {
-    try { db.close(); } catch (e) {}
-    process.exit(0);
-  }
-}
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+server = app.listen(3001, '0.0.0.0', () => console.log('🚀 Servidor rodando na porta 3001'));
+installGracefulShutdown();

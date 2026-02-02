@@ -401,11 +401,12 @@
       margin-bottom: 8px;
       cursor: pointer;
       transition: opacity 0.2s;
-      display: none; /* Escondida por padrão até carregar */
+      opacity: 0;
+      display: block;
     }
 
     .message-image.loaded {
-      display: block;
+      opacity: 1;
     }
 
     .message-image:hover {
@@ -417,11 +418,13 @@
       max-height: 200px;
       margin-top: 8px;
       margin-bottom: 8px;
-      display: none; /* Escondida por padrão até carregar */
+      display: block;
+      opacity: 0;
+      transition: opacity 0.2s;
     }
 
     .message-sticker.loaded {
-      display: block;
+      opacity: 1;
     }
 
     .image-loading {
@@ -950,12 +953,81 @@
     let isLoadingTickets = false;
     let lastTicketsData = null;
     let profilePictureCache = {};
+    const PROFILE_PIC_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+    const PROFILE_PIC_CACHE_MAX = 800;
+
+    function pruneProfilePictureCache() {
+      try {
+        const now = Date.now();
+        const entries = Object.entries(profilePictureCache);
+        if (!entries.length) return;
+
+        // Remove expirados
+        for (const [k, v] of entries) {
+          const ts = v && typeof v._ts === 'number' ? v._ts : 0;
+          if (!ts || (now - ts) > PROFILE_PIC_CACHE_TTL_MS) {
+            delete profilePictureCache[k];
+          }
+        }
+
+        // Limita tamanho (remove mais antigos)
+        const remaining = Object.entries(profilePictureCache);
+        if (remaining.length <= PROFILE_PIC_CACHE_MAX) return;
+        remaining.sort((a, b) => ((a[1] && a[1]._ts) || 0) - ((b[1] && b[1]._ts) || 0));
+        const toDrop = remaining.length - PROFILE_PIC_CACHE_MAX;
+        for (let i = 0; i < toDrop; i++) {
+          delete profilePictureCache[remaining[i][0]];
+        }
+      } catch (_) {}
+    }
+
+    // Função para formatar horário de mensagem com fuso horário correto (Brasil)
+    function formatMessageTime(datetimeStr) {
+      if (!datetimeStr) return '00:00';
+      try {
+        // SQLite CURRENT_TIMESTAMP retorna em UTC (YYYY-MM-DD HH:MM:SS)
+        // Precisamos converter para horário local do Brasil (GMT-3 ou GMT-2 com horário de verão)
+        const dateParts = datetimeStr.split(' ');
+        const datePart = dateParts[0]; // YYYY-MM-DD
+        const timePart = dateParts[1]; // HH:MM:SS
+        
+        if (!timePart) {
+          // Se for ISO format com T
+          const isoDate = new Date(datetimeStr);
+          return isoDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // Parse manual: YYYY-MM-DD HH:MM:SS (UTC)
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes, seconds] = timePart.split(':').map(Number);
+        
+        // Cria date em UTC
+        const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+        
+        // Converte para horário local brasileiro
+        // Brasil usa GMT-3 (Padrão) ou GMT-2 (Horário de verão)
+        const localDate = new Date(utcDate.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+        
+        return localDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      } catch (_) {
+        return '00:00';
+      }
+    }
+
     let isConnected = false; // Status da conexão WhatsApp
     let userId = null;
     let userType = null;
     let userName = null;
     let sellers = []; // Lista de vendedores para admin
     const MESSAGES_PAGE_SIZE = 200;
+    let earliestMessageTimestamp = {}; // Armazena timestamp mais antigo carregado por ticket
+    let isLoadingOlder = {};
+    let allHistoryLoaded = {};
+    let lazyMediaObserver = null;
+    const TICKETS_PAGE_SIZE = 60;
+    let ticketsOffset = 0;
+    let allTicketsLoaded = false;
+    let isLoadingMoreTickets = false;
 
     // Verifica autenticação via sessão
     async function checkAuth() {
@@ -1077,101 +1149,161 @@
       }
     }
 
-    // Carrega tickets
-    async function loadTickets() {
+    function renderTicketItem(div, ticket) {
+      div.className = `ticket-item ${currentTicket && currentTicket.id === ticket.id ? 'active' : ''}`;
+      div.onclick = () => selectTicket(ticket);
+      div.dataset.ticketId = String(ticket.id);
+      div.dataset.phone = String(ticket.phone || '');
+
+      const statusClass = `status-${ticket.status}`;
+      const statusLabel = ticket.status === 'pendente' ? 'Pendente' :
+                         ticket.status === 'aguardando' ? 'Aguardando' :
+                         ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
+
+      const firstLetter = (ticket.contact_name || ticket.phone || '').charAt(0).toUpperCase();
+      const avatarPlaceholder = `<div class="ticket-default-avatar avatar-placeholder">${firstLetter}</div>`;
+
+      // Evita "piscar": se já existe avatar renderizado no item, preserva.
+      const existingAvatarEl = div.querySelector('img.ticket-avatar, .ticket-default-avatar');
+      const preservedAvatarHtml = existingAvatarEl ? existingAvatarEl.outerHTML : '';
+      const avatarHtmlToRender = preservedAvatarHtml || avatarPlaceholder;
+
+      const displayName = ticket.contact_name || ticket.phone;
+      const phoneSubtext = ticket.contact_name ? `<div style="font-size: 11px; color: #667781;">${ticket.phone}</div>` : '';
+
+      let sellerBadge = '';
+      if (userType === 'admin') {
+        if (ticket.seller_name) {
+          sellerBadge = `<span class="ticket-seller-badge">👤 ${ticket.seller_name}</span>`;
+        } else {
+          sellerBadge = `<span class="ticket-unassigned-badge">⚠️ Não atribuído</span>`;
+        }
+      }
+
+      div.innerHTML = `
+        ${avatarHtmlToRender}
+        <div class="ticket-content">
+          <div class="ticket-phone">${displayName}</div>
+          ${phoneSubtext}
+          ${sellerBadge}
+          <div class="ticket-meta">
+            <span class="ticket-status ${statusClass}">${statusLabel}</span>
+            <span>${formatMessageTime(ticket.updated_at)}</span>
+          </div>
+        </div>
+      `;
+
+      // Se o item foi re-renderizado com placeholder, permite lazy-load novamente.
+      if (div.querySelector('.avatar-placeholder')) {
+        if (div.dataset.avatarLoaded === '1') div.dataset.avatarLoaded = '';
+      } else if (div.querySelector('img.ticket-avatar')) {
+        div.dataset.avatarLoaded = '1';
+      }
+
+      // avatar lazy-load (evita muitas chamadas em listas grandes)
+      try {
+        initTicketAvatarObserver();
+        if (window._ticketAvatarObserver) {
+          window._ticketAvatarObserver.observe(div);
+        }
+      } catch (_) {}
+    }
+
+    function initTicketAvatarObserver() {
+      if (window._ticketAvatarObserver) return;
+      const list = document.getElementById('ticketsList');
+      if (!list) return;
+
+      window._ticketAvatarObserver = new IntersectionObserver((entries) => {
+        entries.forEach(async (entry) => {
+          if (!entry.isIntersecting) return;
+          const item = entry.target;
+          const phone = item && item.dataset ? item.dataset.phone : null;
+          if (!phone || item.dataset.avatarLoaded === '1') {
+            try { window._ticketAvatarObserver.unobserve(item); } catch (_) {}
+            return;
+          }
+          item.dataset.avatarLoaded = '1';
+          try {
+            const avatarHtml = await getProfilePictureHtml(phone, 'list');
+            const placeholder = item.querySelector('.avatar-placeholder');
+            if (placeholder) {
+              const wrapper = document.createElement('div');
+              wrapper.innerHTML = avatarHtml;
+              placeholder.replaceWith(wrapper.firstElementChild);
+            }
+          } catch (_) {}
+          try { window._ticketAvatarObserver.unobserve(item); } catch (_) {}
+        });
+      }, {
+        root: list,
+        rootMargin: '240px 0px',
+        threshold: 0.01
+      });
+    }
+
+    async function loadTickets({ append = false, refreshTop = false } = {}) {
       if (isLoadingTickets) return;
+      if (append && (allTicketsLoaded || isLoadingMoreTickets)) return;
       isLoadingTickets = true;
+      if (append) isLoadingMoreTickets = true;
       
       try {
-        // Usa endpoint específico para vendedor ou admin
-        const endpoint = userType === 'admin' 
+        const baseEndpoint = userType === 'admin' 
           ? `${API_URL}/admin/tickets`
           : `${API_URL}/tickets/seller/${userId}`;
-        
-        const response = await fetch(endpoint, {
-          credentials: 'include'
-        });
-        const tickets = await response.json();
-        
-        // Compara com os dados anteriores para evitar re-render desnecessário
-        const ticketsString = JSON.stringify(tickets);
-        if (lastTicketsData === ticketsString) {
-          isLoadingTickets = false;
-          return;
-        }
-        lastTicketsData = ticketsString;
-        
-        const ticketsList = document.getElementById('ticketsList');
-        ticketsList.innerHTML = '';
 
-        if (tickets.length === 0) {
+        const offset = append ? ticketsOffset : 0;
+        const endpoint = `${baseEndpoint}?limit=${TICKETS_PAGE_SIZE}&offset=${offset}`;
+
+        const response = await fetch(endpoint, { credentials: 'include' });
+        const tickets = await response.json();
+
+        const ticketsList = document.getElementById('ticketsList');
+
+        if (!append && !refreshTop) {
+          // Preserva scroll position ao recarregar
+          const scrollPos = ticketsList.scrollTop;
+          ticketsList.innerHTML = '';
+          ticketsOffset = 0;
+          allTicketsLoaded = false;
+          // Restaura scroll após render (se tinha scroll antes)
+          if (scrollPos > 0) {
+            setTimeout(() => { ticketsList.scrollTop = scrollPos; }, 10);
+          }
+        }
+
+        if (!append && tickets.length === 0) {
           ticketsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #667781;">Nenhum ticket ainda</div>';
           return;
         }
 
-        // Build ticket elements quickly and fetch avatars asynchronously to avoid blocking
-        for (const ticket of tickets) {
-          const div = document.createElement('div');
-          div.className = `ticket-item ${currentTicket && currentTicket.id === ticket.id ? 'active' : ''}`;
-          div.onclick = () => selectTicket(ticket);
-
-          const statusClass = `status-${ticket.status}`;
-          const statusLabel = ticket.status === 'pendente' ? 'Pendente' :
-                             ticket.status === 'aguardando' ? 'Aguardando' :
-                             ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
-
-          // Placeholder avatar (will be replaced when loaded)
-          const firstLetter = (ticket.contact_name || ticket.phone || '').charAt(0).toUpperCase();
-          const avatarPlaceholder = `<div class="ticket-default-avatar avatar-placeholder">${firstLetter}</div>`;
-
-          const displayName = ticket.contact_name || ticket.phone;
-          const phoneSubtext = ticket.contact_name ? `<div style="font-size: 11px; color: #667781;">${ticket.phone}</div>` : '';
-
-          let sellerBadge = '';
-          if (userType === 'admin') {
-            if (ticket.seller_name) {
-              sellerBadge = `<span class="ticket-seller-badge">👤 ${ticket.seller_name}</span>`;
+        if (refreshTop) {
+          tickets.forEach(ticket => {
+            const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
+            if (existing) {
+              renderTicketItem(existing, ticket);
             } else {
-              sellerBadge = `<span class="ticket-unassigned-badge">⚠️ Não atribuído</span>`;
+              const div = document.createElement('div');
+              renderTicketItem(div, ticket);
+              ticketsList.insertBefore(div, ticketsList.firstChild);
             }
+          });
+        } else {
+          for (const ticket of tickets) {
+            const div = document.createElement('div');
+            renderTicketItem(div, ticket);
+            ticketsList.appendChild(div);
           }
-
-          div.innerHTML = `
-            ${avatarPlaceholder}
-            <div class="ticket-content">
-              <div class="ticket-phone">${displayName}</div>
-              ${phoneSubtext}
-              ${sellerBadge}
-              <div class="ticket-meta">
-                <span class="ticket-status ${statusClass}">${statusLabel}</span>
-                <span>${new Date(ticket.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-            </div>
-          `;
-
-          // append first, then try to load avatar and replace placeholder when ready
-          ticketsList.appendChild(div);
-          (async () => {
-            try {
-              const avatarHtml = await getProfilePictureHtml(ticket.phone, 'list');
-              const placeholder = div.querySelector('.avatar-placeholder');
-              if (placeholder) {
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = avatarHtml;
-                placeholder.replaceWith(wrapper.firstElementChild);
-              }
-            } catch (_) {
-              // ignore avatar load errors
-            }
-          })();
+          ticketsOffset += tickets.length;
+          if (tickets.length < TICKETS_PAGE_SIZE) allTicketsLoaded = true;
         }
-        // expose latest tickets and refresh header selects if a ticket is open
+
         window.latestTickets = tickets;
         if (currentTicket) {
           const refreshed = tickets.find(t => t.id === currentTicket.id);
           if (refreshed) {
             currentTicket = refreshed;
-            // update header selects/status
             try { updateHeaderFromTicket(currentTicket); } catch (e) {}
           }
         }
@@ -1179,6 +1311,7 @@
         // Erro ao carregar tickets
       } finally {
         isLoadingTickets = false;
+        isLoadingMoreTickets = false;
       }
     }
 
@@ -1211,25 +1344,53 @@
       }
     }
 
+    function initTicketsInfiniteScroll() {
+      const list = document.getElementById('ticketsList');
+      if (!list || list.dataset.scrollInit === '1') return;
+      list.dataset.scrollInit = '1';
+      list.addEventListener('scroll', async () => {
+        if (isLoadingTickets || isLoadingMoreTickets || allTicketsLoaded) return;
+        const nearBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 120;
+        if (!nearBottom) return;
+        await loadTickets({ append: true });
+      });
+    }
+
     // Busca foto de perfil
     async function getProfilePictureHtml(phone, type = 'list') {
+      const firstLetter = phone.charAt(0).toUpperCase();
+      
       // Usa cache para evitar requisições repetidas
       if (profilePictureCache[phone]) {
         const data = profilePictureCache[phone];
-        const firstLetter = phone.charAt(0).toUpperCase();
+        const ts = data && typeof data._ts === 'number' ? data._ts : 0;
         
-        if (data.url) {
-          if (type === 'list') {
-            return `<img src="${data.url}" class="ticket-avatar" alt="Avatar">`;
+        // Se está em cache há menos de 6 horas, usa o cache mesmo que seja null
+        if (ts && (Date.now() - ts) < PROFILE_PIC_CACHE_TTL_MS) {
+          if (data.url) {
+            if (type === 'list') {
+              return `<img src="${data.url}" class="ticket-avatar" alt="Avatar">`;
+            } else {
+              return `<img src="${data.url}" class="chat-avatar" alt="Avatar">`;
+            }
           } else {
-            return `<img src="${data.url}" class="chat-avatar" alt="Avatar">`;
+            // Retorna avatar com letra mesmo que null, mas não tenta buscar novamente
+            if (type === 'list') {
+              return `<div class="ticket-default-avatar">${firstLetter}</div>`;
+            } else {
+              return `<div class="chat-default-avatar">${firstLetter}</div>`;
+            }
           }
-        } else {
+        } else if (!data.url && ts && (Date.now() - ts) < (5 * 60 * 1000)) {
+          // Se é null e foi cacheado a menos de 5 minutos, não tenta buscar novamente
           if (type === 'list') {
             return `<div class="ticket-default-avatar">${firstLetter}</div>`;
           } else {
             return `<div class="chat-default-avatar">${firstLetter}</div>`;
           }
+        } else {
+          // Cache expirado, remove para buscar novamente
+          delete profilePictureCache[phone];
         }
       }
       
@@ -1237,10 +1398,10 @@
         const response = await fetch(`${API_URL}/profile-picture/${phone}`);
         const data = await response.json();
         
-        // Armazena no cache
+        // Armazena no cache com timestamp
+        data._ts = Date.now();
         profilePictureCache[phone] = data;
-        
-        const firstLetter = phone.charAt(0).toUpperCase();
+        pruneProfilePictureCache();
         
         if (data.url) {
           if (type === 'list') {
@@ -1256,7 +1417,7 @@
           }
         }
       } catch (error) {
-        const firstLetter = phone.charAt(0).toUpperCase();
+        // Erro de rede ou timeout - não cacheia, vai tentar novamente na próxima vez
         if (type === 'list') {
           return `<div class="ticket-default-avatar">${firstLetter}</div>`;
         } else {
@@ -1369,6 +1530,7 @@
       document.getElementById('chatAvatarContainer').innerHTML = avatarHtml;
       
       await loadMessages(ticket.id);
+      initMessageInfiniteScroll(document.getElementById('messagesContainer'));
     }
 
     // Atribui ticket a vendedor (admin ou vendedor)
@@ -1437,8 +1599,8 @@
           const seller = sellers.find(s => s.id == targetSellerId);
           currentTicket.seller_name = seller ? seller.name : null;
           
-          // Recarrega a lista de tickets
-          await loadTickets();
+          // Recarrega a lista de tickets (topo)
+          await loadTickets({ refreshTop: true });
 
           if (userType === 'seller') {
             const currentUserId = parseInt(userId, 10);
@@ -1467,13 +1629,16 @@
     let hasLoadedMessages = {};
 
     // Carrega mensagens
-    async function loadMessages(ticketId, isAutoRefresh = false) {
+    async function loadMessages(ticketId, isAutoRefresh = false, loadOlder = false) {
       if (isLoadingMessages) return;
       isLoadingMessages = true;
       try {
         const container = document.getElementById('messagesContainer');
         
         const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
+        const isTopLoading = loadOlder;
+        const prevScrollHeight = container.scrollHeight;
+        const prevScrollTop = container.scrollTop;
 
         // Se for auto-refresh, tenta carregar apenas novas mensagens
         let messages = [];
@@ -1486,6 +1651,21 @@
             isLoadingMessages = false;
             return;
           }
+        } else if (loadOlder) {
+          const before = earliestMessageTimestamp[ticketId];
+          if (!before) {
+            isLoadingMessages = false;
+            return;
+          }
+          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}&before=${encodeURIComponent(before)}`, {
+            credentials: 'include'
+          });
+          messages = await response.json();
+          if (!messages.length) {
+            allHistoryLoaded[ticketId] = true;
+            isLoadingMessages = false;
+            return;
+          }
         } else {
           const response = await fetch(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}`, {
             credentials: 'include'
@@ -1494,10 +1674,26 @@
           container.innerHTML = '';
           lastMessageCount[ticketId] = 0;
           hasLoadedMessages[ticketId] = true;
+          allHistoryLoaded[ticketId] = false;
+          earliestMessageTimestamp[ticketId] = null;
         }
 
+        let newCursor = lastMessageTimestamp[ticketId] || null;
+
+        const cursorOf = (m) => (m && (m.updated_at || m.created_at)) || null;
+
+        const fragment = document.createDocumentFragment();
+
         messages.forEach(msg => {
-            const div = document.createElement('div');
+            // Upsert message element (avoid duplicates; allow updates like audio media_url)
+            const elId = `msg-${msg.id}`;
+            let div = document.getElementById(elId);
+            const isNewEl = !div;
+            if (!div) {
+              div = document.createElement('div');
+              div.id = elId;
+            }
+
             div.className = `message message-${msg.sender}`;
             
             let contentHtml = '';
@@ -1516,8 +1712,8 @@
                 </div>
                 <img 
                   id="${imageId}" 
-                  src="${msg.media_url}" 
-                  class="message-image" 
+                  data-src="${msg.media_url}" 
+                  class="message-image lazy-media" 
                   alt="Imagem" 
                   onclick="openLightbox('${msg.media_url.replace(/'/g, "\\'")}')"
                   onload="
@@ -1538,27 +1734,40 @@
                     }
                   "
                 >
-                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="message-time">${formatMessageTime(msg.created_at)}</div>
               `;
             } else if (msg.message_type === 'audio' && msg.media_url) {
-              // Se for áudio, exibe o player ou loading
+              // Se for áudio, exibe o player customizado ou loading
               const audioId = `audio-${msg.id}`;
               if (msg.media_url === 'loading') {
                 contentHtml = `
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
-                  <div>🎤 Processando áudio...</div>
-                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div class="audio-loading">
+                    <div class="audio-loading-spinner"></div>
+                    <span>Processando áudio...</span>
+                  </div>
+                  <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
               } else {
                 contentHtml = `
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
-                  <div>🎤 Mensagem de áudio</div>
-                  <audio id="${audioId}" controls style="max-width: 100%; margin-top: 8px;">
-                    <source src="${msg.media_url}" type="audio/ogg">
-                    <source src="${msg.media_url}" type="audio/mpeg">
-                    Seu navegador não suporta o elemento de áudio.
-                  </audio>
-                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div class="audio-player">
+                    <button class="audio-play-btn" onclick="toggleAudio('${audioId}')" id="btn-${audioId}">
+                      ▶
+                    </button>
+                    <div class="audio-info">
+                      <div class="audio-title">Mensagem de áudio</div>
+                      <div class="audio-progress" onclick="seekAudio(event, '${audioId}')">
+                        <div class="audio-progress-bar" id="progress-${audioId}"></div>
+                      </div>
+                      <div class="audio-time">
+                        <span id="current-${audioId}">0:00</span>
+                        <span id="duration-${audioId}">0:00</span>
+                      </div>
+                    </div>
+                    <audio id="${audioId}" class="lazy-media" style="display:none;" preload="none" data-src="${msg.media_url}"></audio>
+                  </div>
+                  <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
               }
             } else if (msg.message_type === 'video' && msg.media_url) {
@@ -1569,18 +1778,18 @@
                 contentHtml = `
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   <div>🎥 Processando vídeo...</div>
-                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
               } else {
                 contentHtml = `
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   ${contentDiv}
-                  <video id="${videoId}" controls style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
-                    <source src="${msg.media_url}" type="video/mp4">
-                    <source src="${msg.media_url}" type="video/webm">
+                  <video id="${videoId}" controls class="lazy-media" data-src="${msg.media_url}" style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
+                    <source data-src="${msg.media_url}" type="video/mp4">
+                    <source data-src="${msg.media_url}" type="video/webm">
                     Seu navegador não suporta o elemento de vídeo.
                   </video>
-                  <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
               }
             } else if (msg.message_type === 'sticker' && msg.media_url) {
@@ -1594,8 +1803,8 @@
                 </div>
                 <img 
                   id="${stickerId}" 
-                  src="${msg.media_url}" 
-                  class="message-sticker" 
+                  data-src="${msg.media_url}" 
+                  class="message-sticker lazy-media" 
                   alt="Figurinha" 
                   onload="
                     const stickerEl = document.getElementById('${stickerId}');
@@ -1615,29 +1824,61 @@
                     }
                   "
                 >
-                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="message-time">${formatMessageTime(msg.created_at)}</div>
               `;
             } else {
               // Mensagem de texto normal
               contentHtml = `
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                 <div>${msg.content}</div>
-                <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="message-time">${formatMessageTime(msg.created_at)}</div>
               `;
             }
             
             div.innerHTML = contentHtml;
-            container.appendChild(div);
+
+            if (isNewEl) {
+              fragment.appendChild(div);
+            }
+
+            const c = cursorOf(msg);
+            if (c && (!newCursor || c > newCursor)) newCursor = c;
         });
+
+        if (fragment.childNodes.length > 0) {
+          if (isTopLoading) {
+            container.insertBefore(fragment, container.firstChild);
+          } else {
+            container.appendChild(fragment);
+          }
+        }
 
         // Atualiza timestamp da última mensagem
         if (messages.length > 0) {
-          lastMessageTimestamp[ticketId] = messages[messages.length - 1].created_at;
+          // Use updated_at when present to catch media processing updates
+          if (newCursor) lastMessageTimestamp[ticketId] = newCursor;
           lastMessageCount[ticketId] = (lastMessageCount[ticketId] || 0) + messages.length;
+
+          const oldest = messages[0]?.created_at;
+          if (oldest && (!earliestMessageTimestamp[ticketId] || oldest < earliestMessageTimestamp[ticketId])) {
+            earliestMessageTimestamp[ticketId] = oldest;
+          }
+        }
+
+        // Inicializa players de áudio recém-inseridos
+        initAudioPlayers(container);
+
+        // Inicializa lazy loading de mídias
+        initLazyMedia(container);
+
+        // Ajusta scroll quando carregando mensagens antigas
+        if (isTopLoading) {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
         }
 
         // Scroll para o final apenas se o usuário estava no final
-        if (shouldScroll || !isAutoRefresh) {
+        if ((shouldScroll || !isAutoRefresh) && !isTopLoading) {
           setTimeout(() => {
             container.scrollTop = container.scrollHeight;
           }, 0);
@@ -1646,6 +1887,75 @@
         // Erro ao carregar mensagens
       } finally {
         isLoadingMessages = false;
+      }
+    }
+
+    function initMessageInfiniteScroll(container) {
+      if (!container || container.dataset.scrollInit === '1') return;
+      container.dataset.scrollInit = '1';
+      container.addEventListener('scroll', async () => {
+        if (!currentTicket) return;
+        const ticketId = currentTicket.id;
+        if (container.scrollTop > 120) return;
+        if (isLoadingMessages) return;
+        if (allHistoryLoaded[ticketId]) return;
+        if (!earliestMessageTimestamp[ticketId]) return;
+
+        isLoadingOlder[ticketId] = true;
+        try {
+          await loadMessages(ticketId, false, true);
+        } finally {
+          isLoadingOlder[ticketId] = false;
+        }
+      });
+    }
+
+    function initLazyMedia(container) {
+      if (!container) return;
+
+      const targets = container.querySelectorAll('.lazy-media');
+      if (!('IntersectionObserver' in window)) {
+        targets.forEach(el => loadMediaEl(el));
+        return;
+      }
+
+      if (!lazyMediaObserver) {
+        lazyMediaObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            loadMediaEl(entry.target);
+            lazyMediaObserver.unobserve(entry.target);
+          });
+        }, { root: container, rootMargin: '200px' });
+      }
+
+      targets.forEach(el => {
+        if (el.dataset.loaded === '1') return;
+        lazyMediaObserver.observe(el);
+      });
+    }
+
+    function loadMediaEl(el) {
+      if (!el || el.dataset.loaded === '1') return;
+      el.dataset.loaded = '1';
+
+      if (el.tagName === 'IMG') {
+        const src = el.dataset.src;
+        if (src) el.src = src;
+        return;
+      }
+
+      if (el.tagName === 'VIDEO') {
+        const sources = el.querySelectorAll('source[data-src]');
+        sources.forEach(s => {
+          if (!s.src) s.src = s.dataset.src;
+        });
+        try { el.load(); } catch (e) {}
+        return;
+      }
+
+      if (el.tagName === 'AUDIO') {
+        ensureAudioSource(el.id);
       }
     }
 
@@ -1672,7 +1982,7 @@
           input.value = '';
           // Atualiza imediatamente as mensagens após enviar
           await loadMessages(currentTicket.id, true);
-          await loadTickets();
+          await loadTickets({ refreshTop: true });
           try { updateHeaderFromTicket(currentTicket); } catch (e) {}
         } else {
           const error = await response.json();
@@ -1810,7 +2120,7 @@
               updateCustomSelect('sellerSelect');
             }
           }
-          await loadTickets();
+          await loadTickets({ refreshTop: true });
         }
       } catch (error) {
         document.getElementById('statusSelect').value = currentTicket.status;
@@ -1835,7 +2145,8 @@
     (async function init() {
       await checkAuth(); // Verifica autenticação primeiro e aguarda
       checkConnectionStatus(); // Verifica conexão ao carregar
-      loadTickets(); // Agora userType já está definido
+      await loadTickets(); // Agora userType já está definido
+      initTicketsInfiniteScroll();
 
       // Garante que mudanças no select de status sempre acionem a função
       const statusSelect = document.getElementById('statusSelect');
@@ -1845,10 +2156,12 @@
       }
       
       // Adaptive polling: use timeouts so we can vary the delay when tab not focused
-      const POLL_TICKETS_ACTIVE = 1200; // ms when focused
-      const POLL_TICKETS_INACTIVE = 5000; // ms when not focused
-      const POLL_MESSAGES_ACTIVE = 900;
-      const POLL_MESSAGES_INACTIVE = 4000;
+      // Em escala, polling agressivo derruba o backend (muitos agentes = muitas requisições).
+      // Estes valores ainda dão sensação de tempo real, mas com bem menos carga.
+      const POLL_TICKETS_ACTIVE = 2000; // ms when focused (otimizado para melhor responsividade)
+      const POLL_TICKETS_INACTIVE = 12000; // ms when not focused
+      const POLL_MESSAGES_ACTIVE = 800; // ms when focused (mais rápido para detecção de primeira mensagem)
+      const POLL_MESSAGES_INACTIVE = 6500;
 
       let ticketsPollId = null;
       let messagesPollId = null;
@@ -1858,7 +2171,8 @@
         ticketsPollId = setTimeout(async () => {
           try {
             checkConnectionStatus();
-            await loadTickets();
+            // Recarrega lista completa (primeira página) para pegar tickets novos
+            await loadTickets({ append: false, refreshTop: false });
           } catch (e) {}
           const nextDelay = document.hasFocus() ? POLL_TICKETS_ACTIVE : POLL_TICKETS_INACTIVE;
           scheduleTicketsPoll(nextDelay);
@@ -1878,9 +2192,9 @@
         }, delay);
       }
 
-      // start adaptive loops
-      scheduleTicketsPoll(POLL_TICKETS_ACTIVE);
-      scheduleMessagesPoll(POLL_MESSAGES_ACTIVE);
+      // start adaptive loops (primeira tentativa com delay menor para resposta rápida)
+      scheduleTicketsPoll(500); // Inicia com 500ms para detecção imediata
+      scheduleMessagesPoll(300); // Muito rápido na primeira vez
     })();
 
     // Use shared showNotification (ui.js). Provide fallback if missing.
@@ -2062,6 +2376,122 @@
           }
         });
       }
+    }
+
+    function initAudioPlayers(container) {
+      if (!container) return;
+      const audios = container.querySelectorAll('audio[id^="audio-"]');
+      audios.forEach((audio) => {
+        if (audio.dataset.inited) return;
+        audio.dataset.inited = '1';
+
+        audio.addEventListener('loadedmetadata', () => setAudioDuration(audio.id));
+        audio.addEventListener('timeupdate', () => updateProgress(audio.id));
+        audio.addEventListener('ended', () => {
+          const btn = document.getElementById(`btn-${audio.id}`);
+          if (btn) btn.textContent = '▶';
+          const progress = document.getElementById(`progress-${audio.id}`);
+          if (progress) progress.style.width = '0%';
+        });
+
+        if (audio.readyState >= 1) {
+          setAudioDuration(audio.id);
+        }
+      });
+    }
+
+    function setAudioDuration(audioId) {
+      const audio = document.getElementById(audioId);
+      const durationEl = document.getElementById(`duration-${audioId}`);
+      const currentEl = document.getElementById(`current-${audioId}`);
+      if (!audio || !durationEl || !currentEl) return;
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+
+      durationEl.textContent = formatTime(audio.duration);
+      if (!audio.currentTime || audio.currentTime <= 0) {
+        currentEl.textContent = '0:00';
+      }
+    }
+
+    // Audio player controls
+    function toggleAudio(audioId) {
+      const audio = document.getElementById(audioId);
+      const btn = document.getElementById(`btn-${audioId}`);
+      if (!audio || !btn) return;
+
+      if (audio.paused) {
+        ensureAudioSource(audioId);
+        // Pause all other audios
+        document.querySelectorAll('audio').forEach(a => {
+          if (a.id !== audioId && !a.paused) {
+            a.pause();
+            const otherBtn = document.getElementById(`btn-${a.id}`);
+            if (otherBtn) otherBtn.textContent = '▶';
+          }
+        });
+        
+        audio.play();
+        btn.textContent = '⏸';
+      } else {
+        audio.pause();
+        btn.textContent = '▶';
+      }
+    }
+
+    function updateProgress(audioId) {
+      const audio = document.getElementById(audioId);
+      const progress = document.getElementById(`progress-${audioId}`);
+      const current = document.getElementById(`current-${audioId}`);
+      
+      if (!audio || !progress || !current) return;
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+      
+      const percent = Math.min(100, (audio.currentTime / audio.duration) * 100);
+      progress.style.width = percent + '%';
+      current.textContent = formatTime(audio.currentTime);
+    }
+
+    function seekAudio(event, audioId) {
+      const audio = document.getElementById(audioId);
+      const progressContainer = event.currentTarget;
+      
+      if (!audio || !progressContainer) return;
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+      
+      const rect = progressContainer.getBoundingClientRect();
+      const percent = (event.clientX - rect.left) / rect.width;
+      audio.currentTime = Math.max(0, Math.min(audio.duration, percent * audio.duration));
+    }
+
+    function ensureAudioSource(audioId) {
+      const audio = document.getElementById(audioId);
+      if (!audio) return;
+      if (audio.dataset.loaded === '1') return;
+
+      const src = audio.dataset.src;
+      if (!src) return;
+
+      const sourceOgg = document.createElement('source');
+      sourceOgg.src = src;
+      sourceOgg.type = 'audio/ogg';
+
+      const sourceMp3 = document.createElement('source');
+      sourceMp3.src = src;
+      sourceMp3.type = 'audio/mpeg';
+
+      audio.appendChild(sourceOgg);
+      audio.appendChild(sourceMp3);
+      audio.dataset.loaded = '1';
+
+      try { audio.load(); } catch (e) {}
+      setAudioDuration(audioId);
+    }
+
+    function formatTime(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return mins + ':' + (secs < 10 ? '0' : '') + secs;
     }
   </script>
   <script src="/frontend/ui.js"></script>
