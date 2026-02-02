@@ -358,6 +358,20 @@ app.get('/tickets', requireAuth, (req, res) => {
   res.json(tickets);
 });
 
+
+// Endpoint para obter uma mensagem específica (para reply preview)
+app.get('/messages/:id', requireAuth, (req, res) => {
+  try {
+    const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);
+    if (!message) {
+      return res.status(404).json({ error: 'Mensagem não encontrada' });
+    }
+    res.json(message);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao obter mensagem' });
+  }
+});
+
 app.get('/tickets/:id/messages', requireAuth, (req, res) => {
   const { id } = req.params;
   const { limit, before } = req.query;
@@ -401,7 +415,7 @@ app.get('/tickets/:id/messages/since/:timestamp', requireAuth, (req, res) => {
 
 app.post('/tickets/:id/send', requireAuth, async (req, res) => {
   const { id } = req.params;
-  const { message } = req.body;
+  const { message, reply_to_id } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Mensagem é obrigatória' });
@@ -422,20 +436,77 @@ app.post('/tickets/:id/send', requireAuth, async (req, res) => {
     // Envia mensagem via WhatsApp com nome do agente
     const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
     const messageWithSender = `*${req.userName}:*\n\n${message}`;
-    await sock.sendMessage(jid, { text: messageWithSender });
+    
+    // Se for reply, busca a mensagem original para incluir no envio
+    let messageToSend = { text: messageWithSender };
+    let sendOptions = {};
+    
+    if (reply_to_id) {
+      try {
+        const originalMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(reply_to_id);
+        console.log(`[REPLY] Buscando msg original ID ${reply_to_id}:`, {
+          existe: !!originalMsg,
+          temKey: !!originalMsg?.whatsapp_key,
+          temMessage: !!originalMsg?.whatsapp_message
+        });
+        
+        if (originalMsg && originalMsg.whatsapp_key && originalMsg.whatsapp_message) {
+          try {
+            const parsedKey = JSON.parse(originalMsg.whatsapp_key);
+            const parsedMessage = JSON.parse(originalMsg.whatsapp_message);
+            
+            // Construir o objeto quoted compatível com Baileys
+            // quoted deve ter a estrutura: { key: WAMessageKey, message: WAMessageContent }
+            sendOptions.quoted = {
+              key: parsedKey,
+              message: parsedMessage
+            };
+            
+            console.log(`[REPLY] Quoted adicionado com sucesso:`, {
+              keyId: parsedKey?.id,
+              messageType: Object.keys(parsedMessage || {})[0]
+            });
+          } catch (parseErr) {
+            console.error('Erro ao parsear quoted:', parseErr.message);
+          }
+        } else {
+          console.warn(`[REPLY] Mensagem original não tem whatsapp_key ou whatsapp_message`);
+        }
+      } catch (e) {
+        console.error('Erro ao buscar mensagem para quote:', e.message);
+      }
+    }
+    
+    console.log(`[SEND] Enviando mensagem com payload:`, {
+      temQuoted: !!sendOptions.quoted,
+      replyToId: reply_to_id,
+      sendOptions: sendOptions
+    });
+    
+    await sock.sendMessage(jid, messageToSend, sendOptions);
 
     // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
     if (req.userType === 'seller' && (ticket.status === 'aguardando' || !ticket.seller_id)) {
       db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
     }
 
-    // Salva mensagem no banco
-    db.prepare('INSERT INTO messages (ticket_id, sender, content, sender_name, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
-      id,
-      'agent',
-      message,
-      req.userName
-    );
+    // Salva mensagem no banco com reply_to_id se fornecido
+    if (reply_to_id) {
+      db.prepare('INSERT INTO messages (ticket_id, sender, content, sender_name, reply_to_id, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
+        id,
+        'agent',
+        message,
+        req.userName,
+        reply_to_id
+      );
+    } else {
+      db.prepare('INSERT INTO messages (ticket_id, sender, content, sender_name, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
+        id,
+        'agent',
+        message,
+        req.userName
+      );
+    }
 
     // Atualiza status e timestamp do ticket
     db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('em_atendimento', id);
@@ -449,6 +520,7 @@ app.post('/tickets/:id/send', requireAuth, async (req, res) => {
 // Endpoint para enviar áudio
 app.post('/tickets/:id/send-audio', requireAuth, uploadAudio.single('audio'), async (req, res) => {
   const { id } = req.params;
+  const { reply_to_id } = req.body;
 
   if (!req.file) {
     return res.status(400).json({ error: 'Arquivo de áudio é obrigatório' });
@@ -474,19 +546,36 @@ app.post('/tickets/:id/send-audio', requireAuth, uploadAudio.single('audio'), as
     const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
     const audioPath = req.file.path;
     
+    // Se for reply, busca a mensagem original para incluir no envio
+    let audioMessageObj = {
+      audio: { url: audioPath },
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt: true // Marca como nota de voz
+    };
+    
+    let audioSendOptions = {};
+    
+    if (reply_to_id) {
+      try {
+        const originalMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(reply_to_id);
+        if (originalMsg && originalMsg.whatsapp_key && originalMsg.whatsapp_message) {
+          audioSendOptions.quoted = {
+            key: JSON.parse(originalMsg.whatsapp_key),
+            message: JSON.parse(originalMsg.whatsapp_message)
+          };
+        }
+      } catch (e) {
+        console.error('Erro ao buscar mensagem para quote de áudio:', e.message);
+      }
+    }
+    
     try {
-      await sock.sendMessage(jid, {
-        audio: { url: audioPath },
-        mimetype: 'audio/ogg; codecs=opus',
-        ptt: true // Marca como nota de voz
-      });
+      await sock.sendMessage(jid, audioMessageObj, audioSendOptions);
     } catch (sendError) {
       console.error('Erro ao enviar áudio via WhatsApp:', sendError);
       // Tenta enviar sem PTT como fallback
-      await sock.sendMessage(jid, {
-        audio: { url: audioPath },
-        mimetype: 'audio/ogg; codecs=opus'
-      });
+      delete audioMessageObj.ptt;
+      await sock.sendMessage(jid, audioMessageObj, audioSendOptions);
     }
 
     // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
@@ -494,16 +583,28 @@ app.post('/tickets/:id/send-audio', requireAuth, uploadAudio.single('audio'), as
       db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
     }
 
-    // Salva mensagem de áudio no banco
+    // Salva mensagem de áudio no banco com reply_to_id se fornecido
     const mediaUrl = `/media/audios/${req.file.filename}`;
-    db.prepare('INSERT INTO messages (ticket_id, sender, content, message_type, media_url, sender_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
-      id,
-      'agent',
-      '🎤 Áudio',
-      'audio',
-      mediaUrl,
-      req.userName
-    );
+    if (reply_to_id) {
+      db.prepare('INSERT INTO messages (ticket_id, sender, content, message_type, media_url, sender_name, reply_to_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
+        id,
+        'agent',
+        '🎤 Áudio',
+        'audio',
+        mediaUrl,
+        req.userName,
+        reply_to_id
+      );
+    } else {
+      db.prepare('INSERT INTO messages (ticket_id, sender, content, message_type, media_url, sender_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
+        id,
+        'agent',
+        '🎤 Áudio',
+        'audio',
+        mediaUrl,
+        req.userName
+      );
+    }
 
     // Atualiza status e timestamp do ticket
     db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('em_atendimento', id);

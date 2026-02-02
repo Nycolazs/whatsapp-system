@@ -153,9 +153,11 @@ function initSchema(db) {
       message_type TEXT DEFAULT 'text',
       media_url TEXT,
       sender_name TEXT,
+      reply_to_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+      FOREIGN KEY (reply_to_id) REFERENCES messages(id)
     );
   `).run();
 
@@ -163,7 +165,10 @@ function initSchema(db) {
   try { db.prepare('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "text"').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_url TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE messages ADD COLUMN sender_name TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE messages ADD COLUMN reply_to_id INTEGER').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE messages ADD COLUMN updated_at DATETIME').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE messages ADD COLUMN whatsapp_key TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE messages ADD COLUMN whatsapp_message TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
 
   // Backfill: se updated_at estiver nulo, usa created_at
   try { db.prepare('UPDATE messages SET updated_at = created_at WHERE updated_at IS NULL').run(); } catch (_) {}
@@ -178,6 +183,7 @@ function initSchema(db) {
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_created_at ON messages(ticket_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_updated_at ON messages(ticket_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_sender ON messages(ticket_id, sender);
+      CREATE INDEX IF NOT EXISTS idx_messages_reply_to_id ON messages(reply_to_id);
       
       CREATE INDEX IF NOT EXISTS idx_blacklist_phone ON blacklist(phone);
     `);

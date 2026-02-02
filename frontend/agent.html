@@ -400,9 +400,12 @@
       margin-top: 8px;
       margin-bottom: 8px;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: all 0.2s ease;
       opacity: 0;
       display: block;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     .message-image.loaded {
@@ -411,6 +414,12 @@
 
     .message-image:hover {
       opacity: 0.9;
+      transform: scale(0.98);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .message-image:active {
+      transform: scale(0.95);
     }
 
     .message-sticker {
@@ -420,11 +429,53 @@
       margin-bottom: 8px;
       display: block;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     .message-sticker.loaded {
       opacity: 1;
+    }
+
+    .message-sticker:hover {
+      transform: scale(0.98);
+    }
+
+    .message-sticker:active {
+      transform: scale(0.95);
+    }
+
+    /* Estilo para vídeos */
+    .message video {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .message video:hover {
+      opacity: 0.9;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Estilo para botão de áudio */
+    .audio-play-btn {
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .audio-play-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .audio-play-btn:active {
+      transform: scale(0.95);
     }
 
     .image-loading {
@@ -475,6 +526,74 @@
       max-height: 90vh;
       border-radius: 8px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .reply-preview {
+      display: none;
+      background: #f0f2f5;
+      padding: 12px 15px;
+      border-left: 4px solid #00a884;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .reply-preview.active {
+      display: block;
+    }
+
+    .reply-preview-header {
+      font-weight: 600;
+      color: #00a884;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .reply-preview-content {
+      color: #65676b;
+      margin-bottom: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 250px;
+    }
+
+    .reply-preview-close {
+      background: none;
+      border: none;
+      color: #65676b;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0;
+      font-weight: bold;
+    }
+
+    .reply-preview-close:hover {
+      color: #333;
+    }
+
+    .message-quote {
+      background: #f0f2f5;
+      padding: 10px 12px;
+      border-left: 4px solid #00a884;
+      border-radius: 4px;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+
+    .message-quote-author {
+      font-weight: 600;
+      color: #00a884;
+      margin-bottom: 4px;
+    }
+
+    .message-quote-content {
+      color: #65676b;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .message-input-area {
@@ -1059,6 +1178,13 @@
         </div>
 
         <div class="message-input-area">
+          <div class="reply-preview" id="replyPreview">
+            <div class="reply-preview-header">
+              <span>Respondendo a:</span>
+              <button class="reply-preview-close" onclick="clearReply()">✕</button>
+            </div>
+            <div class="reply-preview-content" id="replyPreviewContent"></div>
+          </div>
           <textarea 
             id="messageInput" 
             class="message-input" 
@@ -1855,6 +1981,7 @@
               const contentDiv = msg.content !== '[Imagem]' ? `<div>${msg.content}</div>` : '';
               const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
               contentHtml = `
+                ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                 ${contentDiv}
                 <div class="image-loading" id="loading-${imageId}">
@@ -1866,7 +1993,7 @@
                   data-src="${msg.media_url}" 
                   class="message-image lazy-media" 
                   alt="Imagem" 
-                  onclick="openLightbox('${msg.media_url.replace(/'/g, "\\'")}')"
+                  style="cursor: pointer; user-select: none; -webkit-user-select: none;"
                   onload="
                     const imgEl = document.getElementById('${imageId}');
                     const loadingEl = document.getElementById('loading-${imageId}');
@@ -1892,6 +2019,7 @@
               const audioId = `audio-${msg.id}`;
               if (msg.media_url === 'loading') {
                 contentHtml = `
+                  ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   <div class="audio-loading">
                     <div class="audio-loading-spinner"></div>
@@ -1901,6 +2029,7 @@
                 `;
               } else {
                 contentHtml = `
+                  ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   <div class="audio-player">
                     <button class="audio-play-btn" onclick="toggleAudio('${audioId}')" id="btn-${audioId}">
@@ -1927,12 +2056,14 @@
               const contentDiv = msg.content !== '[Vídeo]' ? `<div>${msg.content}</div>` : '';
               if (msg.media_url === 'loading') {
                 contentHtml = `
+                  ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   <div>🎥 Processando vídeo...</div>
                   <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
               } else {
                 contentHtml = `
+                  ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   ${contentDiv}
                   <video id="${videoId}" controls class="lazy-media" data-src="${msg.media_url}" style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
@@ -1947,6 +2078,7 @@
               const stickerId = `sticker-${msg.id}`;
               const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
               contentHtml = `
+                ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                 <div class="image-loading" id="loading-${stickerId}">
                   <div class="image-loading-spinner"></div>
@@ -1980,6 +2112,7 @@
             } else {
               // Mensagem de texto normal
               contentHtml = `
+                ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                 <div>${msg.content}</div>
                 <div class="message-time">${formatMessageTime(msg.created_at)}</div>
@@ -1987,6 +2120,11 @@
             }
             
             div.innerHTML = contentHtml;
+
+            // Carrega dados das mensagens citadas
+            if (msg.reply_to_id) {
+              loadQuoteData(msg.reply_to_id);
+            }
 
             if (isNewEl) {
               fragment.appendChild(div);
@@ -2021,6 +2159,9 @@
 
         // Inicializa lazy loading de mídias
         initLazyMedia(container);
+
+        // Inicializa listeners de reply (duplo clique)
+        initMessageReplyListeners(container);
 
         // Ajusta scroll quando carregando mensagens antigas
         if (isTopLoading) {
@@ -2124,13 +2265,19 @@
       if (!message) return;
 
       try {
+        const payload = { message };
+        if (currentReplyTo) {
+          payload.reply_to_id = currentReplyTo;
+        }
+
         const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/send`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },          credentials: 'include',          body: JSON.stringify({ message })
+          headers: { 'Content-Type': 'application/json' },          credentials: 'include',          body: JSON.stringify(payload)
         });
 
         if (response.ok) {
           input.value = '';
+          clearReply();
           // Atualiza imediatamente as mensagens após enviar
           await loadMessages(currentTicket.id, true);
           await loadTickets({ refreshTop: true });
@@ -2159,6 +2306,10 @@
       try {
         const formData = new FormData();
         formData.append('audio', window.recordedAudioBlob, 'recorded-audio.webm');
+        
+        if (currentReplyTo) {
+          formData.append('reply_to_id', currentReplyTo);
+        }
 
         const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/send-audio`, {
           method: 'POST',
@@ -2168,6 +2319,7 @@
 
         if (response.ok) {
           showToast('Áudio enviado com sucesso!', 'info');
+          clearReply();
           cancelRecording();
           // Atualiza imediatamente as mensagens após enviar
           await loadMessages(currentTicket.id, true);
@@ -2435,7 +2587,10 @@
 
     // Funções para lightbox de imagens
     function openLightbox(imageUrl) {
-      event.stopPropagation(); // Previne bubbling
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
       document.getElementById('lightboxImage').src = imageUrl;
       document.getElementById('imageLightbox').classList.add('active');
     }
@@ -2914,6 +3069,319 @@
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
+    // Variables para gerenciar reply
+    let currentReplyTo = null;
+    let currentReplyData = null;
+
+    // Função para definir mensagem a ser respondida
+    async function setReplyTo(messageId) {
+      try {
+        const response = await fetch(`${API_URL}/messages/${messageId}`, {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          showToast('Erro ao carregar mensagem original', 'error');
+          return;
+        }
+
+        currentReplyData = await response.json();
+        currentReplyTo = messageId;
+        displayReplyPreview();
+      } catch (error) {
+        console.error('Erro ao buscar mensagem:', error);
+        showToast('Erro ao carregar mensagem original', 'error');
+      }
+    }
+
+    // Função para exibir preview da resposta
+    function displayReplyPreview() {
+      if (!currentReplyData) return;
+
+      const preview = document.getElementById('replyPreview');
+      const content = document.getElementById('replyPreviewContent');
+
+      if (!preview || !content) return;
+
+      // Prepara o texto da mensagem original
+      let originalText = currentReplyData.content || '';
+      if (currentReplyData.message_type === 'image') {
+        originalText = '🖼️ Imagem';
+      } else if (currentReplyData.message_type === 'audio') {
+        originalText = '🎤 Áudio';
+      } else if (currentReplyData.message_type === 'video') {
+        originalText = '🎥 Vídeo';
+      } else if (currentReplyData.message_type === 'sticker') {
+        originalText = '✨ Figurinha';
+      }
+
+      content.textContent = `${currentReplyData.sender_name || 'Usuário'}: ${originalText}`;
+      preview.classList.add('active');
+    }
+
+    // Função para limpar resposta
+    function clearReply() {
+      currentReplyTo = null;
+      currentReplyData = null;
+      const preview = document.getElementById('replyPreview');
+      if (preview) {
+        preview.classList.remove('active');
+      }
+    }
+
+    // Função para gerar quote block HTML
+    function generateQuoteBlock(message) {
+      if (!message.reply_to_id) return '';
+
+      // Nota: Você precisa buscar os dados da mensagem original
+      // Por enquanto, retorna um placeholder que será preenchido via JS
+      return `
+        <div class="message-quote" data-reply-id="${message.reply_to_id}">
+          <div class="message-quote-author" id="quote-author-${message.reply_to_id}">Carregando...</div>
+          <div class="message-quote-content" id="quote-content-${message.reply_to_id}">...</div>
+        </div>
+      `;
+    }
+
+    // Função para carregar e exibir dados da mensagem citada
+    async function loadQuoteData(replyId) {
+      try {
+        const response = await fetch(`${API_URL}/messages/${replyId}`, {
+          credentials: 'include'
+        });
+
+        if (!response.ok) return;
+
+        const originalMsg = await response.json();
+        const authorEl = document.getElementById(`quote-author-${replyId}`);
+        const contentEl = document.getElementById(`quote-content-${replyId}`);
+
+        if (!authorEl || !contentEl) return;
+
+        let contentText = originalMsg.content || '';
+        if (originalMsg.message_type === 'image') {
+          contentText = '🖼️ Imagem';
+        } else if (originalMsg.message_type === 'audio') {
+          contentText = '🎤 Áudio';
+        } else if (originalMsg.message_type === 'video') {
+          contentText = '🎥 Vídeo';
+        } else if (originalMsg.message_type === 'sticker') {
+          contentText = '✨ Figurinha';
+        }
+
+        authorEl.textContent = `${originalMsg.sender_name || 'Usuário'}:`;
+        contentEl.textContent = contentText;
+      } catch (error) {
+        console.error('Erro ao carregar mensagem citada:', error);
+      }
+    }
+
+    // Sistema avançado de clique-duplo vs clique-simples para mídias
+    // Rastreia cliques pendentes para detectar duplo clique
+    const clickTimers = new Map();
+    const DOUBLE_CLICK_DELAY = 300; // ms
+
+    function handleMediaClick(event, mediaType, messageId) {
+      event.stopPropagation();
+      
+      const mediaElement = event.target;
+      const clickKey = `${messageId}-${mediaType}`;
+      
+      // Se já há um clique pendente, é um duplo clique
+      if (clickTimers.has(clickKey)) {
+        clearTimeout(clickTimers.get(clickKey));
+        clickTimers.delete(clickKey);
+        
+        // DUPLO CLIQUE: Ativa o reply
+        const msgElement = mediaElement.closest('.message');
+        if (msgElement) {
+          const msgId = msgElement.id.replace('msg-', '');
+          if (msgId) {
+            setReplyTo(msgId);
+            // Adiciona feedback visual
+            msgElement.style.backgroundColor = 'rgba(0, 168, 132, 0.1)';
+            setTimeout(() => {
+              msgElement.style.backgroundColor = '';
+            }, 300);
+          }
+        }
+      } else {
+        // CLIQUE SIMPLES: Abre a mídia
+        const timer = setTimeout(() => {
+          clickTimers.delete(clickKey);
+          
+          if (mediaType === 'image' || mediaType === 'sticker') {
+            // Abre lightbox para imagens
+            openLightbox(mediaElement.src || mediaElement.dataset.src);
+          } else if (mediaType === 'video') {
+            // Para vídeos, toggle play/pause
+            if (mediaElement.paused) {
+              mediaElement.play();
+            } else {
+              mediaElement.pause();
+            }
+          } else if (mediaType === 'audio') {
+            // Para áudio, ativa o player
+            const audioId = mediaElement.id;
+            toggleAudio(audioId);
+          }
+        }, DOUBLE_CLICK_DELAY);
+        
+        clickTimers.set(clickKey, timer);
+      }
+    }
+
+    // Inicializa listeners de clique e duplo clique nas mensagens
+    function initMessageReplyListeners(container) {
+      if (!container) return;
+
+      // Delegação de eventos para clique simples em mídias
+      container.addEventListener('click', (e) => {
+        const msgElement = e.target.closest('.message');
+        if (!msgElement) return;
+
+        // Verifica se foi clique em imagem
+        const imgElement = e.target.closest('.message-image');
+        if (imgElement && imgElement.classList.contains('message-image')) {
+          const msgId = msgElement.id.replace('msg-', '');
+          handleMediaClick(e, 'image', msgId);
+          return;
+        }
+
+        // Verifica se foi clique em vídeo
+        const videoElement = e.target.closest('video');
+        if (videoElement && videoElement.classList.contains('lazy-media')) {
+          // Verifica se o clique foi nos controles do vídeo
+          const rect = videoElement.getBoundingClientRect();
+          const clickY = e.clientY - rect.top;
+          const controlsHeight = 40; // Altura aproximada dos controles
+          
+          // Se clique foi na área de controles, deixa os controles nativos funcionarem
+          if (clickY > rect.height - controlsHeight) {
+            return;
+          }
+          
+          const msgId = msgElement.id.replace('msg-', '');
+          handleMediaClick(e, 'video', msgId);
+          return;
+        }
+
+        // Verifica se foi clique em figurinha
+        const stickerElement = e.target.closest('.message-sticker');
+        if (stickerElement && stickerElement.classList.contains('message-sticker')) {
+          const msgId = msgElement.id.replace('msg-', '');
+          handleMediaClick(e, 'sticker', msgId);
+          return;
+        }
+
+        // Verifica se foi clique em áudio
+        const audioPlayBtn = e.target.closest('.audio-play-btn');
+        if (audioPlayBtn) {
+          const msgId = msgElement.id.replace('msg-', '');
+          const audioId = audioPlayBtn.id.replace('btn-', '');
+          handleMediaClick(e, 'audio', msgId);
+          return;
+        }
+
+        // Clique simples em texto: nenhuma ação (pode ser clique em reply)
+      });
+
+      // Duplo clique em qualquer elemento da mensagem ativa reply
+      container.addEventListener('dblclick', (e) => {
+        // Ignora duplo clique se for nos controles de mídia
+        if (e.target.closest('.audio-play-btn') || 
+            e.target.closest('.audio-progress')) {
+          return;
+        }
+
+        const msgElement = e.target.closest('.message');
+        if (!msgElement) return;
+
+        const msgId = msgElement.id.replace('msg-', '');
+        if (msgId) {
+          setReplyTo(msgId);
+          // Feedback visual
+          msgElement.style.backgroundColor = 'rgba(0, 168, 132, 0.1)';
+          setTimeout(() => {
+            msgElement.style.backgroundColor = '';
+          }, 300);
+        }
+      });
+
+      // Suporte a touch para mobile (duplo toque)
+      const touchTimers = new Map();
+      const TOUCH_DELAY = 300; // ms
+
+      container.addEventListener('touchend', (e) => {
+        const msgElement = e.target.closest('.message');
+        if (!msgElement) return;
+
+        const msgId = msgElement.id.replace('msg-', '');
+        const touchKey = `touch-${msgId}`;
+
+        // Se já há um toque pendente, é um duplo toque
+        if (touchTimers.has(touchKey)) {
+          clearTimeout(touchTimers.get(touchKey));
+          touchTimers.delete(touchKey);
+
+          // DUPLO TOQUE: Ativa o reply
+          if (msgId) {
+            setReplyTo(msgId);
+            // Feedback visual
+            msgElement.style.backgroundColor = 'rgba(0, 168, 132, 0.1)';
+            setTimeout(() => {
+              msgElement.style.backgroundColor = '';
+            }, 300);
+          }
+        } else {
+          // TOQUE SIMPLES: Verifica se é em mídia
+          const touchTarget = e.target;
+          
+          // Toque em imagem
+          if (touchTarget.closest('.message-image')) {
+            const timer = setTimeout(() => {
+              touchTimers.delete(touchKey);
+              openLightbox(touchTarget.src || touchTarget.dataset.src);
+            }, TOUCH_DELAY);
+            touchTimers.set(touchKey, timer);
+            return;
+          }
+
+          // Toque em figurinha
+          if (touchTarget.closest('.message-sticker')) {
+            const timer = setTimeout(() => {
+              touchTimers.delete(touchKey);
+              openLightbox(touchTarget.src || touchTarget.dataset.src);
+            }, TOUCH_DELAY);
+            touchTimers.set(touchKey, timer);
+            return;
+          }
+
+          // Toque em vídeo
+          if (touchTarget.closest('video')) {
+            const videoElement = touchTarget.closest('video');
+            const timer = setTimeout(() => {
+              touchTimers.delete(touchKey);
+              // Toque simples em vídeo: play/pause
+              if (videoElement.paused) {
+                videoElement.play();
+              } else {
+                videoElement.pause();
+              }
+            }, TOUCH_DELAY);
+            touchTimers.set(touchKey, timer);
+            return;
+          }
+
+          // Para outros casos, aguarda para ver se é duplo toque
+          const timer = setTimeout(() => {
+            touchTimers.delete(touchKey);
+          }, TOUCH_DELAY);
+          touchTimers.set(touchKey, timer);
+        }
+      });
     }
   </script>
   <script src="/frontend/ui.js"></script>

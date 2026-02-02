@@ -497,16 +497,41 @@ async function startBot() {
         }
       }
 
+      // Verifica se a mensagem é uma resposta (quoted message)
+      let reply_to_id = null
+      if (msg.message.extendedTextMessage?.contextInfo?.stanzaId) {
+        // Tenta encontrar a mensagem original pelo stanzaId do WhatsApp
+        const quotedStanzaId = msg.message.extendedTextMessage.contextInfo.stanzaId
+        // Por enquanto, não vamos vincular automaticamente (WhatsApp usa IDs diferentes)
+        // Mas podemos armazenar a informação se necessário
+      }
+
+      const whatsappKeyStr = JSON.stringify(msg.key);
+      const whatsappMessageStr = JSON.stringify(msg.message);
+      
+      console.log(`[RECEIVE] Salvando mensagem de ${phoneNumber}:`, {
+        tipo: messageType,
+        temKey: !!msg.key,
+        temMessage: !!msg.message,
+        keySize: whatsappKeyStr.length,
+        messageSize: whatsappMessageStr.length
+      });
+
       const inserted = db.prepare(`
-        INSERT INTO messages (ticket_id, sender, content, message_type, media_url, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO messages (ticket_id, sender, content, message_type, media_url, reply_to_id, whatsapp_key, whatsapp_message, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).run(
         ticket.id,
         'client',
         messageContent,
         messageType,
-        mediaUrl
+        mediaUrl,
+        reply_to_id,
+        whatsappKeyStr,
+        whatsappMessageStr
       )
+      
+      console.log(`[RECEIVE] Mensagem salva com ID:`, inserted?.lastInsertRowid);
 
       // Atualiza timestamp do ticket para manter ordenação correta
       try {
