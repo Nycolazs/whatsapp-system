@@ -11,6 +11,8 @@ const accountContext = require('./accountContext');
 const accountManager = require('./accountManager');
 const crypto = require('crypto');
 const qrcode = require('qrcode');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 
@@ -140,6 +142,34 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+
+// Configuração do multer para upload de áudio
+const audioDir = path.join(__dirname, '../media/audios');
+if (!fs.existsSync(audioDir)) {
+  fs.mkdirSync(audioDir, { recursive: true });
+}
+
+const uploadAudio = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, audioDir);
+    },
+    filename: (req, file, cb) => {
+      const timestamp = Date.now();
+      const ext = 'ogg'; // Padrão para áudio
+      cb(null, `audio_${timestamp}.${ext}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos de áudio são permitidos'));
+    }
+  }
+});
+
 app.use(express.static(path.join(__dirname, '../')));
 app.use('/media', express.static(path.join(__dirname, '../media'), {
   maxAge: process.env.MEDIA_CACHE_MAXAGE || '30d',
@@ -166,7 +196,6 @@ app.get('/setup-admin', (req, res) => {
   return res.sendFile(path.join(frontendDir, 'setup-admin.html'));
 });
 
-const fs = require('fs')
 const authDir = path.join(__dirname, 'auth')
 
 // Função para hash de password
@@ -414,6 +443,79 @@ app.post('/tickets/:id/send', requireAuth, async (req, res) => {
     res.json({ success: true, message: 'Mensagem enviada' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao enviar mensagem' });
+  }
+});
+
+// Endpoint para enviar áudio
+app.post('/tickets/:id/send-audio', requireAuth, uploadAudio.single('audio'), async (req, res) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'Arquivo de áudio é obrigatório' });
+  }
+
+  try {
+    const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+    
+    if (!ticket) {
+      // Remove arquivo se ticket não existe
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: 'Ticket não encontrado' });
+    }
+
+    const sock = getSocket();
+    if (!sock) {
+      // Remove arquivo se não conseguir enviar
+      fs.unlink(req.file.path, () => {});
+      return res.status(503).json({ error: 'WhatsApp não conectado. Por favor, aguarde a reconexão.' });
+    }
+
+    // Envia áudio via WhatsApp
+    const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
+    const audioPath = req.file.path;
+    
+    try {
+      await sock.sendMessage(jid, {
+        audio: { url: audioPath },
+        mimetype: 'audio/ogg; codecs=opus',
+        ptt: true // Marca como nota de voz
+      });
+    } catch (sendError) {
+      console.error('Erro ao enviar áudio via WhatsApp:', sendError);
+      // Tenta enviar sem PTT como fallback
+      await sock.sendMessage(jid, {
+        audio: { url: audioPath },
+        mimetype: 'audio/ogg; codecs=opus'
+      });
+    }
+
+    // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
+    if (req.userType === 'seller' && (ticket.status === 'aguardando' || !ticket.seller_id)) {
+      db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
+    }
+
+    // Salva mensagem de áudio no banco
+    const mediaUrl = `/media/audios/${req.file.filename}`;
+    db.prepare('INSERT INTO messages (ticket_id, sender, content, message_type, media_url, sender_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').run(
+      id,
+      'agent',
+      '🎤 Áudio',
+      'audio',
+      mediaUrl,
+      req.userName
+    );
+
+    // Atualiza status e timestamp do ticket
+    db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('em_atendimento', id);
+
+    res.json({ success: true, message: 'Áudio enviado', audioUrl: mediaUrl });
+  } catch (error) {
+    // Remove arquivo em caso de erro
+    if (req.file) {
+      fs.unlink(req.file.path, () => {});
+    }
+    console.error('Erro ao enviar áudio:', error);
+    res.status(500).json({ error: 'Erro ao enviar áudio' });
   }
 });
 

@@ -11,3 +11,4 @@ data/db/*
 backend/node_modules/
 backend/whatsapp.db
 data/*
+node_modules/
