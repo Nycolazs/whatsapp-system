@@ -1,55 +1,107 @@
-# WhatsApp System 📱
+# WhatsApp System
 
-Um sistema completo de atendimento ao cliente integrado com WhatsApp, permitindo gerenciamento de tickets, atribuição de vendedores e conversas em tempo real.
+Sistema de atendimento ao cliente via WhatsApp, com gestão de tickets, múltiplos usuários (admin/agentes) e interface web simples.
 
-## 📋 Características
+Este repositório foi organizado para execução local e também como base para evoluções de produção (segurança, observabilidade e estrutura de código).
 
-- ✅ **Integração WhatsApp**: Recebe mensagens do WhatsApp em tempo real
-- ✅ **Sistema de Tickets**: Gerenciamento automático de conversas
-- ✅ **Multi-Usuário**: Admin e múltiplos vendedores/agentes
-- ✅ **Atribuição de Tickets**: Admin atribui tickets para vendedores
-- ✅ **Blacklist**: Filtra números indesejados automaticamente
-- ✅ **Mensagens Automáticas**: Resposta automática ao cliente
-- ✅ **Status de Ticket**: Pendente → Em Atendimento → Resolvido
-- ✅ **Suporte a Mídia**: Imagens, áudios e documentos
-- ✅ **Interface Responsiva**: Funciona em desktop e mobile
-- ✅ **Atualização em Tempo Real**: Atualiza lista de tickets a cada 500ms
+## Sumário
 
-## 🛠️ Tecnologias Utilizadas
+- [Visão Geral](#visão-geral)
+- [Principais Funcionalidades](#principais-funcionalidades)
+- [Tecnologias](#tecnologias)
+- [Arquitetura e Pastas](#arquitetura-e-pastas)
+- [Como Rodar Localmente](#como-rodar-localmente)
+- [Configuração Inicial](#configuração-inicial)
+- [Acessar a Aplicação](#acessar-a-aplicação)
+- [Endpoints da API](#endpoints-da-api)
+- [Banco de Dados](#banco-de-dados)
+- [Segurança (Notas e Próximos Passos)](#segurança-notas-e-próximos-passos)
+- [Troubleshooting](#troubleshooting)
+- [Deploy (Diretrizes)](#deploy-diretrizes)
+- [Licença](#licença)
 
-### Backend
-- **Node.js** - Runtime JavaScript
-- **Express.js** - Framework web
-- **Baileys** - Biblioteca WhatsApp
-- **SQLite** - Banco de dados
-- **better-sqlite3** - Driver SQLite
+## Visão Geral
 
-### Frontend
-- **HTML5/CSS3** - Interface
-- **JavaScript Vanilla** - Interatividade
-- **Fetch API** - Comunicação com backend
+O backend mantém uma sessão com o WhatsApp (via Baileys) e expõe uma API HTTP consumida pelo frontend (HTML/CSS/JS). Quando um cliente envia mensagem:
 
-## 📦 Requisitos
+1. o sistema cria/reabre um ticket
+2. armazena mensagens no SQLite
+3. permite que admin/agentes respondam pela interface web
 
-- Node.js 14+
-- npm ou yarn
-- Conexão com internet
+## Principais Funcionalidades
 
-## 🚀 Como Instalar e Subir
+- Integração com WhatsApp (QR Code e status de conexão)
+- Sistema de tickets e mensagens
+- Multiusuário (admin e agentes/vendedores)
+- Atribuição de tickets (admin → agente)
+- Blacklist de números
+- Suporte a mídia (ex.: áudio)
+- Configurações administrativas (ex.: horário comercial e auto-await)
 
-### 1. Clonar/Extrair o Projeto
+## Tecnologias
 
-```bash
-cd /caminho/do/projeto/whatsapp-system
+**Backend**
+- Node.js
+- Express
+- Baileys
+- SQLite (better-sqlite3)
+- express-session com store em SQLite
+
+**Frontend**
+- HTML/CSS
+- JavaScript (vanilla)
+- Fetch API
+
+## Arquitetura e Pastas
+
+```
+whatsapp-system/
+├── backend/
+│   ├── index.js           # Entry-point do backend (Express + rotas)
+│   ├── baileys.js         # Integração com WhatsApp
+│   ├── db.js              # Persistência SQLite e migrações
+│   ├── auth/              # Credenciais do WhatsApp (Baileys)
+│   └── package.json
+├── frontend/
+│   ├── index.html         # Página de login
+│   ├── agent.html         # Interface de atendimento
+│   └── admin-sellers.html # Painel admin (vendedores, blacklist e horários)
+├── data/
+│   ├── active-account.json
+│   ├── accounts/          # Dados por conta (db, sessions, wa-auth, backups)
+│   └── staging/
+├── media/
+│   └── audios/            # Áudios recebidos
+├── start.sh               # Script de inicialização
+├── package.json           # Dependências root
+└── README.md              # Este arquivo
 ```
 
-### 2. Instalar Dependências
+## Como Rodar Localmente
+
+### Requisitos
+
+- Node.js 14+
+- npm
+
+### Instalação
+
+Na raiz do projeto:
 
 ```bash
 npm install
 ```
 
-### 3. Iniciar o Servidor
+No backend (dependências específicas do backend):
+
+```bash
+cd backend
+npm install
+```
+
+### Subir o servidor
+
+Pela raiz do projeto:
 
 ```bash
 ./start.sh
@@ -61,80 +113,38 @@ Ou diretamente:
 node backend/index.js
 ```
 
-O servidor iniciará na porta **3000**.
+Por padrão, o servidor inicia na porta **3001**.
 
-### Primeira Execução
-- Admin padrão: `admin` / `admin`
-- Vendedor 1: `João` / `123456`
-- Vendedor 2: `Maria` / `123456`
+## Configuração Inicial
 
-## 💻 Acessar a Aplicação
+1. Inicie o backend.
+2. Conecte o WhatsApp (escaneie o QR Code).
+   - Se preferir exibir no navegador, use a tela de QR ou o endpoint de QR.
+3. Crie o primeiro admin via tela de setup:
+   - Acesse `/setup-admin` após o WhatsApp estar conectado.
+4. No painel admin (`/admin-sellers`), cadastre agentes/vendedores e comece a atribuir tickets.
 
-### No Computador (Desktop)
-```
-http://localhost:3000
-```
+Observação: alguns ambientes podem ter usuários já existentes (ex.: bases antigas). O fluxo recomendado para um ambiente novo é sempre `/setup-admin`.
 
-### Na Rede Local (Mobile/Outro Computador)
-Primeiro, descubra o IP do seu computador:
+## Acessar a Aplicação
+
+### No computador (desktop)
+
+`http://localhost:3001`
+
+### Na rede local (mobile/outro computador)
+
+Descubra o IP do seu computador:
+
 ```bash
 ip addr show | grep "inet " | grep -v 127.0.0.1
 ```
 
-Exemplo de saída: `192.168.1.100`
+Depois acesse:
 
-Acesse no navegador:
-```
-http://192.168.1.100:3000
-```
+`http://SEU_IP:3001`
 
-## 🔐 Configuração Inicial
-
-### 1. Login
-Acesse a página de login e entre como:
-- **Admin** para gerenciar vendedores e todos os tickets
-- **Vendedor** para atender tickets atribuídos
-
-### 2. Conectar WhatsApp
-Ao iniciar o servidor, aparecerá um QR code no terminal. Escaneie com seu celular para conectar o WhatsApp.
-
-### 3. Adicionar à Blacklist
-Acesse o painel `/admin-sellers` e use a seção **Blacklist** para gerenciar números bloqueados. Apenas números na blacklist receberão atendimento.
-
-### 4. Gerenciar Vendedores (Admin)
-Acesse `/admin-sellers` para:
-- Criar novos vendedores
-- Editar dados de vendedores
-- Desativar vendedores
-- Atribuir tickets
-
-## 📂 Estrutura do Projeto
-
-```
-whatsapp-system/
-├── backend/
-│   ├── index.js           # Servidor Express principal
-│   ├── baileys.js         # Integração WhatsApp
-│   ├── db.js              # Banco de dados SQLite
-│   ├── auth.js            # Autenticação (se usado)
-│   ├── routes.js          # Rotas (se separadas)
-│   ├── auth/              # Credenciais WhatsApp
-│   └── package.json       # Dependências
-├── frontend/
-│   ├── index.html         # Página de login
-│   ├── agent.html         # Interface de atendimento
-│   └── admin-sellers.html # Painel admin (vendedores, blacklist e horários)
-├── data/
-│   └── db/
-│       └── db.sqlite      # Banco de dados
-├── media/
-│   └── audios/            # Áudios recebidos
-├── start.sh               # Script de inicialização
-├── package.json           # Dependências root
-└── README.md              # Este arquivo
-```
-
-## 🔌 Endpoints da API
+## Endpoints da API
 
 ### Autenticação
 - `POST /auth/login` - Fazer login
@@ -163,7 +173,7 @@ whatsapp-system/
 ### Conexão WhatsApp
 - `GET /connection-status` - Status da conexão
 
-## 🎯 Fluxo de Uso
+## Fluxo de Uso
 
 1. **Cliente envia mensagem no WhatsApp**
    ↓
@@ -179,7 +189,7 @@ whatsapp-system/
    ↓
 7. **Conversa fecha e some da lista**
 
-## 📱 Interface Mobile
+## Interface Mobile
 
 A aplicação é totalmente responsiva:
 - **Desktop (>768px)**: Painel duplo (lista + chat)
@@ -188,28 +198,28 @@ A aplicação é totalmente responsiva:
 
 Botão de voltar (←) aparece automaticamente em mobile.
 
-## 🔒 Segurança
+## Segurança (Notas e Próximos Passos)
 
-- ✅ Autenticação com sessão
-- ✅ Senhas com hash SHA-256
-- ✅ CORS configurado para rede local
-- ✅ Validação de entrada
-- ✅ Isolamento de dados por usuário
+O projeto já possui autenticação baseada em sessão e armazenamento persistente. Para uso profissional, considere:
 
-## ⚙️ Variáveis Importantes
+- **Segredos em variáveis de ambiente**: mover o `session secret` para `SESSION_SECRET`.
+- **CORS restrito**: permitir apenas origens confiáveis em produção.
+- **Cookies seguros**: habilitar `secure` atrás de HTTPS e ajustar `sameSite`.
+- **Rate limiting**: proteger endpoints de autenticação e envio.
+- **Senha**: hoje há hash SHA-256 em alguns fluxos; uma evolução recomendada é migrar para `bcrypt` com re-hash gradual.
 
-### Backend (backend/index.js)
-```javascript
-const API_URL = 'http://localhost:3000';  // URL da API
-const PORT = 3000;                         // Porta do servidor
-```
+Esses itens podem ser feitos sem quebrar o comportamento atual, desde que implementados com defaults compatíveis (dev permissivo, prod restrito).
 
-### Frontend (Frontend HTML)
-```javascript
-const API_URL = `http://${window.location.hostname}:3000`;  // URL dinâmica
-```
+Variáveis úteis:
 
-## 📊 Banco de Dados
+- `SESSION_SECRET`: segredo do `express-session`.
+- `CORS_ORIGIN`: lista separada por vírgula de origens permitidas (ex.: `https://app.suaempresa.com,https://admin.suaempresa.com`).
+- `LOG_LEVEL`: nível do logger (`error`, `warn`, `info`, `debug`, `trace`). Default: `info`.
+- `DEBUG_TICKETS_REPLY`: quando `1`, habilita logs extras ao enviar respostas em tickets.
+- `DEBUG_MEDIA_LOGS`: quando `1`, habilita logs extras ao salvar mídias recebidas do WhatsApp.
+- `DEBUG_RECEIVE_LOGS`: quando `1`, habilita logs extras ao persistir mensagens recebidas.
+
+## Banco de Dados
 
 Tabelas criadas automaticamente:
 
@@ -226,23 +236,21 @@ Tabelas criadas automaticamente:
 # Limpe as credenciais e tente novamente
 rm -rf backend/auth/*
 node backend/index.js
-# Escaneie o QR code com seu celular
 ```
 
-### Porta 3000 já em uso
+### Porta 3001 já em uso
 ```bash
 # Encontre o processo usando a porta
-lsof -i :3000
+lsof -i :3001
 # Mate o processo
 kill -9 <PID>
 ```
 
 ### Banco de dados corrompido
 ```bash
-# Limpe e recrie
-rm data/db/db.sqlite
+# Limpe e recrie (bases legadas)
+rm -f data/db/db.sqlite
 node backend/index.js
-# Sistema recriará automaticamente
 ```
 
 ### Mensagens não aparecem
@@ -252,36 +260,22 @@ Verifique:
 3. Aplicação está rodando (`./start.sh`)
 4. Browser foi atualizado (F5)
 
-## 🚀 Deploy em Produção
+## Deploy (Diretrizes)
 
-### Antes de fazer deploy:
+Em produção, priorize:
 
-1. **Alterar senha admin**
-   ```sql
-   sqlite3 data/db/db.sqlite
-   UPDATE users SET password = 'sua_nova_senha' WHERE username = 'admin';
-   .quit
-   ```
+1. Rodar atrás de HTTPS (reverse proxy como Nginx/Caddy).
+2. Definir `SESSION_SECRET` e restringir CORS.
+3. Usar um process manager (PM2 ou systemd).
 
-2. **Removers logs de debug**
-   ✅ Já removidos nesta versão
+Exemplo com PM2:
 
-3. **Configurar CORS para domínio específico**
-   ```javascript
-   // backend/index.js
-   app.use(cors({
-     origin: 'seu-dominio.com',
-     credentials: true
-   }));
-   ```
-
-4. **Usar PM2 para manter o serviço rodando**
-   ```bash
-   npm install -g pm2
-   pm2 start backend/index.js --name "whatsapp-system"
-   pm2 startup
-   pm2 save
-   ```
+```bash
+npm install -g pm2
+pm2 start backend/index.js --name "whatsapp-system"
+pm2 startup
+pm2 save
+```
 
 ## 📝 Logs e Monitoramento
 
@@ -310,10 +304,9 @@ Para problemas:
 
 ## 📄 Licença
 
-Este projeto é de uso interno. Direitos reservados.
+Este projeto está como “uso interno” no momento. Se a intenção for apresentação pública, considere definir uma licença (MIT, Apache-2.0 etc.) e ajustar o texto.
 
 ---
 
-**Última atualização**: Janeiro de 2026
+**Última atualização**: Fevereiro de 2026
 **Versão**: 1.0.0
-**Status**: Pronto para Produção ✅
