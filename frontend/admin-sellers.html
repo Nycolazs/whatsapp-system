@@ -218,7 +218,8 @@
     .tickets-container,
     .blacklist-container,
     .hours-container,
-    .await-container {
+    .await-container,
+    .ranking-container {
       opacity: 0;
       max-height: 0;
       overflow: hidden;
@@ -231,7 +232,8 @@
     .tickets-container.active,
     .blacklist-container.active,
     .hours-container.active,
-    .await-container.active {
+    .await-container.active,
+    .ranking-container.active {
       opacity: 1;
       max-height: 2000px; /* large enough to show content */
       transform: none;
@@ -876,6 +878,227 @@
       opacity: 0.8;
     }
 
+    /* Ranking Section Styles */
+    .ranking-filters {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .filter-presets {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .preset-btn {
+      background: #00a884;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .preset-btn:hover {
+      background: #008f6c;
+    }
+
+    .filter-custom {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .date-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .date-input-group label {
+      font-size: 14px;
+      color: #667781;
+      font-weight: 500;
+    }
+
+    .date-input-group input[type="date"] {
+      padding: 10px;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      font-size: 14px;
+      min-width: 160px;
+    }
+
+    .btn-filter {
+      background: #00a884;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .btn-filter:hover {
+      background: #008f6c;
+    }
+
+    .ranking-loading, .ranking-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #667781;
+    }
+
+    .ranking-loading .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #00a884;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .ranking-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    .ranking-table th {
+      background: #f8f9fa;
+      padding: 14px;
+      text-align: left;
+      font-weight: 600;
+      color: #111;
+      border-bottom: 2px solid #e0e0e0;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }
+
+    .ranking-table th.sortable:hover {
+      background: #e8e8e8;
+    }
+
+    .ranking-table th.sorted::after {
+      content: ' ↓';
+      color: #00a884;
+    }
+
+    .ranking-table th.sorted.asc::after {
+      content: ' ↑';
+    }
+
+    .ranking-table td {
+      padding: 14px;
+      border-bottom: 1px solid #f0f0f0;
+      color: #111;
+    }
+
+    .ranking-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    .ranking-position {
+      font-weight: 700;
+      color: #00a884;
+      font-size: 16px;
+    }
+
+    .ranking-position.top3 {
+      color: #f59e0b;
+    }
+
+    #rankingChart {
+      max-width: 100%;
+      width: 100%;
+      height: 400px;
+      display: block;
+    }
+
+    .panel:has(#rankingChart) {
+      position: relative;
+      min-height: 440px;
+      background: linear-gradient(to bottom, #fafafa, #ffffff);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .panel:has(#rankingChart) h3 {
+      color: #111827;
+      font-weight: 600;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    /* Responsividade Ranking */
+    @media (max-width: 1024px) {
+      .filter-custom {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .date-input-group input[type="date"] {
+        width: 100%;
+      }
+
+      .btn-filter {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      #rankingChart {
+        height: 300px;
+      }
+
+      .filter-presets {
+        flex-direction: column;
+      }
+
+      .preset-btn {
+        width: 100%;
+      }
+
+      .ranking-table {
+        font-size: 14px;
+      }
+
+      .ranking-table th,
+      .ranking-table td {
+        padding: 10px 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #rankingChart {
+        height: 250px;
+      }
+
+      .ranking-table {
+        font-size: 12px;
+      }
+
+      .ranking-table th,
+      .ranking-table td {
+        padding: 8px 6px;
+      }
+    }
+
     /* Responsividade Mobile (drawer + layout touch-friendly) */
     @media (max-width: 768px) {
       body {
@@ -1068,6 +1291,10 @@
     }
   </style>
   <link rel="stylesheet" href="/ui.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 </head>
 <body>
   <div class="container">
@@ -1100,6 +1327,10 @@
         <div class="nav-item" data-section="await" onclick="showSection('await')">
           <span>⏳</span>
           Aguardando automático
+        </div>
+        <div class="nav-item" data-section="ranking" onclick="showSection('ranking')">
+          <span>🏆</span>
+          Ranking de Vendedores
         </div>
       </div>
 
@@ -1297,6 +1528,64 @@
             </div>
             <div class="hours-actions" style="margin-top: 12px;">
               <button class="btn-save-hours" onclick="saveAwaitConfig()">Salvar configuração</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ranking Section -->
+        <div class="ranking-container" id="rankingSection">
+          <div class="panel">
+            <h3>Filtros de Período</h3>
+            <div class="ranking-filters">
+              <div class="filter-presets">
+                <button class="preset-btn" onclick="applyRankingPreset('last7days')">Últimos 7 dias</button>
+                <button class="preset-btn" onclick="applyRankingPreset('last30days')">Últimos 30 dias</button>
+                <button class="preset-btn" onclick="applyRankingPreset('thisMonth')">Este mês</button>
+              </div>
+              <div class="filter-custom">
+                <div class="date-input-group">
+                  <label for="rankingStartDate">Data inicial:</label>
+                  <input type="date" id="rankingStartDate" />
+                </div>
+                <div class="date-input-group">
+                  <label for="rankingEndDate">Data final:</label>
+                  <input type="date" id="rankingEndDate" />
+                </div>
+                <button class="btn-filter" onclick="loadRanking()">Filtrar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ranking-loading" id="rankingLoading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Carregando ranking...</p>
+          </div>
+
+          <div class="ranking-empty" id="rankingEmpty" style="display: none;">
+            <p>📊 Nenhum ticket foi resolvido no período selecionado.</p>
+          </div>
+
+          <div id="rankingContent" style="display: none;">
+            <div class="panel">
+              <h3>Gráfico de Ranking</h3>
+              <canvas id="rankingChart"></canvas>
+            </div>
+
+            <div class="panel">
+              <h3>Tabela de Resultados</h3>
+              <div class="table-scroll">
+                <table class="ranking-table">
+                  <thead>
+                    <tr>
+                      <th onclick="sortRankingTable('position')" class="sortable">Posição</th>
+                      <th onclick="sortRankingTable('name')" class="sortable">Nome</th>
+                      <th onclick="sortRankingTable('resolved')" class="sortable">Tickets Resolvidos</th>
+                      <th onclick="sortRankingTable('percent')" class="sortable">% de Tickets</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rankingTableBody"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -1641,6 +1930,11 @@
           document.getElementById('sectionTitle').textContent = 'Aguardando automático';
           document.getElementById('headerBtn').style.display = 'none';
           loadAwaitConfig();
+        } else if (section === 'ranking') {
+          document.getElementById('rankingSection').classList.add('active');
+          document.getElementById('sectionTitle').textContent = 'Ranking de Vendedores';
+          document.getElementById('headerBtn').style.display = 'none';
+          initRanking();
         }
 
         // reveal new active
@@ -2714,6 +3008,393 @@
         toast.classList.add('hiding');
         setTimeout(() => toast.remove(), 300);
       }, 3000);
+    }
+
+    // ===== RANKING DE VENDEDORES =====
+    let rankingData = [];
+    let rankingChart = null;
+    let rankingSortColumn = 'resolved';
+    let rankingSortAsc = false;
+
+    function initRanking() {
+      // Define dates padrão (últimos 30 dias)
+      applyRankingPreset('last30days');
+    }
+
+    function applyRankingPreset(preset) {
+      const now = new Date();
+      let start, end;
+
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+
+      if (preset === 'last7days') {
+        start = new Date(end);
+        start.setDate(start.getDate() - 7);
+      } else if (preset === 'last30days') {
+        start = new Date(end);
+        start.setDate(start.getDate() - 30);
+      } else if (preset === 'thisMonth') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+
+      start.setHours(0, 0, 0, 0);
+
+      // Format as YYYY-MM-DD
+      const formatDate = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      document.getElementById('rankingStartDate').value = formatDate(start);
+      document.getElementById('rankingEndDate').value = formatDate(end);
+
+      loadRanking();
+    }
+
+    async function loadRanking() {
+      const startDate = document.getElementById('rankingStartDate').value;
+      const endDate = document.getElementById('rankingEndDate').value;
+
+      if (!startDate || !endDate) {
+        showToast('Por favor, selecione as datas inicial e final', 'warning');
+        return;
+      }
+
+      // Validar datas
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      if (start > end) {
+        showToast('Data inicial não pode ser maior que a data final', 'error');
+        return;
+      }
+
+      // Mostrar loading
+      document.getElementById('rankingLoading').style.display = 'block';
+      document.getElementById('rankingEmpty').style.display = 'none';
+      document.getElementById('rankingContent').style.display = 'none';
+
+      try {
+        const url = `${API_URL}/admin/ranking-sellers?startDate=${startDate}&endDate=${endDate}`;
+        console.log('[RANKING] Fazendo requisição para:', url);
+        
+        const response = await fetch(url, { credentials: 'include' });
+        
+        console.log('[RANKING] Status da resposta:', response.status);
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          console.error('[RANKING] Erro na resposta:', err);
+          throw new Error(err.error || 'Erro ao carregar ranking');
+        }
+
+        const data = await response.json();
+        console.log('[RANKING] Dados recebidos:', data);
+        
+        rankingData = data.ranking || [];
+        console.log('[RANKING] Total de vendedores:', rankingData.length);
+
+        if (rankingData.length === 0 || rankingData.every(r => r.tickets_resolved === 0)) {
+          console.log('[RANKING] Nenhum ticket resolvido encontrado');
+          document.getElementById('rankingLoading').style.display = 'none';
+          document.getElementById('rankingEmpty').style.display = 'block';
+          document.getElementById('rankingContent').style.display = 'none';
+          return;
+        }
+
+        document.getElementById('rankingLoading').style.display = 'none';
+        document.getElementById('rankingEmpty').style.display = 'none';
+        document.getElementById('rankingContent').style.display = 'block';
+
+        console.log('[RANKING] Renderizando tabela e gráfico...');
+        renderRankingTable();
+
+        // Garante que o canvas já tem layout (width/height) antes de desenhar
+        requestAnimationFrame(() => {
+          renderRankingChart();
+        });
+
+      } catch (error) {
+        console.error('[RANKING] Erro ao carregar ranking:', error);
+        showToast(error.message, 'error');
+        document.getElementById('rankingLoading').style.display = 'none';
+      }
+    }
+
+    function renderRankingTable() {
+      const tbody = document.getElementById('rankingTableBody');
+      tbody.innerHTML = '';
+
+      // Calculate total for percentages
+      const total = rankingData.reduce((sum, item) => sum + item.tickets_resolved, 0);
+
+      // Sort data
+      const sorted = [...rankingData].sort((a, b) => {
+        let valA, valB;
+        
+        if (rankingSortColumn === 'position') {
+          valA = rankingData.indexOf(a);
+          valB = rankingData.indexOf(b);
+        } else if (rankingSortColumn === 'name') {
+          valA = a.seller_name || '';
+          valB = b.seller_name || '';
+        } else if (rankingSortColumn === 'resolved') {
+          valA = a.tickets_resolved;
+          valB = b.tickets_resolved;
+        } else if (rankingSortColumn === 'percent') {
+          valA = total > 0 ? (a.tickets_resolved / total) * 100 : 0;
+          valB = total > 0 ? (b.tickets_resolved / total) * 100 : 0;
+        }
+
+        if (typeof valA === 'string') {
+          return rankingSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+          return rankingSortAsc ? valA - valB : valB - valA;
+        }
+      });
+
+      sorted.forEach((item, index) => {
+        const percent = total > 0 ? ((item.tickets_resolved / total) * 100).toFixed(1) : 0;
+        const position = index + 1;
+        const positionClass = position <= 3 ? 'top3' : '';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><span class="ranking-position ${positionClass}">${position}º</span></td>
+          <td>${item.seller_name || 'Sem nome'}</td>
+          <td>${item.tickets_resolved}</td>
+          <td>${percent}%</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Update sort indicators
+      document.querySelectorAll('.ranking-table th').forEach(th => {
+        th.classList.remove('sorted', 'asc');
+      });
+    }
+
+    function sortRankingTable(column) {
+      if (rankingSortColumn === column) {
+        rankingSortAsc = !rankingSortAsc;
+      } else {
+        rankingSortColumn = column;
+        rankingSortAsc = column === 'name'; // Name ascending by default, others descending
+      }
+
+      renderRankingTable();
+
+      // Add sort indicator
+      const headers = document.querySelectorAll('.ranking-table th');
+      headers.forEach(th => {
+        th.classList.remove('sorted', 'asc');
+      });
+
+      const columnMap = {
+        position: 0,
+        name: 1,
+        resolved: 2,
+        percent: 3
+      };
+
+      const headerIndex = columnMap[column];
+      if (headerIndex !== undefined) {
+        headers[headerIndex].classList.add('sorted');
+        if (rankingSortAsc) {
+          headers[headerIndex].classList.add('asc');
+        }
+      }
+    }
+
+    function renderRankingChart() {
+      const canvas = document.getElementById('rankingChart');
+      if (!canvas) {
+        console.error('[RANKING] Canvas não encontrado!');
+        return;
+      }
+
+      // Destroy previous chart if exists
+      if (rankingChart) {
+        rankingChart.destroy();
+        rankingChart = null;
+      }
+
+      // Filter sellers with resolved tickets and take top 10
+      const dataToShow = rankingData
+        .filter(item => item.tickets_resolved > 0)
+        .slice(0, 10);
+
+      console.log('[RANKING] Dados para gráfico:', dataToShow);
+
+      const labels = dataToShow.map(item => item.seller_name || 'Sem nome');
+      const values = dataToShow.map(item => item.tickets_resolved);
+
+      // Create gradient colors with better palette
+      const colors = dataToShow.map((_, index) => {
+        if (index === 0) return '#f59e0b'; // Gold for 1st
+        if (index === 1) return '#94a3b8'; // Silver for 2nd
+        if (index === 2) return '#d97706'; // Bronze for 3rd
+        return '#00a884'; // Green for others
+      });
+
+      const hoverColors = dataToShow.map((_, index) => {
+        if (index === 0) return '#ea580c';
+        if (index === 1) return '#64748b';
+        if (index === 2) return '#b45309';
+        return '#059669';
+      });
+
+      // Simple chart using Chart.js-like API if available, otherwise draw manually
+      if (typeof Chart !== 'undefined') {
+        console.log('[RANKING] Usando Chart.js...');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        rankingChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Tickets Resolvidos',
+              data: values,
+              backgroundColor: colors,
+              hoverBackgroundColor: hoverColors,
+              borderRadius: 8,
+              borderWidth: 0,
+              barThickness: 'flex',
+              maxBarThickness: 60
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            devicePixelRatio: dpr,
+            animation: {
+              duration: 800,
+              easing: 'easeInOutQuart'
+            },
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                cornerRadius: 8,
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                titleFont: {
+                  size: 14,
+                  weight: 'bold'
+                },
+                bodyFont: {
+                  size: 13
+                },
+                displayColors: false,
+                callbacks: {
+                  title: (items) => items[0].label,
+                  label: (item) => `${item.formattedValue} tickets resolvidos`
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: {
+                  display: false
+                },
+                ticks: {
+                  font: {
+                    size: 12,
+                    weight: '500'
+                  },
+                  color: '#475569'
+                }
+              },
+              y: {
+                beginAtZero: true,
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)',
+                  drawBorder: false
+                },
+                ticks: {
+                  precision: 0,
+                  font: {
+                    size: 12
+                  },
+                  color: '#64748b',
+                  padding: 8
+                }
+              }
+            },
+            layout: {
+              padding: {
+                top: 20,
+                right: 10,
+                bottom: 10,
+                left: 10
+              }
+            }
+          }
+        });
+      } else {
+        console.log('[RANKING] Chart.js não disponível, usando gráfico simples...');
+        // Simple manual bar chart (hi-dpi)
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const cssWidth = rect.width || canvas.clientWidth || 600;
+        const cssHeight = rect.height || canvas.clientHeight || 300;
+
+        canvas.width = Math.max(1, Math.floor(cssWidth * dpr));
+        canvas.height = Math.max(1, Math.floor(cssHeight * dpr));
+        canvas.style.width = cssWidth + 'px';
+        canvas.style.height = cssHeight + 'px';
+
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        drawSimpleBarChart(ctx, labels, values, colors);
+      }
+    }
+
+    function drawSimpleBarChart(ctx, labels, values, colors) {
+      const canvas = ctx.canvas;
+      const width = canvas.width;
+      const height = canvas.height;
+      const maxValue = Math.max(...values, 1);
+      const barWidth = width / (labels.length * 1.5);
+      const chartHeight = height - 80;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw bars
+      labels.forEach((label, index) => {
+        const value = values[index];
+        const barHeight = (value / maxValue) * chartHeight;
+        const x = (index * barWidth * 1.5) + 40;
+        const y = height - barHeight - 60;
+
+        // Draw bar
+        ctx.fillStyle = colors[index];
+        ctx.fillRect(x, y, barWidth, barHeight);
+
+        // Draw value on top
+        ctx.fillStyle = '#111';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(value, x + barWidth / 2, y - 5);
+
+        // Draw label at bottom
+        ctx.save();
+        ctx.translate(x + barWidth / 2, height - 40);
+        ctx.rotate(-Math.PI / 4);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#667781';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      });
     }
 
     // Inicializar

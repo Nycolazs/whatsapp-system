@@ -111,6 +111,94 @@ function createUsersRouter({
     }
   });
 
+  // Ranking de vendedores por tickets resolvidos
+  router.get('/admin/ranking-sellers', requireAdmin, (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+
+      // Define datas padrão (últimos 30 dias)
+      let start, end;
+      const now = new Date();
+      
+      if (endDate) {
+        // Parse date string (YYYY-MM-DD) e assume horário local
+        const parts = endDate.split('-');
+        end = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        end.setHours(23, 59, 59, 999);
+      } else {
+        end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+      }
+
+      if (startDate) {
+        // Parse date string (YYYY-MM-DD) e assume horário local
+        const parts = startDate.split('-');
+        start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        start.setHours(0, 0, 0, 0);
+      } else {
+        start = new Date(end);
+        start.setDate(start.getDate() - 30);
+        start.setHours(0, 0, 0, 0);
+      }
+
+      // Valida datas
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ error: 'Datas inválidas' });
+      }
+
+      if (start > end) {
+        return res.status(400).json({ error: 'Data inicial não pode ser maior que a data final' });
+      }
+
+      // Formata datas para SQLite (YYYY-MM-DD HH:MM:SS) - usa horário local
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const formatSQLiteDate = (date) => {
+        const year = date.getFullYear();
+        const month = pad2(date.getMonth() + 1);
+        const day = pad2(date.getDate());
+        const hours = pad2(date.getHours());
+        const minutes = pad2(date.getMinutes());
+        const seconds = pad2(date.getSeconds());
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      };
+
+      const startStr = formatSQLiteDate(start);
+      const endStr = formatSQLiteDate(end);
+
+      console.log(`[RANKING] Buscando tickets resolvidos de ${startStr} até ${endStr}`);
+
+      // Query para contar tickets resolvidos por vendedor
+      const query = `
+        SELECT 
+          s.id as seller_id,
+          s.name as seller_name,
+          CAST(COUNT(CASE WHEN t.status = 'resolvido' THEN 1 END) AS INTEGER) as tickets_resolved
+        FROM sellers s
+        LEFT JOIN tickets t ON s.id = t.seller_id
+          AND t.updated_at >= ?
+          AND t.updated_at <= ?
+        GROUP BY s.id, s.name
+        ORDER BY tickets_resolved DESC, s.name ASC
+      `;
+
+      const ranking = db.prepare(query).all(startStr, endStr);
+
+      console.log(`[RANKING] Resultado: ${ranking.length} vendedores encontrados`);
+      console.log('[RANKING] Dados:', JSON.stringify(ranking, null, 2));
+
+      return res.json({
+        ranking,
+        period: {
+          startDate: start.toISOString().split('T')[0],
+          endDate: end.toISOString().split('T')[0]
+        }
+      });
+    } catch (error) {
+      console.error('GET /admin/ranking-sellers error:', error);
+      return res.status(500).json({ error: 'Erro ao buscar ranking de vendedores' });
+    }
+  });
+
   // Observação: hoje este endpoint não exige requireAdmin no código original.
   router.post(
     '/sellers',
