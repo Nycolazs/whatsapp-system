@@ -1,0 +1,125 @@
+# Configuração de Variáveis de Ambiente
+
+## 📁 Onde colocar as variáveis
+
+### 1. **Para desenvolvimento local:**
+
+```bash
+# Na raiz do projeto, copie o exemplo:
+cp .env.example .env
+
+# Edite o arquivo .env com suas configurações:
+nano .env  # ou use seu editor preferido
+```
+
+O Node.js carrega automaticamente via `require('dotenv').config()` (se instalar dotenv) ou você pode exportar manualmente:
+
+```bash
+export SESSION_SECRET="seu-secret-aqui"
+export NODE_ENV=development
+node backend/index.js
+```
+
+### 2. **Para produção (servidor Linux):**
+
+**Opção A - Arquivo .env (mais simples):**
+```bash
+# No servidor, crie o arquivo .env
+sudo nano /home/app/whatsapp-system/.env
+
+# Cole as variáveis de produção:
+NODE_ENV=production
+SESSION_SECRET="gere-um-secret-forte-aqui"
+CORS_ORIGIN="https://app.suaempresa.com"
+# ... outras variáveis
+```
+
+**Opção B - Systemd service (mais seguro):**
+```bash
+# Crie o service file
+sudo nano /etc/systemd/system/whatsapp-system.service
+
+# Conteúdo:
+[Unit]
+Description=WhatsApp System
+After=network.target
+
+[Service]
+Type=simple
+User=app
+WorkingDirectory=/home/app/whatsapp-system/backend
+Environment="NODE_ENV=production"
+Environment="SESSION_SECRET=seu-secret-aqui"
+Environment="CORS_ORIGIN=https://app.suaempresa.com"
+ExecStart=/usr/bin/node index.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Opção C - Docker (containerizado):**
+```bash
+# docker-compose.yml
+version: '3.8'
+services:
+  whatsapp-system:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    env_file:
+      - .env.production
+```
+
+### 3. **Para plataformas de cloud (Heroku, Render, etc):**
+
+Configure via dashboard da plataforma:
+- **Heroku**: Settings → Config Vars
+- **Render**: Environment → Environment Variables
+- **Railway**: Variables tab
+- **Vercel**: Settings → Environment Variables
+
+---
+
+## 🔒 Valores críticos para produção
+
+### Gere um SESSION_SECRET forte:
+```bash
+# Linux/Mac:
+openssl rand -base64 32
+
+# Node.js:
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+### Configuração mínima para produção:
+```bash
+NODE_ENV=production
+SESSION_SECRET="<saída do comando acima>"
+CORS_ORIGIN="https://seu-dominio.com"
+```
+
+---
+
+## ⚠️ Importante
+
+- ✅ O arquivo `.env` está no `.gitignore` (nunca commite credenciais)
+- ✅ Use `.env.example` como template (sem valores reais)
+- ✅ Gere um `SESSION_SECRET` único por ambiente
+- ✅ Em produção, sempre use `NODE_ENV=production`
+- ✅ Configure `CORS_ORIGIN` com seus domínios reais
+
+---
+
+## 📝 Exemplo de .env completo para produção:
+
+```bash
+NODE_ENV=production
+SESSION_SECRET="K8x7pQm3vZn2JdF9wRtY4hGbL6sNcA5e"
+CORS_ORIGIN="https://app.suaempresa.com,https://admin.suaempresa.com"
+BCRYPT_ROUNDS=12
+LOG_LEVEL=warn
+LOGIN_RATE_MAX_ATTEMPTS=5
+```

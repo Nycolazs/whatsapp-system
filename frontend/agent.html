@@ -215,6 +215,10 @@
       background: #d4edda;
       color: #155724;
     }
+    .status-encerrado {
+      background: #d4edda;
+      color: #155724;
+    }
 
     /* Chat Panel */
     .chat-panel {
@@ -1124,10 +1128,10 @@
         <p style="font-size: 13px; opacity: 0.9;">Atendimento WhatsApp</p>
         <div class="user-section" id="userSection" style="display: none;">
           <span id="userNameDisplay"></span>
-          <button class="logout-btn" onclick="logout()">Sair</button>
+          <button class="logout-btn" id="logoutBtn">Sair</button>
         </div>
         <div class="admin-actions" id="adminActions" style="display: none;">
-          <button class="btn-manage-sellers" onclick="(function(){ if (typeof navigateTo === 'function') navigateTo('/admin-sellers'); else window.location.href='/admin-sellers'; })()">
+          <button class="btn-manage-sellers" id="manageSellersBtn">
             ⚙️ Painel Admin
           </button>
         </div>
@@ -1150,7 +1154,7 @@
       <div id="chatArea" style="display: none; flex: 1; flex-direction: column; min-height: 0;">
         <div class="chat-header">
           <div class="chat-info">
-            <button class="back-button" onclick="backToTicketList()">←</button>
+            <button class="back-button" id="backToTicketsBtn">←</button>
             <div id="chatAvatarContainer"></div>
             <div class="chat-text">
               <h3 id="currentPhone"></h3>
@@ -1160,15 +1164,16 @@
           <div class="chat-actions">
             <div id="adminSellerSelect" style="display: none; margin-right: 10px;">
               <label id="sellerSelectLabel" style="font-size: 12px; color: #667781; margin-right: 5px;">Vendedor:</label>
-              <select id="sellerSelect" onchange="assignTicketToSeller()" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+              <select id="sellerSelect" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
                 <option value="">Não atribuído</option>
               </select>
             </div>
-            <select id="statusSelect" onchange="updateTicketStatus()">
+            <select id="statusSelect">
               <option value="pendente">Pendente</option>
               <option value="aguardando">Aguardando</option>
               <option value="em_atendimento">Em Atendimento</option>
               <option value="resolvido">Resolvido</option>
+              <option value="encerrado">Encerrado</option>
             </select>
           </div>
         </div>
@@ -1181,7 +1186,7 @@
           <div class="reply-preview" id="replyPreview">
             <div class="reply-preview-header">
               <span>Respondendo a:</span>
-              <button class="reply-preview-close" onclick="clearReply()">✕</button>
+              <button class="reply-preview-close" id="replyCloseBtn">✕</button>
             </div>
             <div class="reply-preview-content" id="replyPreviewContent"></div>
           </div>
@@ -1190,12 +1195,11 @@
             class="message-input" 
             placeholder="Digite sua mensagem..."
             rows="1"
-            onkeypress="handleEnter(event)"
           ></textarea>
           <button class="audio-button" id="recordBtn" title="Clique para gravar (desktop) ou segure (mobile)">
             🎤
           </button>
-          <button class="send-button" onclick="sendMessage()">Enviar</button>
+          <button class="send-button" id="sendBtn">Enviar</button>
         </div>
       </div>
     </div>
@@ -1219,7 +1223,7 @@
   </div>
 
   <!-- Lightbox para imagens -->
-  <div class="image-lightbox" id="imageLightbox" onclick="closeLightbox()">
+  <div class="image-lightbox" id="imageLightbox">
     <img id="lightboxImage" src="" alt="Imagem">
   </div>
 
@@ -1435,7 +1439,8 @@
       const statusClass = `status-${ticket.status}`;
       const statusLabel = ticket.status === 'pendente' ? 'Pendente' :
                          ticket.status === 'aguardando' ? 'Aguardando' :
-                         ticket.status === 'em_atendimento' ? 'Em Atendimento' : 'Resolvido';
+                         ticket.status === 'em_atendimento' ? 'Em Atendimento' :
+                         ticket.status === 'encerrado' ? 'Encerrado' : 'Resolvido';
 
       const firstLetter = (ticket.contact_name || ticket.phone || '').charAt(0).toUpperCase();
       const avatarPlaceholder = `<div class="ticket-default-avatar avatar-placeholder">${firstLetter}</div>`;
@@ -1991,26 +1996,12 @@
                 <img 
                   id="${imageId}" 
                   data-src="${msg.media_url}" 
+                  data-loading-id="loading-${imageId}"
+                  data-error-label="imagem"
+                  data-error-src="${isBase64 ? 'base64 data' : msg.media_url}"
                   class="message-image lazy-media" 
                   alt="Imagem" 
                   style="cursor: pointer; user-select: none; -webkit-user-select: none;"
-                  onload="
-                    const imgEl = document.getElementById('${imageId}');
-                    const loadingEl = document.getElementById('loading-${imageId}');
-                    if (imgEl && loadingEl) {
-                      imgEl.classList.add('loaded');
-                      loadingEl.style.display = 'none';
-                      const msgContainer = document.getElementById('messagesContainer');
-                      if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-                    }
-                  "
-                  onerror="
-                    const loadingEl = document.getElementById('loading-${imageId}');
-                    if (loadingEl) {
-                      loadingEl.innerHTML = '<span style=color:#ff6b6b>❌ Erro ao carregar imagem</span>';
-                      console.error('Erro ao carregar imagem - mediaUrl:', '${isBase64 ? 'base64 data' : msg.media_url}');
-                    }
-                  "
                 >
                 <div class="message-time">${formatMessageTime(msg.created_at)}</div>
               `;
@@ -2032,12 +2023,12 @@
                   ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   <div class="audio-player">
-                    <button class="audio-play-btn" onclick="toggleAudio('${audioId}')" id="btn-${audioId}">
+                    <button class="audio-play-btn" data-audio-id="${audioId}" id="btn-${audioId}">
                       ▶
                     </button>
                     <div class="audio-info">
                       <div class="audio-title">Mensagem de áudio</div>
-                      <div class="audio-progress" onclick="seekAudio(event, '${audioId}')">
+                      <div class="audio-progress" data-audio-id="${audioId}">
                         <div class="audio-progress-bar" id="progress-${audioId}"></div>
                       </div>
                       <div class="audio-time">
@@ -2087,25 +2078,11 @@
                 <img 
                   id="${stickerId}" 
                   data-src="${msg.media_url}" 
+                  data-loading-id="loading-${stickerId}"
+                  data-error-label="figurinha"
+                  data-error-src="${isBase64 ? 'base64 data' : msg.media_url}"
                   class="message-sticker lazy-media" 
                   alt="Figurinha" 
-                  onload="
-                    const stickerEl = document.getElementById('${stickerId}');
-                    const loadingEl = document.getElementById('loading-${stickerId}');
-                    if (stickerEl && loadingEl) {
-                      stickerEl.classList.add('loaded');
-                      loadingEl.style.display = 'none';
-                      const msgContainer = document.getElementById('messagesContainer');
-                      if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-                    }
-                  "
-                  onerror="
-                    const loadingEl = document.getElementById('loading-${stickerId}');
-                    if (loadingEl) {
-                      loadingEl.innerHTML = '<span style=color:#ff6b6b>❌ Erro ao carregar figurinha</span>';
-                      console.error('Erro ao carregar figurinha - mediaUrl:', '${isBase64 ? 'base64 data' : msg.media_url}');
-                    }
-                  "
                 >
                 <div class="message-time">${formatMessageTime(msg.created_at)}</div>
               `;
@@ -2227,11 +2204,37 @@
       });
     }
 
+    function bindImageHandlers(el) {
+      if (!el || el.dataset.handlersBound === '1') return;
+      el.dataset.handlersBound = '1';
+
+      const loadingId = el.dataset.loadingId;
+      const errorLabel = el.dataset.errorLabel || 'mídia';
+      const errorSrc = el.dataset.errorSrc || el.dataset.src || 'desconhecido';
+
+      el.addEventListener('load', () => {
+        const loadingEl = loadingId ? document.getElementById(loadingId) : null;
+        el.classList.add('loaded');
+        if (loadingEl) loadingEl.style.display = 'none';
+        const msgContainer = document.getElementById('messagesContainer');
+        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+      });
+
+      el.addEventListener('error', () => {
+        const loadingEl = loadingId ? document.getElementById(loadingId) : null;
+        if (loadingEl) {
+          loadingEl.innerHTML = `<span style=color:#ff6b6b>❌ Erro ao carregar ${errorLabel}</span>`;
+        }
+        console.error(`Erro ao carregar ${errorLabel} - mediaUrl:`, errorSrc);
+      });
+    }
+
     function loadMediaEl(el) {
       if (!el || el.dataset.loaded === '1') return;
       el.dataset.loaded = '1';
 
       if (el.tagName === 'IMG') {
+        bindImageHandlers(el);
         const src = el.dataset.src;
         if (src) el.src = src;
         return;
@@ -2513,13 +2516,70 @@
       window.recordedAudioBlob = null;
     }
 
+    function initUiBindings() {
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+      const manageBtn = document.getElementById('manageSellersBtn');
+      if (manageBtn) {
+        manageBtn.addEventListener('click', () => {
+          if (typeof navigateTo === 'function') navigateTo('/admin-sellers');
+          else window.location.href = '/admin-sellers';
+        });
+      }
+
+      const backBtn = document.getElementById('backToTicketsBtn');
+      if (backBtn) backBtn.addEventListener('click', backToTicketList);
+
+      const sellerSelect = document.getElementById('sellerSelect');
+      if (sellerSelect) sellerSelect.addEventListener('change', assignTicketToSeller);
+
+      const replyCloseBtn = document.getElementById('replyCloseBtn');
+      if (replyCloseBtn) replyCloseBtn.addEventListener('click', clearReply);
+
+      const sendBtn = document.getElementById('sendBtn');
+      if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+
+      const messageInput = document.getElementById('messageInput');
+      if (messageInput) {
+        messageInput.addEventListener('keydown', handleEnter);
+      }
+
+      const lightbox = document.getElementById('imageLightbox');
+      if (lightbox) lightbox.addEventListener('click', closeLightbox);
+
+      const messagesContainer = document.getElementById('messagesContainer');
+      if (messagesContainer) {
+        messagesContainer.addEventListener('click', (event) => {
+          const progress = event.target.closest('.audio-progress');
+          if (progress && progress.dataset.audioId) {
+            seekAudio(event, progress.dataset.audioId);
+          }
+        });
+      }
+
+      document.addEventListener('click', (event) => {
+        const closeBtn = event.target.closest('[data-role="close-toast"]');
+        if (closeBtn && closeBtn.parentElement) {
+          closeBtn.parentElement.remove();
+        }
+      });
+    }
+
     // Inicializa quando documento carrega
-    document.addEventListener('DOMContentLoaded', initAudioButton);
+    document.addEventListener('DOMContentLoaded', () => {
+      initAudioButton();
+      initUiBindings();
+    });
     // Reinicializa se carregado tarde
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initAudioButton);
+      document.addEventListener('DOMContentLoaded', () => {
+        initAudioButton();
+        initUiBindings();
+      });
     } else {
       initAudioButton();
+      initUiBindings();
     }
 
     // Variável para armazenar o status que está sendo confirmado
@@ -2532,17 +2592,18 @@
       const status = document.getElementById('statusSelect').value;
       const previousStatus = currentTicket.status;
 
-      // Se vai marcar como resolvido, pede confirmação (tanto para admin quanto vendedor)
-      if (status === 'resolvido' && previousStatus !== 'resolvido') {
+      // Se vai marcar como resolvido ou encerrado, pede confirmação (tanto para admin quanto vendedor)
+      if ((status === 'resolvido' || status === 'encerrado') && previousStatus !== 'resolvido' && previousStatus !== 'encerrado') {
         pendingStatus = status;
         // Volta o select ao status anterior enquanto aguarda confirmação
         document.getElementById('statusSelect').value = previousStatus;
         updateCustomSelect('statusSelect');
 
+        const statusTexto = status === 'resolvido' ? 'Resolvida' : 'Encerrada';
         openConfirmModal({
-          header: '⚠️ Marcar como Resolvido?',
-          message: 'Tem certeza que deseja marcar esta conversa como resolvida?<br><br><strong>Ela desaparecerá imediatamente da sua lista de atendimento.</strong>',
-          confirmText: 'Sim, Resolver',
+          header: `⚠️ Marcar como ${status === 'resolvido' ? 'Resolvido' : 'Encerrado'}?`,
+          message: `Tem certeza que deseja marcar esta conversa como ${statusTexto.toLowerCase()}?<br><br><strong>Ela desaparecerá imediatamente da sua lista de atendimento.</strong>`,
+          confirmText: `Sim, ${status === 'resolvido' ? 'Resolver' : 'Encerrar'}`,
           cancelText: 'Cancelar',
           onConfirm: async () => {
             if (pendingStatus) {
@@ -2611,8 +2672,8 @@
         if (response.ok) {
           currentTicket.status = status;
           
-          // Se marcou como resolvido, fecha e limpa tudo imediatamente
-          if (status === 'resolvido') {
+          // Se marcou como resolvido ou encerrado, fecha e limpa tudo imediatamente
+          if (status === 'resolvido' || status === 'encerrado') {
             // Limpar o ticket atual e fechar a conversa imediatamente
             const resolvedTicketId = currentTicket.id;
             currentTicket = null;
@@ -2628,10 +2689,12 @@
             // Mostra mensagem de sucesso no estado vazio
             const emptyState = document.getElementById('emptyState');
             const originalContent = emptyState.innerHTML;
+            const statusTexto = status === 'resolvido' ? 'resolvida' : 'encerrada';
+            const statusTitulo = status === 'resolvido' ? 'Resolvida' : 'Encerrada';
             emptyState.innerHTML = `
               <div style="color: #00a884; gap: 15px; display: flex; flex-direction: column; align-items: center;">
                 <div style="font-size: 48px;">✅</div>
-                <p style="font-size: 16px; font-weight: 600;">Conversa resolvida!</p>
+                <p style="font-size: 16px; font-weight: 600;">Conversa ${statusTexto}!</p>
                 <p style="font-size: 13px; color: #667781;">O atendimento foi finalizado</p>
               </div>
             `;
@@ -2690,10 +2753,10 @@
       // Adaptive polling: use timeouts so we can vary the delay when tab not focused
       // Em escala, polling agressivo derruba o backend (muitos agentes = muitas requisições).
       // Estes valores ainda dão sensação de tempo real, mas com bem menos carga.
-      const POLL_TICKETS_ACTIVE = 2000; // ms when focused (otimizado para melhor responsividade)
-      const POLL_TICKETS_INACTIVE = 12000; // ms when not focused
-      const POLL_MESSAGES_ACTIVE = 800; // ms when focused (mais rápido para detecção de primeira mensagem)
-      const POLL_MESSAGES_INACTIVE = 6500;
+      const POLL_TICKETS_ACTIVE = 4000; // ms when focused (reduzindo carga para evitar 429)
+      const POLL_TICKETS_INACTIVE = 15000; // ms when not focused
+      const POLL_MESSAGES_ACTIVE = 2000; // ms when focused
+      const POLL_MESSAGES_INACTIVE = 8000;
 
       let ticketsPollId = null;
       let messagesPollId = null;
@@ -2725,8 +2788,8 @@
       }
 
       // start adaptive loops (primeira tentativa com delay menor para resposta rápida)
-      scheduleTicketsPoll(500); // Inicia com 500ms para detecção imediata
-      scheduleMessagesPoll(300); // Muito rápido na primeira vez
+      scheduleTicketsPoll(1000); // Inicia com 1s
+      scheduleMessagesPoll(800); // Primeira vez um pouco mais rápida
     })();
 
     // Use shared showNotification (ui.js). Provide fallback if missing.
@@ -2744,7 +2807,7 @@
       toast.innerHTML = `
         <div class="custom-toast-icon">${icon}</div>
         <div class="custom-toast-message">${message}</div>
-        <button class="custom-toast-close" onclick="this.parentElement.remove()">×</button>
+        <button class="custom-toast-close" data-role="close-toast">×</button>
       `;
       document.body.appendChild(toast);
       setTimeout(() => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 300); }, 4000);
@@ -2982,7 +3045,12 @@
           }
         });
         
-        audio.play();
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {
+            btn.textContent = '▶';
+          });
+        }
         btn.textContent = '⏸';
       } else {
         audio.pause();
@@ -3186,7 +3254,10 @@
     function handleMediaClick(event, mediaType, messageId) {
       event.stopPropagation();
       
-      const mediaElement = event.target;
+      const mediaElement = mediaType === 'audio'
+        ? event.target.closest('.audio-play-btn')
+        : event.target;
+      if (!mediaElement) return;
       const clickKey = `${messageId}-${mediaType}`;
       
       // Se já há um clique pendente, é um duplo clique
@@ -3224,8 +3295,8 @@
             }
           } else if (mediaType === 'audio') {
             // Para áudio, ativa o player
-            const audioId = mediaElement.id;
-            toggleAudio(audioId);
+            const audioId = mediaElement.dataset?.audioId || (mediaElement.id ? mediaElement.id.replace('btn-', '') : null);
+            if (audioId) toggleAudio(audioId);
           }
         }, DOUBLE_CLICK_DELAY);
         
@@ -3236,6 +3307,8 @@
     // Inicializa listeners de clique e duplo clique nas mensagens
     function initMessageReplyListeners(container) {
       if (!container) return;
+      if (container.dataset.replyListenersInit === '1') return;
+      container.dataset.replyListenersInit = '1';
 
       // Delegação de eventos para clique simples em mídias
       container.addEventListener('click', (e) => {
@@ -3280,7 +3353,6 @@
         const audioPlayBtn = e.target.closest('.audio-play-btn');
         if (audioPlayBtn) {
           const msgId = msgElement.id.replace('msg-', '');
-          const audioId = audioPlayBtn.id.replace('btn-', '');
           handleMediaClick(e, 'audio', msgId);
           return;
         }

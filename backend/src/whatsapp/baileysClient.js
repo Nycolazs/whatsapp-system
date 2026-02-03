@@ -489,8 +489,8 @@ async function startBot() {
 
       const contactName = msg.pushName || null
 
-      // Busca o último ticket ativo (não resolvido) deste telefone
-      let ticket = db.prepare('SELECT * FROM tickets WHERE phone = ? AND status != ? ORDER BY id DESC LIMIT 1').get(phoneNumber, 'resolvido')
+      // Busca o último ticket ativo (não resolvido/encerrado) deste telefone
+      let ticket = db.prepare('SELECT * FROM tickets WHERE phone = ? AND status NOT IN (?, ?) ORDER BY id DESC LIMIT 1').get(phoneNumber, 'resolvido', 'encerrado')
       let isNewTicket = false
 
       // Se não há ticket ativo, verifica se existe algum ticket para este número

@@ -1,4 +1,6 @@
 const express = require('express');
+const { validate, schemas } = require('../middleware/validation');
+const { auditMiddleware } = require('../middleware/audit');
 
 function createAdminConfigRouter({ db, requireAdmin, accountContext, accountManager }) {
   const router = express.Router();
@@ -44,11 +46,13 @@ function createAdminConfigRouter({ db, requireAdmin, accountContext, accountMana
     }
   });
 
-  router.put('/business-hours', requireAdmin, (req, res) => {
-    const payload = Array.isArray(req.body) ? req.body : req.body.hours;
-    if (!Array.isArray(payload)) {
-      return res.status(400).json({ error: 'Formato inválido. Envie uma lista de horários.' });
-    }
+  router.put(
+    '/business-hours',
+    requireAdmin,
+    validate(schemas.businessHours),
+    auditMiddleware('update-business-hours'),
+    (req, res) => {
+      const payload = req.body;
 
     try {
       const upsert = db.prepare(`
@@ -90,12 +94,13 @@ function createAdminConfigRouter({ db, requireAdmin, accountContext, accountMana
     }
   });
 
-  router.post('/business-exceptions', requireAdmin, (req, res) => {
-    const { date, closed, open_time, close_time, reason } = req.body;
-
-    if (!date) {
-      return res.status(400).json({ error: 'Data é obrigatória' });
-    }
+  router.post(
+    '/business-exceptions',
+    requireAdmin,
+    validate(schemas.businessException),
+    auditMiddleware('create-business-exception'),
+    (req, res) => {
+      const { date, closed, open_time, close_time, reason } = req.body;
 
     try {
       const result = db

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const whatsappService = require('./src/whatsapp/whatsappService');
 const { startBot, getSocket, getQrState } = whatsappService;
@@ -7,8 +8,9 @@ const baileys = whatsappService.raw;
 const db = require('./db');
 const accountContext = require('./accountContext');
 const accountManager = require('./accountManager');
-const { hashPassword } = require('./src/security/password');
+const { hashPassword, hashPasswordSync, verifyPassword, verifyPasswordSync } = require('./src/security/password');
 const { requireAuth, requireAdmin } = require('./src/middleware/auth');
+const { generalLimiter } = require('./src/middleware/rateLimiter');
 const { createSystemRouter } = require('./src/routes/system.routes');
 const { createWhatsAppRouter } = require('./src/routes/whatsapp.routes');
 const { createAuthRouter } = require('./src/routes/auth.routes');
@@ -32,6 +34,24 @@ const app = express();
 
 app.disable('x-powered-by');
 
+// Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrcAttr: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://pps.whatsapp.net'],
+        connectSrc: ["'self'"],
+        mediaSrc: ["'self'", 'blob:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
 // compressão é opcional (só ativa se a dependência estiver instalada)
 try {
   // eslint-disable-next-line import/no-extraneous-dependencies
@@ -39,14 +59,16 @@ try {
   app.use(compression());
 } catch (_) {}
 
+const isProduction = process.env.NODE_ENV === 'production';
 const sessionManager = createSessionMiddleware({
   accountContext,
   accountManager,
   secret: process.env.SESSION_SECRET || 'whatsapp-system-secret-key-fixed-2024',
   cookie: {
-    secure: false,
+    secure: process.env.COOKIE_SECURE === '1' || isProduction,
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: process.env.COOKIE_SAMESITE || (isProduction ? 'strict' : 'lax'),
   },
 });
 app.use(sessionManager.middleware);
@@ -59,7 +81,19 @@ app.use(cors({
   origin: corsOrigin,
   credentials: true
 }));
+app.use(generalLimiter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+
+// Debug middleware para log de requisições
+app.use((req, res, next) => {
+  if (req.path.startsWith('/auth/')) {
+    console.log(`[DEBUG] ${req.method} ${req.path}`, {
+      contentType: req.headers['content-type'],
+      body: req.body
+    });
+  }
+  next();
+});
 
 // Configuração do multer para upload de áudio
 const audioDir = path.join(__dirname, '../media/audios');
@@ -96,8 +130,6 @@ app.use('/media', express.static(path.join(__dirname, '../media'), {
 
 const frontendDir = path.join(__dirname, '../frontend');
 
-app.use(createPagesRouter({ frontendDir, getQrState }));
-
 function getAdminCount() {
   try {
     return db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count || 0;
@@ -109,13 +141,31 @@ function getAdminCount() {
 
 app.use(createSystemRouter({ baileys }));
 app.use(createWhatsAppRouter({ baileys, db, requireAdmin }));
-app.use(createAuthRouter({ db, hashPassword, getQrState }));
+app.use(createAuthRouter({ db, hashPassword, verifyPassword, getQrState }));
 app.use(createUsersRouter({ db, hashPassword, requireAuth, requireAdmin, getAdminCount }));
 app.use(createTicketsRouter({ db, requireAuth, requireAdmin, getSocket, uploadAudio }));
 app.use(createBlacklistRouter({ db }));
 app.use(createContactsRouter({ getSocket }));
 app.use(createHealthRouter({ getQrState, accountContext, db, getSessionsPath: () => sessionManager.getCurrentSessionDbPath() }));
 app.use(createAdminConfigRouter({ db, requireAdmin, accountContext, accountManager }));
+
+// Pages router deve ser o último para não interceptar rotas de API
+app.use(createPagesRouter({ frontendDir, getQrState }));
+
+// Error handler middleware - deve vir após todas as rotas
+app.use((err, req, res, next) => {
+  console.error('Erro não tratado:', err);
+  
+  // Se a requisição é para uma rota de API, retorna JSON
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/') || req.path.startsWith('/whatsapp/')) {
+    return res.status(err.status || 500).json({ 
+      error: err.message || 'Erro interno do servidor' 
+    });
+  }
+  
+  // Caso contrário, passa para o próximo handler
+  next(err);
+});
 
 // Shutdown gracioso (evita corrupção/locks quando roda por muito tempo)
 let server = null;

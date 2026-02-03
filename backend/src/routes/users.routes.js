@@ -1,4 +1,7 @@
 const express = require('express');
+const { createResourceLimiter } = require('../middleware/rateLimiter');
+const { validate, schemas } = require('../middleware/validation');
+const { auditMiddleware } = require('../middleware/audit');
 
 function createUsersRouter({
   db,
@@ -109,33 +112,36 @@ function createUsersRouter({
   });
 
   // Observação: hoje este endpoint não exige requireAdmin no código original.
-  router.post('/sellers', (req, res) => {
-    const { name, password } = req.body;
+  router.post(
+    '/sellers',
+    createResourceLimiter,
+    validate(schemas.seller),
+    auditMiddleware('create-seller'),
+    async (req, res) => {
+      const { name, password } = req.body;
 
-    if (!name || !password) {
-      return res.status(400).json({ error: 'Nome e senha são obrigatórios' });
-    }
+      try {
+        const hashedPassword = await hashPassword(password);
+        const result = db.prepare('INSERT INTO sellers (name, password) VALUES (?, ?)').run(
+          name,
+          hashedPassword
+        );
 
-    try {
-      const result = db.prepare('INSERT INTO sellers (name, password) VALUES (?, ?)').run(
-        name,
-        hashPassword(password)
-      );
-
-      return res.status(201).json({
-        success: true,
-        id: result.lastInsertRowid,
-        name,
-      });
-    } catch (error) {
-      if (error.message.includes('UNIQUE')) {
-        return res.status(400).json({ error: 'Vendedor já existe' });
+        return res.status(201).json({
+          success: true,
+          id: result.lastInsertRowid,
+          name,
+        });
+      } catch (error) {
+        if (error.message.includes('UNIQUE')) {
+          return res.status(400).json({ error: 'Vendedor já existe' });
+        }
+        return res.status(500).json({ error: 'Erro ao criar vendedor' });
       }
-      return res.status(500).json({ error: 'Erro ao criar vendedor' });
     }
-  });
+  );
 
-  router.patch('/sellers/:id', requireAdmin, (req, res) => {
+  router.patch('/sellers/:id', requireAdmin, auditMiddleware('update-seller'), async (req, res) => {
     const { id } = req.params;
     const { name, active, password } = req.body;
 
@@ -153,7 +159,8 @@ function createUsersRouter({
       }
       if (password) {
         query += ', password = ?';
-        params.push(hashPassword(password));
+        const hashedPassword = await hashPassword(password);
+        params.push(hashedPassword);
       }
 
       query += ' WHERE id = ?';

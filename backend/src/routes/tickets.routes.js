@@ -1,5 +1,7 @@
 const express = require('express');
 const fs = require('fs');
+const { validate, schemas } = require('../middleware/validation');
+const { auditMiddleware } = require('../middleware/audit');
 
 const DEBUG_TICKETS_REPLY = process.env.DEBUG_TICKETS_REPLY === '1';
 
@@ -89,7 +91,12 @@ function createTicketsRouter({
     return res.json(messages);
   });
 
-  router.post('/tickets/:id/send', requireAuth, async (req, res) => {
+  router.post(
+    '/tickets/:id/send',
+    requireAuth,
+    validate(schemas.sendMessage),
+    auditMiddleware('send-message'),
+    async (req, res) => {
     const { id } = req.params;
     const { message, reply_to_id } = req.body;
 
@@ -304,11 +311,16 @@ function createTicketsRouter({
     }
   });
 
-  router.patch('/tickets/:id/status', requireAuth, async (req, res) => {
+  router.patch(
+    '/tickets/:id/status',
+    requireAuth,
+    validate(schemas.ticketStatus),
+    auditMiddleware('update-ticket-status'),
+    async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['pendente', 'aguardando', 'em_atendimento', 'resolvido'].includes(status)) {
+    if (!['pendente', 'aguardando', 'em_atendimento', 'resolvido', 'encerrado'].includes(status)) {
       return res.status(400).json({ error: 'Status inválido' });
     }
 
@@ -322,7 +334,7 @@ function createTicketsRouter({
         return res.status(400).json({ error: 'Não é permitido voltar para pendente' });
       }
 
-      if (status === 'resolvido') {
+      if (status === 'resolvido' || status === 'encerrado') {
         try {
           const sock = getSocket();
           if (sock) {
@@ -382,7 +394,12 @@ function createTicketsRouter({
   });
 
   // Atribuir/transferir ticket a um vendedor (admin ou vendedor)
-  router.post('/tickets/:id/assign', requireAuth, (req, res) => {
+  router.post(
+    '/tickets/:id/assign',
+    requireAuth,
+    validate(schemas.assignTicket),
+    auditMiddleware('assign-ticket'),
+    (req, res) => {
     const { id } = req.params;
     const { sellerId } = req.body;
 
@@ -439,6 +456,7 @@ function createTicketsRouter({
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
         WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
           AND t.status != 'resolvido'
+          AND t.status != 'encerrado'
           AND t.phone LIKE '55%'
           AND t.phone NOT LIKE '%@%'
           AND length(t.phone) BETWEEN 12 AND 13

@@ -1,6 +1,7 @@
 auth/*
 
 backend/auth/*
+backend/src/media
 
 media/*
 

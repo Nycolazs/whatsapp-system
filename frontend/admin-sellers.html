@@ -352,6 +352,10 @@
       background: #d4edda;
       color: #155724;
     }
+    .status-encerrado {
+      background: #d4edda;
+      color: #155724;
+    }
     .status-aguardando {
       background: #fff0e0;
       color: #7a4b00;
@@ -1027,6 +1031,25 @@
 
   <script>
     const API_URL = `http://${window.location.hostname}:3001`;
+
+    // Helper para formatar mensagens de erro com detalhes
+    function formatErrorMessage(data) {
+      if (!data) return 'Erro desconhecido';
+      if (data.details && Array.isArray(data.details)) {
+        // Remove o prefixo "campo: " de cada mensagem
+        return data.details.map(msg => {
+          const colonIndex = msg.indexOf(':');
+          return colonIndex > 0 ? msg.substring(colonIndex + 1).trim() : msg;
+        }).join('; ');
+      }
+      if (data.details && typeof data.details === 'string') {
+        // Remove o prefixo "campo: " se existir
+        const colonIndex = data.details.indexOf(':');
+        return colonIndex > 0 ? data.details.substring(colonIndex + 1).trim() : data.details;
+      }
+      return data.error || 'Erro desconhecido';
+    }
+
     let sellers = [];
     let tickets = [];
     let editingId = null;
@@ -1410,7 +1433,7 @@
 
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao adicionar');
+          throw new Error(formatErrorMessage(data) || 'Erro ao adicionar');
         }
 
         showToast('Número adicionado com sucesso', 'success');
@@ -1430,7 +1453,7 @@
           });
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.error || 'Erro ao remover');
+            throw new Error(formatErrorMessage(data) || 'Erro ao remover');
           }
 
           showToast('Número removido com sucesso', 'success');
@@ -1714,7 +1737,10 @@
             body: JSON.stringify(data)
           });
 
-          if (!response.ok) throw new Error('Erro ao atualizar');
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(formatErrorMessage(error) || 'Erro ao atualizar');
+          }
           showToast('Vendedor atualizado com sucesso', 'success');
         } else {
           if (!password) {
@@ -1731,7 +1757,7 @@
 
           if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Erro ao criar');
+            throw new Error(formatErrorMessage(error) || 'Erro ao criar');
           }
           showToast('Vendedor criado com sucesso', 'success');
         }
@@ -1792,10 +1818,10 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
             if (response.status === 409) {
-              openAlertModal(data.error || 'Não é permitido remover o último admin do sistema.');
+              openAlertModal(formatErrorMessage(data) || 'Não é permitido remover o último admin do sistema.');
               return;
             }
-            throw new Error(data.error || 'Erro ao remover admin');
+            throw new Error(formatErrorMessage(data) || 'Erro ao remover admin');
           }
           showToast('Admin removido com sucesso', 'success');
           loadUsers();
@@ -1879,10 +1905,10 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
             if (response.status === 409) {
-              openAlertModal(data.error || 'Não é permitido remover o último admin do sistema.');
+              openAlertModal(formatErrorMessage(data) || 'Não é permitido remover o último admin do sistema.');
               return;
             }
-            throw new Error(data.error || 'Erro ao reverter para vendedor');
+            throw new Error(formatErrorMessage(data) || 'Erro ao reverter para vendedor');
           }
           showToast(data.message || 'Usuário agora é apenas vendedor', 'success');
           if (data.sessionDestroyed) {
@@ -1910,7 +1936,7 @@
           });
 
           const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data.error || 'Erro ao deletar vendedor');
+          if (!response.ok) throw new Error(formatErrorMessage(data) || 'Erro ao deletar vendedor');
           showToast('Vendedor deletado com sucesso', 'success');
           loadUsers();
         } catch (error) {

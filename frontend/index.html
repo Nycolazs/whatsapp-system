@@ -159,7 +159,7 @@
 
     <div id="errorMessage" class="error-message"></div>
 
-    <form id="loginForm" onsubmit="handleLogin(event)">
+    <form id="loginForm">
       <div class="form-group">
         <label for="username">Usuário / Nome</label>
         <input 
@@ -187,7 +187,32 @@
 
   <script src="/frontend/ui.js"></script>
   <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const loginForm = document.getElementById('loginForm');
+          if (loginForm) {
+            loginForm.addEventListener('submit', handleLogin);
+          }
+        });
+
     const API_URL = `http://${window.location.hostname}:3001`;
+
+    // Helper para formatar mensagens de erro com detalhes
+    function formatErrorMessage(data) {
+      if (!data) return 'Erro desconhecido';
+      if (data.details && Array.isArray(data.details)) {
+        // Remove o prefixo "campo: " de cada mensagem
+        return data.details.map(msg => {
+          const colonIndex = msg.indexOf(':');
+          return colonIndex > 0 ? msg.substring(colonIndex + 1).trim() : msg;
+        }).join('; ');
+      }
+      if (data.details && typeof data.details === 'string') {
+        // Remove o prefixo "campo: " se existir
+        const colonIndex = data.details.indexOf(':');
+        return colonIndex > 0 ? data.details.substring(colonIndex + 1).trim() : data.details;
+      }
+      return data.error || 'Erro desconhecido';
+    }
 
     async function handleLogin(event) {
       event.preventDefault();
@@ -212,7 +237,7 @@
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao fazer login');
+          throw new Error(formatErrorMessage(data) || 'Erro ao fazer login');
         }
 
         // Redirecionamento será determinado pelo backend/session
@@ -228,6 +253,52 @@
         loginBtn.textContent = 'Entrar';
       }
     }
+      async function handleLogin(event) {
+        event.preventDefault();
+      
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('errorMessage');
+        const loginBtn = document.querySelector('.login-button');
+
+        console.log('[login] Tentando login com:', { username });
+
+        errorDiv.style.display = 'none';
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Aguarde...';
+
+        try {
+          const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // Importante para cookies de sessão
+            body: JSON.stringify({ username, password })
+          });
+
+          console.log('[login] Resposta do servidor:', response.status);
+
+          const data = await response.json();
+          console.log('[login] Dados da resposta:', data);
+
+          if (!response.ok) {
+            throw new Error(formatErrorMessage(data) || 'Erro ao fazer login');
+          }
+
+          console.log('[login] Login bem-sucedido, redirecionando...');
+          // Redirecionamento será determinado pelo backend/session
+          if (typeof navigateTo === 'function') navigateTo('/agent'); else window.location.href = '/agent';
+        } catch (error) {
+          console.error('[login] Erro:', error);
+          if (typeof showNotification === 'function') {
+            showNotification(error.message, 'error');
+          } else {
+            errorDiv.textContent = error.message;
+            errorDiv.style.display = 'block';
+          }
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Entrar';
+        }
+      }
 
     // Verifica conexão ao abrir a tela
     (async () => {

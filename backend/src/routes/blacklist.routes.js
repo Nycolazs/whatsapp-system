@@ -1,4 +1,6 @@
 const express = require('express');
+const { validate, schemas } = require('../middleware/validation');
+const { auditMiddleware } = require('../middleware/audit');
 
 function createBlacklistRouter({ db }) {
   const router = express.Router();
@@ -8,7 +10,15 @@ function createBlacklistRouter({ db }) {
     return res.json(blacklist);
   });
 
-  router.post('/blacklist', (req, res) => {
+  router.post(
+    '/blacklist',
+    (req, res, next) => {
+      console.log('[BLACKLIST DEBUG] Request body:', req.body);
+      next();
+    },
+    validate(schemas.blacklist),
+    auditMiddleware('add-to-blacklist'),
+    (req, res) => {
     const { phone, reason } = req.body;
 
     if (!phone) {
@@ -52,7 +62,7 @@ function createBlacklistRouter({ db }) {
     }
   });
 
-  router.delete('/blacklist/:phone', (req, res) => {
+  router.delete('/blacklist/:phone', auditMiddleware('remove-from-blacklist'), (req, res) => {
     const { phone } = req.params;
 
     const result = db.prepare('DELETE FROM blacklist WHERE phone = ?').run(phone);

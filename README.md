@@ -200,24 +200,45 @@ Botão de voltar (←) aparece automaticamente em mobile.
 
 ## Segurança (Notas e Próximos Passos)
 
-O projeto já possui autenticação baseada em sessão e armazenamento persistente. Para uso profissional, considere:
+O projeto implementa várias camadas de segurança para uso profissional:
 
-- **Segredos em variáveis de ambiente**: mover o `session secret` para `SESSION_SECRET`.
-- **CORS restrito**: permitir apenas origens confiáveis em produção.
-- **Cookies seguros**: habilitar `secure` atrás de HTTPS e ajustar `sameSite`.
-- **Rate limiting**: proteger endpoints de autenticação e envio.
-- **Senha**: hoje há hash SHA-256 em alguns fluxos; uma evolução recomendada é migrar para `bcrypt` com re-hash gradual.
+**✅ Implementado:**
+- **Autenticação robusta**: bcrypt para hashing de senhas com migração automática de SHA-256 legado
+- **Cookies seguros**: `secure`, `httpOnly` e `sameSite` configuráveis (automático em produção)
+- **Security headers**: helmet.js para CSP, X-Frame-Options, HSTS, etc
+- **Rate limiting**: proteção contra força bruta em login e endpoints críticos
+- **Validação de inputs**: zod para sanitização e validação de todos os dados de entrada
+- **Logs de auditoria**: rastreamento de ações sensíveis (login, mudanças de config, etc)
+- **CORS restrito**: configurável por ambiente
+- **Session secret externalizável**: via `SESSION_SECRET`
 
-Esses itens podem ser feitos sem quebrar o comportamento atual, desde que implementados com defaults compatíveis (dev permissivo, prod restrito).
+**⚠️ Recomendações para produção:**
+- Habilitar HTTPS obrigatório (nginx/traefik na frente)
+- Usar `NODE_ENV=production` para ativar defaults seguros
+- Configurar `CORS_ORIGIN` com domínios específicos
+- Definir `SESSION_SECRET` forte e único
+- Monitorar logs de auditoria para detecção de anomalias
+- Implementar backup automático do SQLite
+- Considerar Redis para sessions em ambientes distribuídos
 
-Variáveis úteis:
-
-- `SESSION_SECRET`: segredo do `express-session`.
-- `CORS_ORIGIN`: lista separada por vírgula de origens permitidas (ex.: `https://app.suaempresa.com,https://admin.suaempresa.com`).
+Variáveis críticas:
+- `NODE_ENV=production` (ativa defaults seguros)
+- `SESSION_SECRET` (>= 32 caracteres aleatórios)
+- `CORS_ORIGIN` (lista de domínios permitidos)
+- `COOKIE_SECURE=1` (se HTTPS atrás de proxy)
+- `NODE_ENV`: define ambiente (`production` ativa cookies seguros automaticamente).
+- `COOKIE_SECURE`: força cookies seguros (`1` para habilitar, útil para HTTPS atrás de proxy).
+- `COOKIE_SAMESITE`: política SameSite dos cookies (`strict`, `lax`, `none`). Default: `lax` dev, `strict` prod.
+- `BCRYPT_ROUNDS`: custo do bcrypt (default: 12). Aumentar para mais segurança (mais lento).
 - `LOG_LEVEL`: nível do logger (`error`, `warn`, `info`, `debug`, `trace`). Default: `info`.
 - `DEBUG_TICKETS_REPLY`: quando `1`, habilita logs extras ao enviar respostas em tickets.
 - `DEBUG_MEDIA_LOGS`: quando `1`, habilita logs extras ao salvar mídias recebidas do WhatsApp.
 - `DEBUG_RECEIVE_LOGS`: quando `1`, habilita logs extras ao persistir mensagens recebidas.
+
+**Rate limiting (proteção contra força bruta):**
+- `LOGIN_RATE_WINDOW_MS`: janela de tempo para limite de login (default: 15 min).
+- `LOGIN_RATE_MAX_ATTEMPTS`: tentativas máximas de login por janela (default: 5).
+- `DISABLE_RATE_LIMIT`: quando `1`, desativa rate limiting geral (dev only).
 
 ## Banco de Dados
 

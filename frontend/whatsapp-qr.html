@@ -154,7 +154,7 @@
     </ul>
 
     <div class="actions">
-      <button class="btn btn-secondary" onclick="refreshQr()">Atualizar QR</button>
+      <button class="btn btn-secondary" id="refreshQrBtn">Atualizar QR</button>
     </div>
   </div>
 
@@ -252,7 +252,13 @@
       polling = setInterval(loadQr, 2000);
     }
 
-    startPolling();
+    document.addEventListener('DOMContentLoaded', () => {
+      const refreshBtn = document.getElementById('refreshQrBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', refreshQr);
+      }
+      startPolling();
+    });
   </script>
   <script src="/frontend/ui.js"></script>
 </body>
