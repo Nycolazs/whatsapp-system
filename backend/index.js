@@ -30,7 +30,27 @@ const fs = require('fs');
 
 const logger = createLogger('backend');
 
+process.on('unhandledRejection', (reason) => {
+  try {
+    logger.error('[process] unhandledRejection:', reason);
+  } catch (_) {
+    console.error('[process] unhandledRejection:', reason);
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  try {
+    logger.error('[process] uncaughtException:', err);
+  } catch (_) {
+    console.error('[process] uncaughtException:', err);
+  }
+  // Intencionalmente NÃO encerramos o processo aqui.
+  // Preferimos manter a API de pé mesmo se o WhatsApp falhar.
+});
+
 const app = express();
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.disable('x-powered-by');
 
@@ -44,11 +64,15 @@ app.use(
         scriptSrcAttr: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:', 'https://pps.whatsapp.net'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", '*'], // Permite conexões de qualquer origem em desenvolvimento
         mediaSrc: ["'self'", 'blob:'],
+        // Não forçar upgrade para HTTPS em desenvolvimento (LAN/HTTP)
+        upgradeInsecureRequests: isProduction ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false,
+    // Evita Strict-Transport-Security em HTTP/LAN (senão o browser força HTTPS e quebra tudo)
+    hsts: isProduction,
   })
 );
 
@@ -59,13 +83,16 @@ try {
   app.use(compression());
 } catch (_) {}
 
-const isProduction = process.env.NODE_ENV === 'production';
+const cookieSecure = process.env.COOKIE_SECURE
+  ? process.env.COOKIE_SECURE === '1'
+  : (isProduction ? 'auto' : false);
+
 const sessionManager = createSessionMiddleware({
   accountContext,
   accountManager,
   secret: process.env.SESSION_SECRET || 'whatsapp-system-secret-key-fixed-2024',
   cookie: {
-    secure: process.env.COOKIE_SECURE === '1' || isProduction,
+    secure: cookieSecure,
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     sameSite: process.env.COOKIE_SAMESITE || (isProduction ? 'strict' : 'lax'),
@@ -77,9 +104,13 @@ const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
   : true;
 
+// Em desenvolvimento, desabilita CORS completamente
 app.use(cors({
-  origin: corsOrigin,
-  credentials: true
+  origin: true, // Permite todas as origens em desenvolvimento
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
 }));
 app.use(generalLimiter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
@@ -129,6 +160,18 @@ app.use('/media', express.static(path.join(__dirname, '../media'), {
 }));
 
 const frontendDir = path.join(__dirname, '../frontend');
+
+// Serve frontend assets
+app.use(express.static(frontendDir, {
+  extensions: ['html', 'htm', 'css', 'js', 'json'],
+  setHeaders: (res, path) => {
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    } else if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    }
+  }
+}));
 
 function getAdminCount() {
   try {
@@ -180,9 +223,13 @@ installGracefulShutdown({
 });
 
 
-startBot().then(() => {
-  // Bot iniciado
-});
+startBot()
+  .then(() => {
+    // Bot iniciado
+  })
+  .catch((err) => {
+    logger.error('[startBot] Falha ao iniciar WhatsApp:', err);
+  });
 
 autoAwaitJob = startAutoAwaitJob({ db });
 

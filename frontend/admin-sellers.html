@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    if (window.location.protocol === 'https:') {
+      window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
+    }
+  </script>
   <title>Admin - WhatsApp System</title>
   <style>
     * {
@@ -21,6 +26,10 @@
     .container {
       display: flex;
       height: 100vh;
+    }
+
+    .sidebar-overlay {
+      display: none;
     }
 
     /* Sidebar */
@@ -136,6 +145,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-width: 0;
     }
 
     .header {
@@ -145,17 +155,62 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid #e0e0e0;
+      background: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      color: #111;
+      flex: 0 0 auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .menu-btn:active {
+      transform: scale(0.98);
     }
 
     .header h1 {
       font-size: 24px;
       color: #111;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .content {
       flex: 1;
       overflow-y: auto;
       padding: 30px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hidden {
+      opacity: 0 !important;
+      transform: translateY(8px) !important;
+    }
+
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 8px;
     }
 
     /* Section panels: animate visibility smoothly */
@@ -291,6 +346,62 @@
 
     .tickets-container.active {
       display: block;
+    }
+
+    .tickets-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      margin-bottom: 12px;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 190px;
+    }
+
+    .filter-group label {
+      font-size: 12px;
+      color: #667781;
+      font-weight: 600;
+    }
+
+    .filter-control {
+      padding: 8px 10px;
+      border: 1px solid #d1d7db;
+      border-radius: 6px;
+      font-size: 13px;
+      background: white;
+      font-family: inherit;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .filter-control::placeholder {
+      color: #bbb;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .filter-inline {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .filter-inline .filter-control {
+      flex: 1 1 0;
+      min-width: 0;
+      width: auto;
+    }
+
+    .filter-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 10px;
     }
 
     .tickets-table {
@@ -765,76 +876,203 @@
       opacity: 0.8;
     }
 
-    /* Responsividade Mobile */
+    /* Responsividade Mobile (drawer + layout touch-friendly) */
     @media (max-width: 768px) {
-      .container {
-        flex-direction: column;
+      body {
+        overflow: hidden;
+      }
+
+      .menu-btn {
+        display: inline-flex;
       }
 
       .sidebar {
-        width: 100%;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(86vw, 320px);
         border-right: none;
-        border-bottom: 1px solid #e0e0e0;
-        max-height: 50vh;
+        transform: translateX(-105%);
+        transition: transform 220ms cubic-bezier(.2,.9,.2,1);
+        z-index: 1001;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 1000;
+      }
+
+      .sidebar-overlay.active {
+        display: block;
+      }
+
+      .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px 0;
+        overflow-y: auto;
+        border-bottom: none;
+      }
+
+      .nav-item {
+        white-space: normal;
+        padding: 12px 16px;
+        border-right: 3px solid transparent;
+        border-bottom: none;
+        border-radius: 0;
+      }
+
+      .nav-item.active {
+        border-right-color: #00a884;
+        border-bottom-color: transparent;
       }
 
       .main-content {
         width: 100%;
-        padding: 15px;
       }
 
-      .content-header h1 {
-        font-size: 20px;
+      .header {
+        padding: 12px 14px;
+        position: sticky;
+        top: 0;
+        z-index: 20;
       }
 
-      .stats-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
+      .header h1 {
+        font-size: 18px;
+      }
+
+      .content {
+        padding: 14px;
+      }
+
+      .tickets-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .filter-group {
+        min-width: 0;
+      }
+
+      .filter-actions {
+        margin-left: 0;
       }
 
       .sellers-grid {
         grid-template-columns: 1fr;
+        gap: 14px;
       }
 
-      table {
-        font-size: 12px;
+      .seller-card {
+        padding: 16px;
       }
 
-      th, td {
-        padding: 8px 6px;
+      .seller-actions {
+        flex-direction: column;
+      }
+
+      .btn-small {
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+
+      .blacklist-form {
+        grid-template-columns: 1fr;
+      }
+
+      .blacklist-actions {
+        flex-direction: column;
+      }
+
+      .exception-form {
+        grid-template-columns: 1fr;
+      }
+
+      .exception-form button {
+        width: 100%;
+      }
+
+      .hours-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "day toggle"
+          "open close";
+        gap: 10px;
+      }
+
+      .hours-row .hours-day {
+        grid-area: day;
+        font-weight: 600;
+        color: #111;
+      }
+
+      .hours-row label {
+        grid-area: toggle;
+        justify-content: flex-end;
+      }
+
+      .hours-row input[data-field="open_time"] {
+        grid-area: open;
+      }
+
+      .hours-row input[data-field="close_time"] {
+        grid-area: close;
+      }
+
+      .table-scroll table {
+        min-width: 720px;
       }
 
       .modal-content {
-        width: 95%;
-        padding: 20px;
+        width: min(96vw, 520px);
+        padding: 18px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .custom-toast {
+        left: 12px;
+        right: 12px;
+        max-width: none;
       }
     }
 
     @media (max-width: 480px) {
       .sidebar-header {
-        padding: 15px;
+        padding: 16px;
       }
 
-      .sidebar-header h2 {
-        font-size: 18px;
+      .header h1 {
+        font-size: 16px;
       }
 
-      .main-content {
-        padding: 10px;
-      }
-
-      .btn {
-        padding: 8px 12px;
+      .btn-new-seller {
+        padding: 10px 12px;
         font-size: 13px;
+      }
+
+      .panel {
+        padding: 16px;
       }
     }
   </style>
-  <link rel="stylesheet" href="/frontend/ui.css">
+  <link rel="stylesheet" href="/ui.css">
 </head>
 <body>
   <div class="container">
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h2>Admin</h2>
         <p style="font-size: 12px; opacity: 0.9;" id="adminName">Admin</p>
@@ -872,10 +1110,15 @@
       </div>
     </div>
 
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
     <!-- Main Content -->
     <div class="main-content">
       <div class="header">
-        <h1 id="sectionTitle">Gerenciar Vendedores</h1>
+        <div class="header-left">
+          <button class="menu-btn" id="menuBtn" type="button" aria-label="Abrir menu" onclick="toggleSidebar()">☰</button>
+          <h1 id="sectionTitle">Gerenciar Vendedores</h1>
+        </div>
         <button id="headerBtn" class="btn-new-seller" onclick="openNewSellerModal()">+ Novo Usuário</button>
       </div>
 
@@ -887,20 +1130,84 @@
 
         <!-- Tickets Section -->
         <div class="tickets-container" id="ticketsSection">
-          <table class="tickets-table">
-            <thead>
-              <tr>
-                <th>Contato</th>
-                <th>Telefone</th>
-                <th>Vendedor</th>
-                <th>Status</th>
-                <th>Atualizado em</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody id="ticketsTableBody">
-            </tbody>
-          </table>
+          <div class="panel">
+            <div class="tickets-toolbar">
+              <div class="filter-group">
+                <label for="ticketSellerFilter">Vendedor</label>
+                <select id="ticketSellerFilter" class="filter-control" onchange="applyTicketFilters()"></select>
+              </div>
+
+              <div class="filter-group">
+                <label for="ticketTimePreset">Período</label>
+                <select id="ticketTimePreset" class="filter-control" onchange="applyTicketTimePreset()">
+                  <option value="">Qualquer data</option>
+                  <option value="today">Hoje</option>
+                  <option value="yesterday">Ontem</option>
+                  <option value="last_24h">Últimas 24 horas</option>
+                  <option value="last_7d">Últimos 7 dias</option>
+                  <option value="last_30d">Últimos 30 dias</option>
+                  <option value="this_month">Este mês</option>
+                  <option value="prev_month">Mês passado</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+
+              <div class="filter-group" style="min-width: 380px;">
+                <label>Atualizado entre</label>
+                <div class="filter-inline" style="flex-wrap: wrap; gap: 8px;">
+                  <div style="flex: 1; min-width: 130px;">
+                    <label style="font-size: 0.85em; color: #667781;">De (DD/MM/YYYY)</label>
+                    <input id="ticketUpdatedFrom" class="filter-control" type="text" placeholder="DD/MM/YYYY" aria-label="Atualizado de (data)" inputmode="numeric" />
+                  </div>
+                  <div style="flex: 1; min-width: 100px;">
+                    <label style="font-size: 0.85em; color: #667781;">Hora</label>
+                    <input id="ticketUpdatedFromTime" class="filter-control" type="time" aria-label="Atualizado de (hora)" oninput="onTicketTimeRangeInputChanged()" />
+                  </div>
+                  <div style="flex: 1; min-width: 130px;">
+                    <label style="font-size: 0.85em; color: #667781;">Até (DD/MM/YYYY)</label>
+                    <input id="ticketUpdatedTo" class="filter-control" type="text" placeholder="DD/MM/YYYY" aria-label="Atualizado até (data)" inputmode="numeric" />
+                  </div>
+                  <div style="flex: 1; min-width: 100px;">
+                    <label style="font-size: 0.85em; color: #667781;">Hora</label>
+                    <input id="ticketUpdatedToTime" class="filter-control" type="time" aria-label="Atualizado até (hora)" oninput="onTicketTimeRangeInputChanged()" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <label for="ticketStatusFilter">Ação (status)</label>
+                <select id="ticketStatusFilter" class="filter-control" onchange="applyTicketFilters()">
+                  <option value="">Todos</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="em_atendimento">Em atendimento</option>
+                  <option value="aguardando">Aguardando</option>
+                  <option value="resolvido">Resolvido</option>
+                  <option value="encerrado">Encerrado</option>
+                </select>
+              </div>
+
+              <div class="filter-actions">
+                <button class="btn-secondary" type="button" onclick="clearTicketFilters()">Limpar filtros</button>
+              </div>
+            </div>
+
+            <div class="table-scroll">
+              <table class="tickets-table">
+                <thead>
+                  <tr>
+                    <th>Contato</th>
+                    <th>Telefone</th>
+                    <th>Vendedor</th>
+                    <th>Status</th>
+                    <th>Atualizado em</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="ticketsTableBody">
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- Blacklist Section -->
@@ -921,17 +1228,19 @@
 
             <div class="panel">
               <h3>Lista de números bloqueados</h3>
-              <table class="blacklist-table">
-                <thead>
-                  <tr>
-                    <th>Telefone</th>
-                    <th>Motivo</th>
-                    <th>Adicionado em</th>
-                    <th>Ação</th>
-                  </tr>
-                </thead>
-                <tbody id="blacklistTableBody"></tbody>
-              </table>
+              <div class="table-scroll">
+                <table class="blacklist-table">
+                  <thead>
+                    <tr>
+                      <th>Telefone</th>
+                      <th>Motivo</th>
+                      <th>Adicionado em</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="blacklistTableBody"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -962,16 +1271,18 @@
               <input type="text" id="exceptionReason" placeholder="Motivo (ex: feriado)">
               <button onclick="addException()">Adicionar</button>
             </div>
-            <table class="exceptions-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Motivo</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody id="exceptionsTableBody"></tbody>
-            </table>
+            <div class="table-scroll">
+              <table class="exceptions-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Motivo</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="exceptionsTableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
         
@@ -1030,7 +1341,8 @@
   </div>
 
   <script>
-    const API_URL = `http://${window.location.hostname}:3001`;
+    // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
+    const API_URL = '';
 
     // Helper para formatar mensagens de erro com detalhes
     function formatErrorMessage(data) {
@@ -1058,6 +1370,172 @@
     const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     let blacklist = [];
     let confirmCallback = null;
+
+    const UNASSIGNED_FILTER = '__unassigned__';
+    let ticketFiltersDebounceTimer = null;
+
+    function pad2(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function toDateTimeLocalValue(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+      // Usa horário local do browser (brasileiro)
+      const year = date.getFullYear();
+      const month = pad2(date.getMonth() + 1);
+      const day = pad2(date.getDate());
+      const hours = pad2(date.getHours());
+      const minutes = pad2(date.getMinutes());
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    function toDateValue(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+      // Retorna DD/MM/YYYY para input text
+      const day = pad2(date.getDate());
+      const month = pad2(date.getMonth() + 1);
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    function toTimeValue(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+      // Retorna HH:mm para input type="time"
+      const hours = pad2(date.getHours());
+      const minutes = pad2(date.getMinutes());
+      return `${hours}:${minutes}`;
+    }
+
+    function formatDateBR(input) {
+      // Extrair apenas números que estão no input
+      let rawValue = input.value.replace(/\D/g, '');
+      
+      // Limitar a 8 dígitos (DD+MM+YYYY)
+      rawValue = rawValue.substring(0, 8);
+      
+      // Construir o valor formatado
+      let formatted = '';
+      
+      if (rawValue.length > 0) {
+        formatted = rawValue.substring(0, 2);
+      }
+      if (rawValue.length > 2) {
+        formatted += '/' + rawValue.substring(2, 4);
+      }
+      if (rawValue.length > 4) {
+        formatted += '/' + rawValue.substring(4, 8);
+      }
+      
+      // Atualizar o valor do input
+      input.value = formatted;
+    }
+    
+    function setupDateInputMask(inputSelector) {
+      const input = document.querySelector(inputSelector);
+      if (!input) return;
+      
+      // Bloquear caracteres não-numéricos em tempo real
+      input.addEventListener('keypress', function(e) {
+        const char = String.fromCharCode(e.which);
+        if (!/[0-9]/.test(char)) {
+          e.preventDefault();
+          return false;
+        }
+      });
+      
+      // Formatar ao digitar
+      input.addEventListener('input', function(e) {
+        formatDateBR(this);
+        // Disparar evento de mudança personalizado para os filtros
+        if (onTicketTimeRangeInputChanged) {
+          setTimeout(() => onTicketTimeRangeInputChanged(), 10);
+        }
+      });
+      
+      // Permitir paste
+      input.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        // Extrair apenas números do paste
+        const numbersOnly = pastedText.replace(/\D/g, '');
+        this.value = numbersOnly;
+        formatDateBR(this);
+        if (onTicketTimeRangeInputChanged) {
+          setTimeout(() => onTicketTimeRangeInputChanged(), 10);
+        }
+      });
+    }
+
+    function dateStringBRToISO(dateStr) {
+      // Converte DD/MM/YYYY para YYYY-MM-DD
+      if (!dateStr || dateStr.length !== 10) return null;
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return null;
+      const dd = parts[0];
+      const mm = parts[1];
+      const yyyy = parts[2];
+      if (!/^\d{2}$/.test(dd) || !/^\d{2}$/.test(mm) || !/^\d{4}$/.test(yyyy)) return null;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function startOfDay(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function endOfDay(date) {
+      const d = new Date(date);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+
+    function startOfMonth(date) {
+      const d = new Date(date);
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function endOfMonth(date) {
+      const d = new Date(date);
+      d.setMonth(d.getMonth() + 1, 0);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+
+    function isMobileLayout() {
+      return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    function openSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      if (sidebar) sidebar.classList.add('open');
+      if (overlay) overlay.classList.add('active');
+    }
+
+    function closeSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      if (sidebar) sidebar.classList.remove('open');
+      if (overlay) overlay.classList.remove('active');
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar) return;
+      if (sidebar.classList.contains('open')) closeSidebar();
+      else openSidebar();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSidebar();
+    });
+
+    window.addEventListener('resize', () => {
+      if (!isMobileLayout()) closeSidebar();
+    });
 
     // Verificar autenticação via sessão
     async function checkAuth() {
@@ -1125,6 +1603,9 @@
       document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.section === section);
       });
+
+      // close drawer on mobile after selecting a section
+      if (isMobileLayout()) closeSidebar();
 
       // graceful transition: fade out current active section, then switch
       const current = document.querySelector('[id$="Section"].active');
@@ -1201,10 +1682,244 @@
         
         sellers = await response.json();
         renderUsers();
+        renderTicketSellerFilterOptions();
       } catch (error) {
         console.error('Erro ao carregar usuários:', error);
         if (typeof showNotification === 'function') showNotification('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error'); else showToast('Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error');
       }
+    }
+
+    function parseDateSafe(value) {
+      if (value == null || value === '') return null;
+      const str = String(value).trim();
+      if (!str) return null;
+      // Tenta parsing direto
+      let d = new Date(str);
+      if (!isNaN(d.getTime())) return d;
+      // Tenta com normalização (espaço → T)
+      const normalized = str.replace(/\s+/g, 'T').replace(/\.\d{3}Z?$/i, '');
+      d = new Date(normalized);
+      if (!isNaN(d.getTime())) return d;
+      return null;
+    }
+
+    function getNumericIdFromComposite(id) {
+      if (id == null || id === '') return null;
+      const str = String(id);
+      if (str.includes('_')) {
+        const parts = str.split('_');
+        return parts[1] || null;
+      }
+      return str;
+    }
+
+    function renderTicketSellerFilterOptions() {
+      const select = document.getElementById('ticketSellerFilter');
+      if (!select) return;
+
+      const prev = select.value;
+      const sellersSorted = Array.isArray(sellers)
+        ? [...sellers].filter(s => s?.isSeller).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        : [];
+
+      select.innerHTML = [
+        `<option value="">Todos</option>`,
+        `<option value="${UNASSIGNED_FILTER}">Não atribuído</option>`,
+        ...sellersSorted.map(s => {
+          // Extrai ID numérico do formato 'seller_X' ou 'admin_X'
+          const numericId = getNumericIdFromComposite(s.id);
+          return `<option value="${numericId}" data-composite-id="${s.id}">${s.name || s.id}</option>`;
+        }),
+      ].join('');
+
+      if (prev && [...select.options].some(o => o.value === prev)) {
+        select.value = prev;
+      }
+    }
+
+    function applyTicketFiltersDebounced() {
+      if (ticketFiltersDebounceTimer) clearTimeout(ticketFiltersDebounceTimer);
+      ticketFiltersDebounceTimer = setTimeout(() => {
+        ticketFiltersDebounceTimer = null;
+        applyTicketFilters();
+      }, 180);
+    }
+
+    function onTicketTimeRangeInputChanged() {
+      const presetEl = document.getElementById('ticketTimePreset');
+      const fromDateStr = document.getElementById('ticketUpdatedFrom')?.value || '';
+      const fromTimeStr = document.getElementById('ticketUpdatedFromTime')?.value || '';
+      const toDateStr = document.getElementById('ticketUpdatedTo')?.value || '';
+      const toTimeStr = document.getElementById('ticketUpdatedToTime')?.value || '';
+      if (presetEl) {
+        if ((fromDateStr || toDateStr || fromTimeStr || toTimeStr) && presetEl.value !== 'custom') {
+          presetEl.value = 'custom';
+        }
+        if (!fromDateStr && !toDateStr && !fromTimeStr && !toTimeStr && presetEl.value === 'custom') {
+          presetEl.value = '';
+        }
+      }
+      applyTicketFiltersDebounced();
+    }
+
+    function applyTicketTimePreset() {
+      const preset = document.getElementById('ticketTimePreset')?.value || '';
+      const fromDateEl = document.getElementById('ticketUpdatedFrom');
+      const fromTimeEl = document.getElementById('ticketUpdatedFromTime');
+      const toDateEl = document.getElementById('ticketUpdatedTo');
+      const toTimeEl = document.getElementById('ticketUpdatedToTime');
+      // Usa horário local do browser (brasileiro)
+      const now = new Date();
+
+      if (!fromDateEl || !toDateEl || !fromTimeEl || !toTimeEl) {
+        applyTicketFilters();
+        return;
+      }
+
+      if (!preset) {
+        fromDateEl.value = '';
+        toDateEl.value = '';
+        fromTimeEl.value = '';
+        toTimeEl.value = '';
+        applyTicketFilters();
+        return;
+      }
+
+      if (preset === 'custom') {
+        applyTicketFilters();
+        return;
+      }
+
+      let from = null;
+      let to = null;
+
+      if (preset === 'today') {
+        from = startOfDay(now);
+        to = now;
+      } else if (preset === 'yesterday') {
+        const y = new Date(now);
+        y.setDate(y.getDate() - 1);
+        from = startOfDay(y);
+        to = endOfDay(y);
+      } else if (preset === 'last_24h') {
+        from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        to = now;
+      } else if (preset === 'last_7d') {
+        from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        to = now;
+      } else if (preset === 'last_30d') {
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        to = now;
+      } else if (preset === 'this_month') {
+        from = startOfMonth(now);
+        to = now;
+      } else if (preset === 'prev_month') {
+        const prev = new Date(now);
+        prev.setMonth(prev.getMonth() - 1);
+        from = startOfMonth(prev);
+        to = endOfMonth(prev);
+      }
+
+      if (from && to) {
+        fromDateEl.value = toDateValue(from);
+        fromTimeEl.value = toTimeValue(from);
+        toDateEl.value = toDateValue(to);
+        toTimeEl.value = toTimeValue(to);
+      }
+
+      applyTicketFilters();
+    }
+
+    function applyTicketFilters() {
+      const sellerFilter = document.getElementById('ticketSellerFilter')?.value || '';
+      const statusFilter = document.getElementById('ticketStatusFilter')?.value || '';
+      const fromDateStr = document.getElementById('ticketUpdatedFrom')?.value || '';
+      const fromTimeStr = document.getElementById('ticketUpdatedFromTime')?.value || '';
+      const toDateStr = document.getElementById('ticketUpdatedTo')?.value || '';
+      const toTimeStr = document.getElementById('ticketUpdatedToTime')?.value || '';
+
+      // Converte DD/MM/YYYY para YYYY-MM-DD e combina com hora
+      let fromMs = null;
+      let toMs = null;
+
+      if (fromDateStr) {
+        const fromIso = dateStringBRToISO(fromDateStr);
+        if (fromIso) {
+          const fromDateTime = fromTimeStr ? `${fromIso}T${fromTimeStr}` : `${fromIso}T00:00`;
+          const fromDate = new Date(fromDateTime);
+          if (!Number.isNaN(fromDate.getTime())) fromMs = fromDate.getTime();
+        }
+      }
+
+      if (toDateStr) {
+        const toIso = dateStringBRToISO(toDateStr);
+        if (toIso) {
+          const toDateTime = toTimeStr ? `${toIso}T${toTimeStr}` : `${toIso}T23:59`;
+          const toDate = new Date(toDateTime);
+          if (!Number.isNaN(toDate.getTime())) toMs = toDate.getTime();
+        }
+      }
+
+      if (fromMs != null && toMs != null && fromMs > toMs) {
+        const tmp = fromMs;
+        fromMs = toMs;
+        toMs = tmp;
+      }
+
+      const filtered = (Array.isArray(tickets) ? tickets : []).filter(t => {
+        if (sellerFilter) {
+          if (sellerFilter === UNASSIGNED_FILTER) {
+            // Não atribuído: seller_id deve ser null/undefined/0/''
+            if (t.seller_id != null && t.seller_id !== 0 && t.seller_id !== '') return false;
+          } else {
+            // Comparar como número (backend retorna number na tabela sellers)
+            const ticketSellerId = t.seller_id == null ? null : Number(t.seller_id);
+            const filterSellerId = Number(sellerFilter);
+            if (Number.isNaN(filterSellerId) || ticketSellerId !== filterSellerId) return false;
+          }
+        }
+
+        if (statusFilter) {
+          const ticketStatus = String(t.status || '').trim().toLowerCase().replace(/\s+/g, '_');
+          const filterStatus = String(statusFilter).trim().toLowerCase().replace(/\s+/g, '_');
+          if (ticketStatus !== filterStatus) return false;
+        }
+
+        if (fromMs != null || toMs != null) {
+          const d = parseDateSafe(t.updated_at);
+          if (!d) return false;
+          const ts = d.getTime();
+          if (fromMs != null && ts < fromMs) return false;
+          if (toMs != null && ts > toMs) return false;
+        }
+
+        return true;
+      }).sort((a, b) => {
+        const da = parseDateSafe(a.updated_at)?.getTime() || 0;
+        const dbb = parseDateSafe(b.updated_at)?.getTime() || 0;
+        return dbb - da;
+      });
+
+      const hasActiveFilters = !!(sellerFilter || statusFilter || fromMs != null || toMs != null);
+      renderTickets(filtered, { filtered: hasActiveFilters });
+    }
+
+    function clearTicketFilters() {
+      const sellerEl = document.getElementById('ticketSellerFilter');
+      const statusEl = document.getElementById('ticketStatusFilter');
+      const presetEl = document.getElementById('ticketTimePreset');
+      const fromDateEl = document.getElementById('ticketUpdatedFrom');
+      const fromTimeEl = document.getElementById('ticketUpdatedFromTime');
+      const toDateEl = document.getElementById('ticketUpdatedTo');
+      const toTimeEl = document.getElementById('ticketUpdatedToTime');
+      if (sellerEl) sellerEl.value = '';
+      if (statusEl) statusEl.value = '';
+      if (presetEl) presetEl.value = '';
+      if (fromDateEl) fromDateEl.value = '';
+      if (fromTimeEl) fromTimeEl.value = '';
+      if (toDateEl) toDateEl.value = '';
+      if (toTimeEl) toTimeEl.value = '';
+      applyTicketFilters();
     }
 
     function formatCreatedAt(value) {
@@ -1258,36 +1973,50 @@
 
     async function loadTickets() {
       try {
+        if (!Array.isArray(sellers) || sellers.length === 0) {
+          await loadUsers();
+        }
         const response = await fetch(`${API_URL}/admin/tickets`, {
           credentials: 'include'
         });
         tickets = await response.json();
-        renderTickets();
+        renderTicketSellerFilterOptions();
+        applyTicketFilters();
       } catch (error) {
         // Erro ao carregar tickets
       }
     }
 
-    function renderTickets() {
+    function renderTickets(list = tickets, { filtered = false } = {}) {
       const tbody = document.getElementById('ticketsTableBody');
       
-      if (tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #667781;">Nenhum ticket</td></tr>';
+      const items = Array.isArray(list) ? list : [];
+      if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #667781;">${filtered ? 'Nenhum ticket para este filtro' : 'Nenhum ticket'}</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = tickets.map(ticket => `
+      tbody.innerHTML = items.map(ticket => `
         <tr>
           <td>${ticket.contact_name || '-'}</td>
           <td class="ticket-phone">${ticket.phone}</td>
           <td class="ticket-seller">${ticket.seller_name || 'Não atribuído'}</td>
           <td><span class="ticket-status status-${ticket.status}">${ticket.status.replace('_', ' ')}</span></td>
-          <td>${new Date(ticket.updated_at).toLocaleDateString('pt-BR')}</td>
+          <td>${new Date(ticket.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
           <td>
             <select class="assign-select" onchange="assignTicket(${ticket.id}, this.value)">
               <option value="">Atribuir...</option>
               <option value="0" ${!ticket.seller_id ? 'selected' : ''}>Não atribuído</option>
-              ${sellers.map(s => `<option value="${s.id}" ${ticket.seller_id === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+              ${sellers
+                .filter(s => s?.isSeller)
+                .map(s => {
+                  const numericId = getNumericIdFromComposite(s.id);
+                  const selected = (ticket.seller_id != null && numericId != null)
+                    ? Number(ticket.seller_id) === Number(numericId)
+                    : false;
+                  return `<option value="${numericId}" ${selected ? 'selected' : ''}>${s.name}</option>`;
+                })
+                .join('')}
             </select>
           </td>
         </tr>
@@ -1317,7 +2046,7 @@
 
       grid.innerHTML = ordered.map(item => `
         <div class="hours-row">
-          <div>${DAYS[item.day]}</div>
+          <div class="hours-day">${DAYS[item.day]}</div>
           <label>
             <input type="checkbox" class="hours-enabled" data-day="${item.day}" ${item.enabled ? 'checked' : ''}>
             Aberto
@@ -1464,7 +2193,7 @@
       });
     }
 
-    function formatDateBR(dateStr) {
+    function formatISODateBR(dateStr) {
       if (!dateStr) return '-';
       const date = new Date(`${dateStr}T00:00:00`);
       return date.toLocaleDateString('pt-BR');
@@ -1517,7 +2246,7 @@
 
       tbody.innerHTML = exceptions.map(ex => `
         <tr>
-          <td>${formatDateBR(ex.date)}</td>
+          <td>${formatISODateBR(ex.date)}</td>
           <td>${ex.reason || '-'}</td>
           <td><button class="btn-delete-exception" onclick="deleteException(${ex.id})">Remover</button></td>
         </tr>
@@ -1947,11 +2676,12 @@
 
     async function assignTicket(ticketId, sellerId) {
       try {
+        const normalizedSellerId = (sellerId && String(sellerId) !== '0') ? Number(sellerId) : null;
         const response = await fetch(`${API_URL}/tickets/${ticketId}/assign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ sellerId: sellerId || null })
+          body: JSON.stringify({ sellerId: Number.isFinite(normalizedSellerId) ? normalizedSellerId : null })
         });
 
         if (!response.ok) throw new Error('Erro ao atribuir');
@@ -1989,7 +2719,13 @@
     // Inicializar
     checkAuth();
     showSection('sellers');
+    
+    // Inicializar input mask de data para tickets
+    setTimeout(function() {
+      setupDateInputMask('#ticketUpdatedFrom');
+      setupDateInputMask('#ticketUpdatedTo');
+    }, 100);
   </script>
-  <script src="/frontend/ui.js"></script>
+  <script src="/ui.js"></script>
 </body>
 </html>

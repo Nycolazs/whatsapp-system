@@ -43,7 +43,9 @@ function scheduleReconnect(delayMs = 2000) {
   } catch (e) {}
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    startBot();
+    startBot().catch((err) => {
+      logger.error('[RECONNECT] Falha ao reconectar WhatsApp:', err);
+    });
   }, delayMs);
 }
 
@@ -261,112 +263,127 @@ async function startBot() {
     })
     currentSock = sock;
 
-    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', (...args) => {
+      try {
+        saveCreds(...args)
+      } catch (err) {
+        logger.warn('[creds.update] Falha ao salvar credenciais:', err)
+      }
+    })
     
     sock.ev.on('connection.update', (update) => {
-      const { connection, qr, lastDisconnect } = update
-      if (connection === 'connecting') {
-        connectionState = 'connecting'
-      }
-      
-      if (qr) {
-        latestQr = qr
-        latestQrAt = Date.now()
-        connectionState = 'qr'
-        clearOperationalDataFor('disconnected')
-      }
-      
-      if (connection === 'open') {
-        activeSock = sock; // Atualiza o socket ativo
-        latestQr = null
-        connectionState = 'open'
-        lastConnectedAt = Date.now();
-        lastDisconnectCode = null;
-        lastDisconnectReason = null;
-        consecutiveConflicts = 0; // Reset conflitos ao conectar
-        logger.info('[CONNECTED] WhatsApp conectado com sucesso');
-
-        // Ativa conta por número (isola DB/sessions/auth por WhatsApp)
-        try {
-          const num = accountManager.extractNumberFromBaileysUser(sock.user);
-          if (num) {
-            const result = accountManager.activateAccountFromConnectedWhatsApp(num, authPath);
-            if (result && result.changed) {
-              // Garante que o proxy do DB aponte para a conta atual imediatamente
-              try { db.switchToActiveAccount && db.switchToActiveAccount(); } catch (_) {}
-            }
-          }
-        } catch (_) {}
-
-        clearOperationalDataFor('connected')
-      }
-      
-      if (connection === 'close') {
-        activeSock = null; // Limpa o socket ativo
-        connectionState = 'close'
-        clearOperationalDataFor('disconnected')
-        const code = lastDisconnect?.error?.output?.statusCode
-
-        lastDisconnectedAt = Date.now();
-        lastDisconnectCode = code ?? null;
-        try {
-          lastDisconnectReason = lastDisconnect?.error?.output?.payload?.message || lastDisconnect?.error?.message || null;
-        } catch (e) {
-          lastDisconnectReason = null;
+      try {
+        const { connection, qr, lastDisconnect } = update
+        if (connection === 'connecting') {
+          connectionState = 'connecting'
         }
-
-        // Limpa socket anterior para evitar leak
-        if (currentSock && currentSock !== sock) {
-          try {
-            currentSock.ev.removeAllListeners();
-            currentSock.ws?.close();
-          } catch (_) {}
-        }
-        currentSock = null;
-
-        if (code === 401 || code === 405) {
-          // Credenciais inválidas: limpa o auth em uso (staging ou conta)
-          try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
-        }
-
-        // Detecta conflito (outra sessão ativa)
-        const isConflict = lastDisconnectReason && lastDisconnectReason.includes('conflict');
         
-        if (isConflict) {
-          consecutiveConflicts++;
-          logger.warn(`[CONFLICT] Conflito detectado (${consecutiveConflicts}/${MAX_CONSECUTIVE_CONFLICTS})`);
-          
-          // Se tiver muitos conflitos consecutivos, força logout
-          if (consecutiveConflicts >= MAX_CONSECUTIVE_CONFLICTS) {
-            logger.warn('[CONFLICT] Muitos conflitos. Limpando sessão. Escaneie novo QR.');
-            try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
-            consecutiveConflicts = 0;
-            activeSock = null;
-            currentSock = null;
-            latestQr = null;
-            connectionState = 'qr';
-            // Não reconecta automaticamente - aguarda usuário escanear novo QR
-            setTimeout(() => startBot(), 3000);
-            return;
-          }
-          
-          scheduleReconnect(10000); // 10s em conflito
-        } else {
-          consecutiveConflicts = 0; // Reset se não for conflito
-          scheduleReconnect(2000);
+        if (qr) {
+          latestQr = qr
+          latestQrAt = Date.now()
+          connectionState = 'qr'
+          clearOperationalDataFor('disconnected')
         }
+        
+        if (connection === 'open') {
+          activeSock = sock; // Atualiza o socket ativo
+          latestQr = null
+          connectionState = 'open'
+          lastConnectedAt = Date.now();
+          lastDisconnectCode = null;
+          lastDisconnectReason = null;
+          consecutiveConflicts = 0; // Reset conflitos ao conectar
+          logger.info('[CONNECTED] WhatsApp conectado com sucesso');
+
+          // Ativa conta por número (isola DB/sessions/auth por WhatsApp)
+          try {
+            const num = accountManager.extractNumberFromBaileysUser(sock.user);
+            if (num) {
+              const result = accountManager.activateAccountFromConnectedWhatsApp(num, authPath);
+              if (result && result.changed) {
+                // Garante que o proxy do DB aponte para a conta atual imediatamente
+                try { db.switchToActiveAccount && db.switchToActiveAccount(); } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          clearOperationalDataFor('connected')
+        }
+        
+        if (connection === 'close') {
+          activeSock = null; // Limpa o socket ativo
+          connectionState = 'close'
+          clearOperationalDataFor('disconnected')
+          const code = lastDisconnect?.error?.output?.statusCode
+
+          lastDisconnectedAt = Date.now();
+          lastDisconnectCode = code ?? null;
+          try {
+            lastDisconnectReason = lastDisconnect?.error?.output?.payload?.message || lastDisconnect?.error?.message || null;
+          } catch (e) {
+            lastDisconnectReason = null;
+          }
+
+          // Limpa socket anterior para evitar leak
+          if (currentSock && currentSock !== sock) {
+            try {
+              currentSock.ev.removeAllListeners();
+              currentSock.ws?.close();
+            } catch (_) {}
+          }
+          currentSock = null;
+
+          if (code === 401 || code === 405) {
+            // Credenciais inválidas: limpa o auth em uso (staging ou conta)
+            try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
+          }
+
+          // Detecta conflito (outra sessão ativa)
+          const isConflict = lastDisconnectReason && String(lastDisconnectReason).toLowerCase().includes('conflict');
+          
+          if (isConflict) {
+            consecutiveConflicts++;
+            logger.warn(`[CONFLICT] Conflito detectado (${consecutiveConflicts}/${MAX_CONSECUTIVE_CONFLICTS})`);
+            
+            // Se tiver muitos conflitos consecutivos, força logout
+            if (consecutiveConflicts >= MAX_CONSECUTIVE_CONFLICTS) {
+              logger.warn('[CONFLICT] Muitos conflitos. Limpando sessão. Escaneie novo QR.');
+              try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
+              consecutiveConflicts = 0;
+              activeSock = null;
+              currentSock = null;
+              latestQr = null;
+              connectionState = 'qr';
+              // Reinicia socket para gerar novo QR, sem deixar rejection sem tratamento
+              setTimeout(() => {
+                startBot().catch((err) => {
+                  logger.error('[CONFLICT] Falha ao reiniciar após conflito:', err);
+                });
+              }, 3000);
+              return;
+            }
+            
+            scheduleReconnect(10000); // 10s em conflito
+          } else {
+            consecutiveConflicts = 0; // Reset se não for conflito
+            scheduleReconnect(2000);
+          }
+        }
+      } catch (err) {
+        logger.error('[connection.update] Erro não tratado no handler:', err)
       }
     })
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
-      const msg = messages[0]
-      if (!msg.message || msg.key.fromMe) return
+      try {
+        const msg = messages[0]
+        if (!msg?.message || msg?.key?.fromMe) return
 
-      const jid = msg.key.remoteJid
-      if (jid.includes('@g.us') || jid.includes('status@broadcast')) return
+        const jid = msg.key.remoteJid
+        if (jid.includes('@g.us') || jid.includes('status@broadcast')) return
 
-      const phoneNumber = normalizePhoneFromMessage(msg)
-      if (!phoneNumber) return
+        const phoneNumber = normalizePhoneFromMessage(msg)
+        if (!phoneNumber) return
 
       // Processa mensagem ANTES de checar blacklist para resposta rápida
       // A blacklist é apenas para filtrar respostas automáticas, não para ignorar mensagens
@@ -568,7 +585,7 @@ async function startBot() {
           const buffer = await downloadMediaMessage(msg, 'buffer', {})
           const timestamp = Date.now()
           const fileName = `audio_${timestamp}.ogg`
-          const dir = path.join(__dirname, '..', 'media', 'audios')
+          const dir = path.join(__dirname, '..', '..', '..', 'media', 'audios')
 
           await writeMediaFile(dir, fileName, buffer)
 
@@ -588,20 +605,26 @@ async function startBot() {
         blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
       } catch (e) {}
 
-      // Só envia respostas automáticas se não estiver na blacklist
-      if (blacklistEntry) {
-        if (!businessStatus.isOpen) {
-          if (shouldSendOutOfHours(phoneNumber, now) && outOfHoursMessage) {
-            await sock.sendMessage(jid, { text: outOfHoursMessage })
+        // Só envia respostas automáticas PARA números na blacklist
+        if (blacklistEntry) {
+          if (!businessStatus.isOpen) {
+            if (shouldSendOutOfHours(phoneNumber, now) && outOfHoursMessage) {
+              try {
+                await sock.sendMessage(jid, { text: outOfHoursMessage })
+              } catch (err) {
+                logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
+              }
+            }
           }
-        } else if (isNewTicket) {
-          await sock.sendMessage(jid, { text: '👋 Olá! Recebi sua mensagem, um atendente já vai te responder.' })
         }
+      } catch (err) {
+        logger.error('[messages.upsert] Erro não tratado no handler:', err)
       }
     })
 
     return sock
   } catch (error) {
+    logger.error('[START] Falha ao iniciar WhatsApp. Tentando reconectar...', error)
     scheduleReconnect(3001)
     return null;
   } finally {

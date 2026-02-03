@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    if (window.location.protocol === 'https:') {
+      window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
+    }
+  </script>
   <title>Login - WhatsApp System</title>
   <style>
     * {
@@ -146,7 +151,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="/frontend/ui.css">
+  <link rel="stylesheet" href="/ui.css">
 </head>
 <body>
   <div class="login-container">
@@ -185,16 +190,10 @@
 
   </div>
 
-  <script src="/frontend/ui.js"></script>
+  <script src="/ui.js"></script>
   <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const loginForm = document.getElementById('loginForm');
-          if (loginForm) {
-            loginForm.addEventListener('submit', handleLogin);
-          }
-        });
-
-    const API_URL = `http://${window.location.hostname}:3001`;
+    // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
+    const API_URL = '';
 
     // Helper para formatar mensagens de erro com detalhes
     function formatErrorMessage(data) {
@@ -222,27 +221,34 @@
       const errorDiv = document.getElementById('errorMessage');
       const loginBtn = document.querySelector('.login-button');
 
+      console.log('[login] Tentando login com:', { username });
+
       errorDiv.style.display = 'none';
       loginBtn.disabled = true;
       loginBtn.textContent = 'Aguarde...';
 
       try {
-        const response = await fetch(`${API_URL}/auth/login`, {
+        const response = await fetch('/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // Importante para cookies de sessão
           body: JSON.stringify({ username, password })
         });
 
+        console.log('[login] Resposta do servidor:', response.status);
+
         const data = await response.json();
+        console.log('[login] Dados da resposta:', data);
 
         if (!response.ok) {
           throw new Error(formatErrorMessage(data) || 'Erro ao fazer login');
         }
 
+        console.log('[login] Login bem-sucedido, redirecionando...');
         // Redirecionamento será determinado pelo backend/session
         if (typeof navigateTo === 'function') navigateTo('/agent'); else window.location.href = '/agent';
       } catch (error) {
+        console.error('[login] Erro:', error);
         if (typeof showNotification === 'function') {
           showNotification(error.message, 'error');
         } else {
@@ -253,59 +259,23 @@
         loginBtn.textContent = 'Entrar';
       }
     }
-      async function handleLogin(event) {
-        event.preventDefault();
-      
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        const errorDiv = document.getElementById('errorMessage');
-        const loginBtn = document.querySelector('.login-button');
 
-        console.log('[login] Tentando login com:', { username });
-
-        errorDiv.style.display = 'none';
-        loginBtn.disabled = true;
-        loginBtn.textContent = 'Aguarde...';
-
-        try {
-          const response = await fetch(`${API_URL}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // Importante para cookies de sessão
-            body: JSON.stringify({ username, password })
-          });
-
-          console.log('[login] Resposta do servidor:', response.status);
-
-          const data = await response.json();
-          console.log('[login] Dados da resposta:', data);
-
-          if (!response.ok) {
-            throw new Error(formatErrorMessage(data) || 'Erro ao fazer login');
-          }
-
-          console.log('[login] Login bem-sucedido, redirecionando...');
-          // Redirecionamento será determinado pelo backend/session
-          if (typeof navigateTo === 'function') navigateTo('/agent'); else window.location.href = '/agent';
-        } catch (error) {
-          console.error('[login] Erro:', error);
-          if (typeof showNotification === 'function') {
-            showNotification(error.message, 'error');
-          } else {
-            errorDiv.textContent = error.message;
-            errorDiv.style.display = 'block';
-          }
-          loginBtn.disabled = false;
-          loginBtn.textContent = 'Entrar';
-        }
+    // Aguarda o ui.js ser carregado e depois inicializa
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('loginForm');
+      if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
       }
-
-    // Verifica conexão ao abrir a tela
-    (async () => {
-      const result = await ensureConnected();
-      if (!result) return;
-      document.getElementById('username').focus();
-    })();
+      
+      // Verifica conexão ao abrir a tela
+      if (typeof ensureConnected === 'function') {
+        ensureConnected().then(result => {
+          if (result) {
+            document.getElementById('username').focus();
+          }
+        }).catch(err => console.error('Erro ao verificar conexão:', err));
+      }
+    });
   </script>
 </body>
 </html>

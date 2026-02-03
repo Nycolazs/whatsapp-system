@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    if (window.location.protocol === 'https:') {
+      window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
+    }
+  </script>
   <title>Atendimento - WhatsApp System</title>
   <style>
     * {
@@ -1117,7 +1122,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="/frontend/ui.css">
+  <link rel="stylesheet" href="/ui.css">
 </head>
 <body>
   <div class="container">
@@ -1228,7 +1233,8 @@
   </div>
 
   <script>
-    const API_URL = `http://${window.location.hostname}:3001`;
+    // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
+    const API_URL = '';
     let currentTicket = null;
     let updateInterval = null;
     let isLoadingTickets = false;
@@ -2415,6 +2421,12 @@
 
       if (isRecording) return;
 
+      // Verifica se a API de microfone está disponível
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('Seu navegador não suporta gravação de áudio. Use Chrome, Firefox ou Edge atualizado.', 'error');
+        return;
+      }
+
       try {
         isRecording = true;
         // Solicita permissão do microfone
@@ -2447,9 +2459,22 @@
         }, 100);
       } catch (error) {
         console.error('Erro ao acessar microfone:', error);
-        showToast('Erro ao acessar o microfone. Verifique as permissões.', 'error');
         isRecording = false;
         if (recordBtn) recordBtn.style.opacity = '1';
+        
+        let errorMsg = 'Erro ao acessar o microfone. Verifique as permissões.';
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          errorMsg = 'Permissão negada. Clique em "Permitir" quando o navegador pedir.';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+          errorMsg = 'Nenhum microfone conectado ao dispositivo.';
+        } else if (error.name === 'NotSupportedError') {
+          errorMsg = 'Seu navegador não suporta gravação de áudio. Use Chrome, Firefox ou Edge.';
+        } else if (error.name === 'TypeError') {
+          errorMsg = 'Erro: navegador em HTTPS seguro pode bloquear microfone. Recarregue a página.';
+        } else if (error.message) {
+          errorMsg = `Erro: ${error.message}`;
+        }
+        showToast(errorMsg, 'error');
       }
     }
 
@@ -3456,6 +3481,6 @@
       });
     }
   </script>
-  <script src="/frontend/ui.js"></script>
+  <script src="/ui.js"></script>
 </body>
 </html>
