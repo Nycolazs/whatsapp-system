@@ -3228,9 +3228,18 @@
         .slice(0, 10);
 
       console.log('[RANKING] Dados para gráfico:', dataToShow);
+      console.log('[RANKING] Número de vendedores com tickets:', dataToShow.length);
+
+      if (dataToShow.length === 0) {
+        console.warn('[RANKING] Nenhum dado para exibir no gráfico');
+        return;
+      }
 
       const labels = dataToShow.map(item => item.seller_name || 'Sem nome');
       const values = dataToShow.map(item => item.tickets_resolved);
+
+      console.log('[RANKING] Labels:', labels);
+      console.log('[RANKING] Values:', values);
 
       // Create gradient colors with better palette
       const colors = dataToShow.map((_, index) => {
@@ -3252,6 +3261,17 @@
         console.log('[RANKING] Usando Chart.js...');
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
+        
+        // Calculate bar thickness based on number of items
+        let barThickness;
+        if (dataToShow.length === 1) {
+          barThickness = 80; // Fixed width for single bar
+        } else if (dataToShow.length <= 3) {
+          barThickness = 100; // Wider bars for few items
+        } else {
+          barThickness = 'flex'; // Automatic sizing for many items
+        }
+        
         rankingChart = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -3263,8 +3283,8 @@
               hoverBackgroundColor: hoverColors,
               borderRadius: 8,
               borderWidth: 0,
-              barThickness: 'flex',
-              maxBarThickness: 60
+              barThickness: barThickness,
+              maxBarThickness: dataToShow.length <= 3 ? 120 : 60
             }]
           },
           options: {
@@ -3343,8 +3363,8 @@
         // Simple manual bar chart (hi-dpi)
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-        const cssWidth = rect.width || canvas.clientWidth || 600;
-        const cssHeight = rect.height || canvas.clientHeight || 300;
+        const cssWidth = rect.width || canvas.clientWidth || canvas.offsetWidth || 600;
+        const cssHeight = rect.height || canvas.clientHeight || canvas.offsetHeight || 400;
 
         canvas.width = Math.max(1, Math.floor(cssWidth * dpr));
         canvas.height = Math.max(1, Math.floor(cssHeight * dpr));
@@ -3360,11 +3380,21 @@
 
     function drawSimpleBarChart(ctx, labels, values, colors) {
       const canvas = ctx.canvas;
-      const width = canvas.width;
-      const height = canvas.height;
+      // Use CSS dimensions, not physical pixels
+      const width = canvas.clientWidth || canvas.offsetWidth || 600;
+      const height = canvas.clientHeight || canvas.offsetHeight || 300;
       const maxValue = Math.max(...values, 1);
-      const barWidth = width / (labels.length * 1.5);
-      const chartHeight = height - 80;
+      
+      // Calculate bar width based on available space
+      const padding = 40;
+      const labelSpace = 60;
+      const availableWidth = width - (padding * 2);
+      const barSpacing = 10;
+      const numBars = labels.length;
+      const barWidth = Math.max(20, Math.min(80, (availableWidth - (barSpacing * (numBars - 1))) / numBars));
+      const totalBarsWidth = (barWidth * numBars) + (barSpacing * (numBars - 1));
+      const startX = (width - totalBarsWidth) / 2;
+      const chartHeight = height - labelSpace - 40;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -3372,8 +3402,8 @@
       labels.forEach((label, index) => {
         const value = values[index];
         const barHeight = (value / maxValue) * chartHeight;
-        const x = (index * barWidth * 1.5) + 40;
-        const y = height - barHeight - 60;
+        const x = startX + (index * (barWidth + barSpacing));
+        const y = height - barHeight - labelSpace;
 
         // Draw bar
         ctx.fillStyle = colors[index];
@@ -3381,13 +3411,13 @@
 
         // Draw value on top
         ctx.fillStyle = '#111';
-        ctx.font = '14px sans-serif';
+        ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(value, x + barWidth / 2, y - 5);
 
         // Draw label at bottom
         ctx.save();
-        ctx.translate(x + barWidth / 2, height - 40);
+        ctx.translate(x + barWidth / 2, height - labelSpace + 10);
         ctx.rotate(-Math.PI / 4);
         ctx.textAlign = 'right';
         ctx.fillStyle = '#667781';
