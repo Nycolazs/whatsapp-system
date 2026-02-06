@@ -14,6 +14,24 @@ function createTicketsRouter({
 }) {
   const router = express.Router();
 
+  function resolveAssignIdForUser(req) {
+    if (req.userType === 'seller') return req.userId;
+    if (req.userType === 'admin' && req.userName) {
+      const s = db.prepare('SELECT id FROM sellers WHERE name = ?').get(req.userName);
+      if (s && s.id) return s.id;
+      try {
+        const insert = db.prepare('INSERT INTO sellers (name, password, active) VALUES (?, ?, 1)');
+        const randomPass = Math.random().toString(36).slice(2);
+        const info = insert.run(req.userName, randomPass);
+        if (info && info.lastInsertRowid) return info.lastInsertRowid;
+      } catch (_e) {
+        const fallback = db.prepare('SELECT id FROM sellers WHERE name = ?').get(req.userName);
+        if (fallback && fallback.id) return fallback.id;
+      }
+    }
+    return null;
+  }
+
   router.get('/tickets', requireAuth, (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -176,9 +194,16 @@ function createTicketsRouter({
 
       await sock.sendMessage(jid, messageToSend, sendOptions);
 
-      // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
-      if (req.userType === 'seller' && (ticket.status === 'aguardando' || !ticket.seller_id)) {
-        db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
+      // Atribui ticket ao usuário que respondeu (admin sempre assume, seller apenas se aguardando ou sem vendedor)
+      const assignId = resolveAssignIdForUser(req);
+      if (assignId) {
+        if (req.userType === 'admin') {
+          if (ticket.seller_id !== assignId) {
+            db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(assignId, id);
+          }
+        } else if (ticket.status === 'aguardando' || !ticket.seller_id) {
+          db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(assignId, id);
+        }
       }
 
       // Salva mensagem no banco com reply_to_id se fornecido
@@ -269,9 +294,16 @@ function createTicketsRouter({
         await sock.sendMessage(jid, audioMessageObj, audioSendOptions);
       }
 
-      // Se o ticket estiver em 'aguardando' ou não tiver seller_id e o usuário é vendedor, atribui ao vendedor que respondeu
-      if (req.userType === 'seller' && (ticket.status === 'aguardando' || !ticket.seller_id)) {
-        db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(req.userId, id);
+      // Atribui ticket ao usuário que respondeu (admin sempre assume, seller apenas se aguardando ou sem vendedor)
+      const assignId = resolveAssignIdForUser(req);
+      if (assignId) {
+        if (req.userType === 'admin') {
+          if (ticket.seller_id !== assignId) {
+            db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(assignId, id);
+          }
+        } else if (ticket.status === 'aguardando' || !ticket.seller_id) {
+          db.prepare('UPDATE tickets SET seller_id = ? WHERE id = ?').run(assignId, id);
+        }
       }
 
       // Salva mensagem de áudio no banco com reply_to_id se fornecido

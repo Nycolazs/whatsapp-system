@@ -50,6 +50,11 @@ process.on('uncaughtException', (err) => {
 
 const app = express();
 
+const trustProxy = Number(process.env.TRUST_PROXY || 0);
+if (trustProxy > 0) {
+  app.set('trust proxy', trustProxy);
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 app.disable('x-powered-by');
@@ -219,6 +224,8 @@ installGracefulShutdown({
     try { if (autoAwaitJob && typeof autoAwaitJob.stop === 'function') autoAwaitJob.stop(); } catch (_) {}
     try { sessionManager.close(); } catch (_) {}
     try { db.close && db.close(); } catch (_) {}
+    // Aguarda um pouco para garantir que os buffers sejam gravados
+    return new Promise(resolve => setTimeout(resolve, 1000));
   },
 });
 
@@ -234,3 +241,12 @@ startBot()
 autoAwaitJob = startAutoAwaitJob({ db });
 
 server = app.listen(3001, '0.0.0.0', () => logger.info('Servidor rodando na porta 3001'));
+
+// Limpa recursos periodicamente para evitar memory leaks
+setInterval(() => {
+  try {
+    if (global.gc) {
+      global.gc();
+    }
+  } catch (_) {}
+}, 5 * 60 * 1000); // A cada 5 minutos

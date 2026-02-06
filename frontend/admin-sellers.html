@@ -1447,7 +1447,7 @@
             <div class="panel">
               <h3>Adicionar número</h3>
               <form id="blacklistForm" class="blacklist-form" onsubmit="addBlacklist(event)">
-                <input type="text" id="blacklistPhone" placeholder="Ex: 5511999999999" required>
+                <input type="text" id="blacklistPhone" placeholder="Ex: (11) 999999999" required maxlength="15" oninput="formatPhoneInput(event)">
                 <input type="text" id="blacklistReason" placeholder="Motivo (opcional)">
                 <textarea id="blacklistReasonDetails" placeholder="Detalhes adicionais (opcional)"></textarea>
                 <div class="blacklist-actions">
@@ -1481,6 +1481,10 @@
           <div class="panel">
             <h3>Mensagem automática fora do horário</h3>
             <textarea id="outOfHoursMessage" class="message-textarea" placeholder="Digite a mensagem automática..."></textarea>
+            <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: #667781;">
+              <input type="checkbox" id="outOfHoursEnabled" checked />
+              Enviar mensagem automática fora do horário
+            </label>
             <div class="hours-actions">
               <button class="btn-save-hours" onclick="saveOutOfHoursMessage()">Salvar mensagem</button>
             </div>
@@ -2382,7 +2386,7 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ hours })
+          body: JSON.stringify(hours)
         });
 
         if (!response.ok) throw new Error('Erro ao salvar horários');
@@ -2434,10 +2438,18 @@
       `).join('');
     }
 
+    function normalizarTelefoneBR(telefone) {
+      let numeros = telefone.replace(/\D/g, "");
+
+      numeros = numeros.replace(/^(\d{2})9/, "$1");
+
+      return "55" + numeros;
+    }
+
     async function addBlacklist(event) {
       event.preventDefault();
 
-      let phone = document.getElementById('blacklistPhone').value.trim();
+      let phone = normalizarTelefoneBR(document.getElementById('blacklistPhone').value);
       const reason = document.getElementById('blacklistReason').value.trim();
       const details = document.getElementById('blacklistReasonDetails').value.trim();
       const fullReason = [reason, details].filter(Boolean).join(' - ');
@@ -2501,6 +2513,16 @@
       if (v.length >= 5) el.value = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
       else if (v.length >= 3) el.value = v.slice(0,2) + '/' + v.slice(2);
       else el.value = v;
+    }
+
+    // Formata o input enquanto o usuário digita: (85) 99999-9999
+    function formatPhoneInput(event) {
+      const el = event.target;
+      let v = el.value.replace(/\D/g, '');
+      if (v.length > 11) v = v.slice(0,11);
+      if (v.length > 6) el.value = `(${v.slice(0,2)}) ${v.slice(2,7)}-${v.slice(7)}`;
+      else if (v.length > 2) el.value = `(${v.slice(0,2)}) ${v.slice(2)}`;
+      else if (v.length > 0) el.value = `(${v}`;
     }
 
     // Converte dd/mm/aaaa para ISO (aaaa-mm-dd). Retorna null se inválido.
@@ -2605,6 +2627,8 @@
         });
         const data = await response.json();
         document.getElementById('outOfHoursMessage').value = data.message || '';
+        const enabledEl = document.getElementById('outOfHoursEnabled');
+        if (enabledEl) enabledEl.checked = data.enabled !== false;
       } catch (error) {
         // Erro ao carregar mensagem
       }
@@ -2612,7 +2636,9 @@
 
     async function saveOutOfHoursMessage() {
       const message = document.getElementById('outOfHoursMessage').value.trim();
-      if (!message) {
+      const enabledEl = document.getElementById('outOfHoursEnabled');
+      const enabled = enabledEl ? !!enabledEl.checked : true;
+      if (enabled && !message) {
         showToast('Digite uma mensagem', 'warning');
         return;
       }
@@ -2622,11 +2648,11 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ message })
+          body: JSON.stringify({ message, enabled })
         });
 
         if (!response.ok) throw new Error('Erro ao salvar mensagem');
-        showToast('Mensagem atualizada', 'success');
+        showToast('Configuração atualizada', 'success');
       } catch (error) {
         showToast(error.message, 'error');
       }

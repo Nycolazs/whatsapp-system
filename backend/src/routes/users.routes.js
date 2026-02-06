@@ -21,6 +21,42 @@ function createUsersRouter({
     }
   });
 
+  // Lista de responsáveis para atribuição (inclui admins como sellers ativos)
+  router.get('/assignees', requireAdmin, (_req, res) => {
+    try {
+      const admins = db.prepare("SELECT id, username as name FROM users WHERE role = 'admin' ORDER BY username").all();
+
+      const findSeller = db.prepare('SELECT id, active FROM sellers WHERE name = ?');
+      const insertSeller = db.prepare('INSERT INTO sellers (name, password, active) VALUES (?, ?, 1)');
+      const activateSeller = db.prepare('UPDATE sellers SET active = 1 WHERE id = ?');
+
+      for (const admin of admins) {
+        const existing = findSeller.get(admin.name);
+        if (existing && existing.id) {
+          if (!existing.active) {
+            try { activateSeller.run(existing.id); } catch (_) {}
+          }
+          continue;
+        }
+
+        try {
+          const randomPass = Math.random().toString(36).slice(2);
+          insertSeller.run(admin.name, randomPass);
+        } catch (_e) {
+          const fallback = findSeller.get(admin.name);
+          if (fallback && fallback.id && !fallback.active) {
+            try { activateSeller.run(fallback.id); } catch (_) {}
+          }
+        }
+      }
+
+      const assignees = db.prepare('SELECT id, name FROM sellers WHERE active = 1 ORDER BY name').all();
+      return res.json(assignees);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao listar responsáveis' });
+    }
+  });
+
   router.get('/users', requireAdmin, (_req, res) => {
     try {
       try {

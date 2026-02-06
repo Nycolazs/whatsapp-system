@@ -24,7 +24,7 @@ const sellerSchema = z.object({
 // Schema para envio de mensagem
 const sendMessageSchema = z.object({
   message: z.string().min(1, 'Mensagem é obrigatória').max(10000),
-  reply_to_id: z.number().int().positive().optional(),
+  reply_to_id: z.union([z.number().int().positive(), z.string().transform(v => parseInt(v, 10)).refine(v => !Number.isNaN(v) && v > 0, 'reply_to_id deve ser um número positivo')]).optional(),
 });
 
 // Schema para atualização de status de ticket

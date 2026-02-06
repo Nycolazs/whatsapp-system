@@ -540,10 +540,9 @@
     .reply-preview {
       display: none;
       background: #f0f2f5;
-      padding: 12px 15px;
-      border-left: 4px solid #00a884;
-      margin-bottom: 10px;
-      border-radius: 4px;
+      padding: 8px 20px 6px 20px;
+      border: none;
+      margin: 0;
       font-size: 13px;
     }
 
@@ -554,7 +553,7 @@
     .reply-preview-header {
       font-weight: 600;
       color: #00a884;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -562,11 +561,11 @@
 
     .reply-preview-content {
       color: #65676b;
-      margin-bottom: 8px;
+      margin-bottom: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 250px;
+      max-width: 100%;
     }
 
     .reply-preview-close {
@@ -1187,14 +1186,15 @@
           <!-- Mensagens serão inseridas aqui -->
         </div>
 
-        <div class="message-input-area">
-          <div class="reply-preview" id="replyPreview">
-            <div class="reply-preview-header">
-              <span>Respondendo a:</span>
-              <button class="reply-preview-close" id="replyCloseBtn">✕</button>
-            </div>
-            <div class="reply-preview-content" id="replyPreviewContent"></div>
+        <div class="reply-preview" id="replyPreview">
+          <div class="reply-preview-header">
+            <span>Respondendo a:</span>
+            <button class="reply-preview-close" id="replyCloseBtn">✕</button>
           </div>
+          <div class="reply-preview-content" id="replyPreviewContent"></div>
+        </div>
+
+        <div class="message-input-area">
           <textarea 
             id="messageInput" 
             class="message-input" 
@@ -1367,7 +1367,7 @@
       if (!userType) return;
       
       try {
-        const endpoint = userType === 'admin' ? `${API_URL}/sellers` : `${API_URL}/sellers/active`;
+        const endpoint = userType === 'admin' ? `${API_URL}/assignees` : `${API_URL}/sellers/active`;
         const response = await fetch(endpoint, {
           credentials: 'include',
           cache: 'no-store'
@@ -3183,10 +3183,20 @@
         currentReplyData = await response.json();
         currentReplyTo = messageId;
         displayReplyPreview();
+        await ensureAdminAssignmentOnReply();
       } catch (error) {
         console.error('Erro ao buscar mensagem:', error);
         showToast('Erro ao carregar mensagem original', 'error');
       }
+    }
+
+    async function ensureAdminAssignmentOnReply() {
+      if (!currentTicket || userType !== 'admin') return;
+      const alreadyAssignedToAdmin = currentTicket.seller_name && userName && currentTicket.seller_name === userName;
+      if (alreadyAssignedToAdmin) return;
+      try {
+        await applyStatusChange('em_atendimento');
+      } catch (_e) {}
     }
 
     // Função para exibir preview da resposta

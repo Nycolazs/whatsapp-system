@@ -260,9 +260,26 @@ function initSchema(db) {
   } catch (_) {}
 
   try {
+    const existingEnabled = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_enabled');
+    if (!existingEnabled) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('out_of_hours_enabled', '1');
+    }
+  } catch (_) {}
+
+  try {
     const existingAwait = db.prepare('SELECT value FROM settings WHERE key = ?').get('await_minutes');
     if (!existingAwait) {
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('await_minutes', '0');
+    }
+  } catch (_) {}
+
+  try {
+    const existingWelcome = db.prepare('SELECT value FROM settings WHERE key = ?').get('welcome_message');
+    if (!existingWelcome) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+        'welcome_message',
+        '👋 Olá! Seja bem-vindo(a)! Um de nossos atendentes já vai responder você. Por favor, aguarde um momento.'
+      );
     }
   } catch (_) {}
 }

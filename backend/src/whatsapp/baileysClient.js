@@ -37,16 +37,87 @@ let reconnectTimer = null;
 let consecutiveConflicts = 0;
 const MAX_CONSECUTIVE_CONFLICTS = 1; // Força logout no primeiro conflito
 
-function scheduleReconnect(delayMs = 2000) {
+// Configurações de estabilidade
+const RECONNECT_CONFIG = {
+  initialDelay: 2000,      // Delay inicial de reconexão
+  maxDelay: 30000,         // Delay máximo entre tentativas
+  maxAttempts: 10,         // Tentativas máximas antes de resetar
+  backoffMultiplier: 1.5,  // Multiplicador exponencial
+};
+
+let reconnectAttempts = 0;
+let currentReconnectDelay = RECONNECT_CONFIG.initialDelay;
+let heartbeatTimer = null;
+
+function calculateNextDelay() {
+  if (reconnectAttempts >= RECONNECT_CONFIG.maxAttempts) {
+    reconnectAttempts = 0; // Reset após atingir máximo
+    currentReconnectDelay = RECONNECT_CONFIG.initialDelay;
+  }
+  
+  const delay = Math.min(
+    RECONNECT_CONFIG.initialDelay * Math.pow(RECONNECT_CONFIG.backoffMultiplier, reconnectAttempts),
+    RECONNECT_CONFIG.maxDelay
+  );
+  
+  reconnectAttempts++;
+  return Math.floor(delay);
+}
+
+function scheduleReconnect(delayMs = null) {
   try {
     if (reconnectTimer) clearTimeout(reconnectTimer);
   } catch (e) {}
+  
+  const actualDelay = delayMs !== null ? delayMs : calculateNextDelay();
+  
+  logger.info(`[RECONNECT] Reconectando em ${actualDelay}ms (tentativa ${reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts})`);
+  
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     startBot().catch((err) => {
       logger.error('[RECONNECT] Falha ao reconectar WhatsApp:', err);
     });
-  }, delayMs);
+  }, actualDelay);
+}
+
+function startHeartbeat(sock) {
+  try {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  } catch (e) {}
+  
+  let missedChecks = 0;
+  
+  heartbeatTimer = setInterval(() => {
+    try {
+      // Verificação mais robusta - se activeSock existe e tem métodos de socket
+      if (activeSock && typeof activeSock.query === 'function') {
+        // Socket está ativo, reset counter
+        missedChecks = 0;
+      } else if (activeSock) {
+        // Socket pode estar em transição, aguarda mais uma checagem
+        missedChecks++;
+        
+        if (missedChecks >= 2) {
+          logger.warn('[HEARTBEAT] WebSocket desconectado (miss count: ' + missedChecks + '), reconectando...');
+          activeSock = null;
+          missedChecks = 0;
+          scheduleReconnect();
+        }
+      }
+    } catch (err) {
+      logger.warn('[HEARTBEAT] Erro ao verificar conexão:', err.message);
+    }
+  }, 45000); // Aumentado para 45 segundos para dar mais tempo
+}
+
+function stopHeartbeat() {
+  try {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  } catch (e) {}
 }
 
 function clearMediaFiles() {
@@ -136,6 +207,34 @@ function getOutOfHoursMessage() {
     return row?.value || '🕒 Nosso horário de atendimento já encerrou. Retornaremos no próximo horário de funcionamento.';
   } catch (err) {
     return '🕒 Nosso horário de atendimento já encerrou. Retornaremos no próximo horário de funcionamento.';
+  }
+}
+
+function isOutOfHoursEnabled() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_enabled');
+    return row ? row.value !== '0' : true;
+  } catch (_err) {
+    return true;
+  }
+}
+
+function getWelcomeMessage() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('welcome_message');
+    return row?.value || '👋 Olá! Seja bem-vindo(a)! Um de nossos atendentes já vai responder você. Por favor, aguarde um momento.';
+  } catch (err) {
+    return '👋 Olá! Seja bem-vindo(a)! Um de nossos atendentes já vai responder você. Por favor, aguarde um momento.';
+  }
+}
+
+function shouldSendWelcomeMessage(ticketId) {
+  try {
+    // Verifica se já existe alguma mensagem do agente/sistema neste ticket
+    const agentMessage = db.prepare('SELECT id FROM messages WHERE ticket_id = ? AND sender IN (?, ?) LIMIT 1').get(ticketId, 'agent', 'system');
+    return !agentMessage; // Retorna true se não houver mensagem do agente/sistema ainda
+  } catch (err) {
+    return false;
   }
 }
 
@@ -260,6 +359,10 @@ async function startBot() {
       syncFullHistory: false,
       defaultQueryTimeoutMs: 60_000,
       retryRequestDelayMs: 500,
+      keepAliveIntervalMs: 30_000,
+      qrTimeout: 60_000,
+      phoneNumberCountryCode: '55',
+      emitOwnEvents: false,
     })
     currentSock = sock;
 
@@ -293,6 +396,9 @@ async function startBot() {
           lastDisconnectCode = null;
           lastDisconnectReason = null;
           consecutiveConflicts = 0; // Reset conflitos ao conectar
+          reconnectAttempts = 0; // Reset tentativas de reconexão
+          currentReconnectDelay = RECONNECT_CONFIG.initialDelay; // Reset delay
+          startHeartbeat(sock); // Inicia heartbeat
           logger.info('[CONNECTED] WhatsApp conectado com sucesso');
 
           // Ativa conta por número (isola DB/sessions/auth por WhatsApp)
@@ -312,6 +418,7 @@ async function startBot() {
         
         if (connection === 'close') {
           activeSock = null; // Limpa o socket ativo
+          stopHeartbeat(); // Para heartbeat
           connectionState = 'close'
           clearOperationalDataFor('disconnected')
           const code = lastDisconnect?.error?.output?.statusCode
@@ -323,6 +430,8 @@ async function startBot() {
           } catch (e) {
             lastDisconnectReason = null;
           }
+          
+          logger.warn(`[DISCONNECT] Conexão fechada. Código: ${code}, Motivo: ${lastDisconnectReason}`);
 
           // Limpa socket anterior para evitar leak
           if (currentSock && currentSock !== sock) {
@@ -350,23 +459,20 @@ async function startBot() {
               logger.warn('[CONFLICT] Muitos conflitos. Limpando sessão. Escaneie novo QR.');
               try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
               consecutiveConflicts = 0;
+              reconnectAttempts = 0; // Reset tentativas
               activeSock = null;
               currentSock = null;
               latestQr = null;
               connectionState = 'qr';
               // Reinicia socket para gerar novo QR, sem deixar rejection sem tratamento
-              setTimeout(() => {
-                startBot().catch((err) => {
-                  logger.error('[CONFLICT] Falha ao reiniciar após conflito:', err);
-                });
-              }, 3000);
+              scheduleReconnect(5000);
               return;
             }
             
-            scheduleReconnect(10000); // 10s em conflito
+            scheduleReconnect(calculateNextDelay()); // Usa backoff exponencial
           } else {
             consecutiveConflicts = 0; // Reset se não for conflito
-            scheduleReconnect(2000);
+            scheduleReconnect(); // Usa próximo delay calculado
           }
         }
       } catch (err) {
@@ -375,22 +481,43 @@ async function startBot() {
     })
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
+      if (!messages || !Array.isArray(messages) || messages.length === 0) return;
+      
       try {
         const msg = messages[0]
         if (!msg?.message || msg?.key?.fromMe) return
 
         const jid = msg.key.remoteJid
-        if (jid.includes('@g.us') || jid.includes('status@broadcast')) return
+        if (!jid || jid.includes('@g.us') || jid.includes('status@broadcast')) return
 
         const phoneNumber = normalizePhoneFromMessage(msg)
         if (!phoneNumber) return
 
-      // Processa mensagem ANTES de checar blacklist para resposta rápida
-      // A blacklist é apenas para filtrar respostas automáticas, não para ignorar mensagens
-
+      // RESPOSTA AUTOMÁTICA SUPER RÁPIDA - Envia PRIMEIRO, processa depois
       const now = new Date()
       const businessStatus = getBusinessStatus(now)
-      const outOfHoursMessage = businessStatus.isOpen ? null : getOutOfHoursMessage()
+      
+      // Faz checagens rápidas em paralelo, sem aguardar
+      setImmediate(() => {
+        try {
+          if (!businessStatus.isOpen && isOutOfHoursEnabled()) {
+            // FORA DO HORÁRIO: envia mensagem apenas para blacklist
+            const blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
+            if (blacklistEntry) {
+              if (shouldSendOutOfHours(phoneNumber, now)) {
+                const outOfHoursMessage = getOutOfHoursMessage()
+                if (outOfHoursMessage) {
+                  sock.sendMessage(jid, { text: outOfHoursMessage }).catch(err => {
+                    logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
+                  })
+                }
+              }
+            }
+          }
+        } catch (e) {
+          logger.error('[AUTO_REPLY] Erro:', e)
+        }
+      })
 
       // Detecta tipo de mensagem e conteúdo
       let messageContent = ''
@@ -410,7 +537,7 @@ async function startBot() {
           const ext = mime.split('/')[1] || 'jpg'
           const timestamp = Date.now()
           const fileName = `img_${timestamp}.${ext}`
-          const dir = path.join(__dirname, '..', 'media', 'images')
+          const dir = path.join(__dirname, '..', '..', '..', 'media', 'images')
           
           try {
             await writeMediaFile(dir, fileName, buffer)
@@ -442,7 +569,7 @@ async function startBot() {
           const ext = mime.split('/')[1] || 'mp4'
           const timestamp = Date.now()
           const fileName = `video_${timestamp}.${ext}`
-          const dir = path.join(__dirname, '..', 'media', 'videos')
+          const dir = path.join(__dirname, '..', '..', '..', 'media', 'videos')
 
           try {
             await writeMediaFile(dir, fileName, buffer)
@@ -479,7 +606,7 @@ async function startBot() {
           const ext = 'webp'
           const timestamp = Date.now()
           const fileName = `sticker_${timestamp}.${ext}`
-          const dir = path.join(__dirname, '..', 'media', 'stickers')
+          const dir = path.join(__dirname, '..', '..', '..', 'media', 'stickers')
           
           try {
             await writeMediaFile(dir, fileName, buffer)
@@ -530,6 +657,37 @@ async function startBot() {
         if (contactName && ticket.contact_name !== contactName) {
           db.prepare('UPDATE tickets SET contact_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(contactName, ticket.id)
         }
+      }
+
+      // MENSAGEM DE BOAS-VINDAS quando estabelecimento está aberto
+      // Envia APENAS para números que estão na blacklist
+      if (businessStatus.isOpen && shouldSendWelcomeMessage(ticket.id)) {
+        setImmediate(() => {
+          try {
+            // Verifica se o número está na blacklist
+            const blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
+            
+            // Só envia se ESTIVER na blacklist
+            if (blacklistEntry) {
+              const welcomeMessage = getWelcomeMessage()
+              if (welcomeMessage) {
+                sock.sendMessage(jid, { text: welcomeMessage }).then(() => {
+                  // Registra a mensagem de boas-vindas no banco como mensagem do sistema
+                  try {
+                    db.prepare(`
+                      INSERT INTO messages (ticket_id, sender, content, message_type, updated_at)
+                      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    `).run(ticket.id, 'system', welcomeMessage, 'text')
+                  } catch (_) {}
+                }).catch(err => {
+                  logger.warn(`[WELCOME] Falha ao enviar mensagem de boas-vindas (${phoneNumber}): ${err?.message || err}`)
+                })
+              }
+            }
+          } catch (e) {
+            logger.error('[WELCOME] Erro:', e)
+          }
+        })
       }
 
       // Verifica se a mensagem é uma resposta (quoted message)
@@ -598,25 +756,9 @@ async function startBot() {
         }
       }
 
-      // Check blacklist AFTER saving message (non-blocking for message reception)
-      let blacklistEntry = null
-      try {
-        // Query otimizada sem LIKE para melhor performance na blacklist
-        blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
-      } catch (e) {}
-
-        // Só envia respostas automáticas PARA números na blacklist
-        if (blacklistEntry) {
-          if (!businessStatus.isOpen) {
-            if (shouldSendOutOfHours(phoneNumber, now) && outOfHoursMessage) {
-              try {
-                await sock.sendMessage(jid, { text: outOfHoursMessage })
-              } catch (err) {
-                logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
-              }
-            }
-          }
-        }
+      // Auto-reply já foi enviado no início (antes de processar mídia)
+      // Nada mais a fazer aqui
+      
       } catch (err) {
         logger.error('[messages.upsert] Erro não tratado no handler:', err)
       }
@@ -625,7 +767,14 @@ async function startBot() {
     return sock
   } catch (error) {
     logger.error('[START] Falha ao iniciar WhatsApp. Tentando reconectar...', error)
-    scheduleReconnect(3001)
+    try {
+      if (currentSock) {
+        try { currentSock.ev.removeAllListeners(); } catch (_) {}
+        try { currentSock.ws?.close(); } catch (_) {}
+        currentSock = null;
+      }
+    } catch (e) {}
+    scheduleReconnect();
     return null;
   } finally {
     startInProgress = false;

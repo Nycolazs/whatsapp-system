@@ -152,26 +152,45 @@ function createAdminConfigRouter({ db, requireAdmin, accountContext, accountMana
   router.get('/business-message', requireAdmin, (req, res) => {
     try {
       const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_message');
-      return res.json({ message: row?.value || '' });
+      const enabledRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('out_of_hours_enabled');
+      const enabled = enabledRow ? enabledRow.value === '1' : true;
+      return res.json({ message: row?.value || '', enabled });
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao carregar mensagem' });
     }
   });
 
   router.put('/business-message', requireAdmin, (req, res) => {
-    const { message } = req.body;
-    if (!message) {
+    const { message, enabled } = req.body;
+    const hasEnabled = typeof enabled === 'boolean';
+    const hasMessage = typeof message === 'string';
+    if (!hasMessage && !hasEnabled) {
+      return res.status(400).json({ error: 'Informe mensagem ou configuração' });
+    }
+    if (hasMessage && message.trim().length === 0 && enabled !== false) {
       return res.status(400).json({ error: 'Mensagem é obrigatória' });
     }
 
     try {
-      db.prepare(
-        `
-          INSERT INTO settings (key, value)
-          VALUES (?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        `
-      ).run('out_of_hours_message', message);
+      if (hasMessage) {
+        db.prepare(
+          `
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+          `
+        ).run('out_of_hours_message', message.trim());
+      }
+
+      if (hasEnabled) {
+        db.prepare(
+          `
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+          `
+        ).run('out_of_hours_enabled', enabled ? '1' : '0');
+      }
 
       return res.json({ success: true, message: 'Mensagem atualizada' });
     } catch (_error) {

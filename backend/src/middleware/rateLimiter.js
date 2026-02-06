@@ -9,6 +9,7 @@ const createResourceLimiter = rateLimit({
   message: { error: 'Muitas requisições. Aguarde um momento.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.DISABLE_RATE_LIMIT === '1',
 });
 
 // Rate limiter geral (menos restritivo)
