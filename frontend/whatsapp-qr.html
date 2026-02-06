@@ -136,6 +136,7 @@
 </head>
 <body>
   <div class="card">
+  <script src="/ui.js"></script>
     <h1 class="title">🔐 Conectar WhatsApp</h1>
     <p class="subtitle">Escaneie o QR Code para autenticar no WhatsApp Web.</p>
 
@@ -163,7 +164,7 @@
     const qrPlaceholder = document.getElementById('qrPlaceholder');
     const statusText = document.getElementById('statusText');
 
-    let polling = null;
+    let pollingId = null;
     let connectedStreak = 0;
     let redirecting = false;
 
@@ -173,8 +174,15 @@
 
     async function loadQr() {
       try {
-        const response = await fetch('/whatsapp/qr', { cache: 'no-store' });
-        const data = await response.json();
+        const fetchFn = (typeof smartJson === 'function')
+          ? smartJson
+          : async (u, o) => {
+              const r = await fetch(u, o);
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            };
+
+        const data = await fetchFn('/whatsapp/qr', { cache: 'no-store', maxRetries: 1 });
 
         const isConnected = !!data.connected || !!data.stableConnected;
         const needsQr = !!data.qrDataUrl || data.connectionState === 'qr';
@@ -195,8 +203,7 @@
           setStatus('Conectado', true);
           setTimeout(async () => {
             try {
-              const response = await fetch('/auth/has-admin', { cache: 'no-store' });
-              const info = await response.json();
+              const info = await fetchFn('/auth/has-admin', { cache: 'no-store', maxRetries: 1 });
               if (typeof navigateTo === 'function') navigateTo(info.hasAdmin ? '/login' : '/setup-admin'); else window.location.href = info.hasAdmin ? '/login' : '/setup-admin';
             } catch (error) {
               if (typeof navigateTo === 'function') navigateTo('/setup-admin'); else window.location.href = '/setup-admin';
@@ -239,17 +246,22 @@
 
     async function refreshQr() {
       try {
-        await fetch('/whatsapp/qr/refresh', { method: 'POST' });
+        const fn = (typeof smartFetch === 'function') ? smartFetch : fetch;
+        await fn('/whatsapp/qr/refresh', { method: 'POST' });
       } catch (error) {
         // Ignora
       }
       loadQr();
     }
 
-    function startPolling() {
-      loadQr();
-      if (polling) clearInterval(polling);
-      polling = setInterval(loadQr, 2000);
+    function schedulePolling(delayMs) {
+      if (pollingId) clearTimeout(pollingId);
+      pollingId = setTimeout(async () => {
+        await loadQr();
+        const base = document.hidden ? 8000 : 2000;
+        const jitter = Math.floor(Math.random() * 250);
+        schedulePolling(base + jitter);
+      }, delayMs);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -257,9 +269,12 @@
       if (refreshBtn) {
         refreshBtn.addEventListener('click', refreshQr);
       }
-      startPolling();
+      schedulePolling(200);
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) schedulePolling(200);
+      });
     });
   </script>
-  <script src="/ui.js"></script>
 </body>
 </html>

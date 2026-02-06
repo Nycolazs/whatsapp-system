@@ -633,29 +633,56 @@ async function startBot() {
 
       const contactName = msg.pushName || null
 
-      // Busca o último ticket ativo (não resolvido/encerrado) deste telefone
-      let ticket = db.prepare('SELECT * FROM tickets WHERE phone = ? AND status NOT IN (?, ?) ORDER BY id DESC LIMIT 1').get(phoneNumber, 'resolvido', 'encerrado')
+      // Busca o ticket ativo (não resolvido/encerrado) deste telefone.
+      // Se não houver, SEMPRE cria um NOVO ticket (não reabre tickets antigos).
+      // Usa transação para evitar corrida em caso de mensagens simultâneas.
+      let ticket = null
       let isNewTicket = false
+      let previousTicketStatus = null
 
-      // Se não há ticket ativo, verifica se existe algum ticket para este número
-      if (!ticket) {
-        // Verifica se já existe algum ticket (mesmo resolvido) para este telefone
-        const existingTicket = db.prepare('SELECT * FROM tickets WHERE phone = ? ORDER BY id DESC LIMIT 1').get(phoneNumber)
-        
-        if (existingTicket) {
-          // Reabre o ticket existente e reinicia o fluxo
-          db.prepare('UPDATE tickets SET status = ?, contact_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pendente', contactName, existingTicket.id)
-          ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(existingTicket.id)
-          isNewTicket = true
-        } else {
-          // Cria um novo ticket
-          const result = db.prepare('INSERT INTO tickets (phone, status, contact_name) VALUES (?, ?, ?)').run(phoneNumber, 'pendente', contactName)
+      try {
+        db.exec('BEGIN IMMEDIATE')
+
+        ticket = db.prepare(
+          "SELECT * FROM tickets WHERE phone = ? AND status NOT IN ('resolvido','encerrado') ORDER BY id DESC LIMIT 1"
+        ).get(phoneNumber)
+
+        if (!ticket) {
+          const result = db.prepare('INSERT INTO tickets (phone, status, contact_name) VALUES (?, ?, ?)')
+            .run(phoneNumber, 'pendente', contactName)
           ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(result.lastInsertRowid)
           isNewTicket = true
+
+          // Se abriu um ticket novo, verifica o ticket anterior (se houver)
+          // para registrar um marcador de contexto na timeline.
+          try {
+            const prev = db.prepare(
+              "SELECT id, status FROM tickets WHERE phone = ? AND id < ? ORDER BY id DESC LIMIT 1"
+            ).get(phoneNumber, ticket.id)
+            previousTicketStatus = prev && prev.status ? String(prev.status) : null
+          } catch (_) {
+            previousTicketStatus = null
+          }
+        } else {
+          // Atualiza nome do contato apenas no ticket ativo
+          if (contactName && ticket.contact_name !== contactName) {
+            db.prepare('UPDATE tickets SET contact_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+              .run(contactName, ticket.id)
+            ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(ticket.id)
+          }
         }
-      } else {
-        if (contactName && ticket.contact_name !== contactName) {
-          db.prepare('UPDATE tickets SET contact_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(contactName, ticket.id)
+
+        db.exec('COMMIT')
+      } catch (e) {
+        try { db.exec('ROLLBACK') } catch (_) {}
+
+        // Se caiu aqui por corrida (índice único de ticket ativo), pega o ticket ativo e segue.
+        ticket = db.prepare(
+          "SELECT * FROM tickets WHERE phone = ? AND status NOT IN ('resolvido','encerrado') ORDER BY id DESC LIMIT 1"
+        ).get(phoneNumber)
+
+        if (!ticket) {
+          throw e
         }
       }
 
@@ -701,6 +728,19 @@ async function startBot() {
 
       const whatsappKeyStr = JSON.stringify(msg.key);
       const whatsappMessageStr = JSON.stringify(msg.message);
+
+      // Se este ticket foi criado agora por causa de um contato que já tinha ticket resolvido/encerrado,
+      // insere uma mensagem de sistema na timeline para deixar claro que é um novo atendimento.
+      if (isNewTicket && (previousTicketStatus === 'resolvido' || previousTicketStatus === 'encerrado')) {
+        try {
+          const statusLabel = previousTicketStatus === 'resolvido' ? 'resolvido' : 'encerrado'
+          const systemText = `Ticket anterior foi ${statusLabel}. Um novo ticket foi iniciado.`
+          db.prepare(`
+            INSERT INTO messages (ticket_id, sender, content, message_type, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(ticket.id, 'system', systemText, 'system')
+        } catch (_) {}
+      }
       
       if (DEBUG_RECEIVE_LOGS) {
         logger.debug(`[RECEIVE] Salvando mensagem de ${phoneNumber}:`, {

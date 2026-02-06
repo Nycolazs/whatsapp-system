@@ -32,6 +32,52 @@ function createTicketsRouter({
     return null;
   }
 
+  // Busca o ticket ativo de um contato (por phone)
+  router.get('/contacts/:phone/active-ticket', requireAuth, (req, res) => {
+    const phone = String(req.params.phone || '').split('@')[0];
+    if (!phone) return res.status(400).json({ error: 'phone é obrigatório' });
+
+    try {
+      const ticket = db.prepare(
+        "SELECT t.*, s.name as seller_name FROM tickets t LEFT JOIN sellers s ON t.seller_id = s.id WHERE t.phone = ? AND t.status NOT IN ('resolvido','encerrado') ORDER BY t.id DESC LIMIT 1"
+      ).get(phone);
+      return res.json(ticket || null);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao buscar ticket ativo' });
+    }
+  });
+
+  // Histórico de tickets de um contato (por phone)
+  router.get('/contacts/:phone/tickets', requireAuth, (req, res) => {
+    const phone = String(req.params.phone || '').split('@')[0];
+    if (!phone) return res.status(400).json({ error: 'phone é obrigatório' });
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    try {
+      const tickets = db.prepare(
+        `
+          SELECT t.*, s.name as seller_name,
+                 COALESCE(COUNT(m.id), 0) AS unread_count
+          FROM tickets t
+          LEFT JOIN sellers s ON t.seller_id = s.id
+          LEFT JOIN messages m
+            ON m.ticket_id = t.id
+           AND m.sender = 'client'
+          WHERE t.phone = ?
+          GROUP BY t.id
+          ORDER BY t.id DESC
+          LIMIT ? OFFSET ?
+        `
+      ).all(phone, limit, offset);
+
+      return res.json(tickets);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao listar histórico de tickets' });
+    }
+  });
+
   router.get('/tickets', requireAuth, (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -81,7 +127,8 @@ function createTicketsRouter({
         params.push(before);
       }
 
-      query += ' ORDER BY created_at DESC';
+      // created_at pode empatar (resolução por segundo do SQLite). Usa id como tie-breaker.
+      query += ' ORDER BY created_at DESC, id DESC';
 
       const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 0, 0), 1000);
       if (safeLimit > 0) {
@@ -127,6 +174,10 @@ function createTicketsRouter({
 
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket não encontrado' });
+      }
+
+      if (ticket.status === 'resolvido' || ticket.status === 'encerrado') {
+        return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets encerrados' });
       }
 
       const sock = getSocket();
@@ -249,6 +300,11 @@ function createTicketsRouter({
         // Remove arquivo se ticket não existe
         fs.unlink(req.file.path, () => {});
         return res.status(404).json({ error: 'Ticket não encontrado' });
+      }
+
+      if (ticket.status === 'resolvido' || ticket.status === 'encerrado') {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets encerrados' });
       }
 
       const sock = getSocket();

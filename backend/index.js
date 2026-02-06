@@ -117,7 +117,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 200
 }));
-app.use(generalLimiter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
 // Debug middleware para log de requisições
@@ -177,6 +176,9 @@ app.use(express.static(frontendDir, {
     }
   }
 }));
+
+// Rate limit: aplicado apenas depois dos middlewares de static para não contar assets.
+app.use(generalLimiter);
 
 function getAdminCount() {
   try {

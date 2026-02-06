@@ -8,6 +8,7 @@
       window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
     }
   </script>
+  <script src="/ui.js"></script>
   <title>Atendimento - WhatsApp System</title>
   <style>
     * {
@@ -396,6 +397,24 @@
       margin-left: auto;
     }
 
+    .message-system {
+      background: rgba(17, 24, 39, 0.06);
+      border: 1px solid rgba(17, 24, 39, 0.10);
+      color: #111827;
+      align-self: center;
+      margin-left: auto;
+      margin-right: auto;
+      max-width: 90%;
+      text-align: center;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+
+    .message-system .message-time {
+      text-align: center;
+    }
+
     .message-time {
       font-size: 11px;
       color: #667781;
@@ -612,6 +631,26 @@
       align-items: flex-end;
       border-top: 1px solid #d1d7db;
       flex-shrink: 0; /* Impede que encolha */
+    }
+
+    .ticket-history {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #667781;
+      display: none;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .ticket-history a {
+      color: #00a884;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .ticket-history a:hover {
+      text-decoration: underline;
     }
 
     .message-input {
@@ -1163,6 +1202,7 @@
             <div class="chat-text">
               <h3 id="currentPhone"></h3>
               <span id="currentStatus" style="font-size: 12px; color: #667781;"></span>
+              <div class="ticket-history" id="ticketHistory"></div>
             </div>
           </div>
           <div class="chat-actions">
@@ -1544,8 +1584,13 @@
         const offset = append ? ticketsOffset : 0;
         const endpoint = `${baseEndpoint}?limit=${TICKETS_PAGE_SIZE}&offset=${offset}`;
 
-        const response = await fetch(endpoint, { credentials: 'include' });
-        const tickets = await response.json();
+        const fetchFn = (typeof smartJson === 'function') ? smartJson : async (u, o) => {
+          const r = await fetch(u, o);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        };
+
+        const tickets = await fetchFn(endpoint, { credentials: 'include', cache: 'no-store', maxRetries: 1 });
 
         const ticketsList = document.getElementById('ticketsList');
 
@@ -1736,6 +1781,9 @@
       } else {
         document.getElementById('currentStatus').textContent = '';
       }
+
+      // Histórico de tickets desse contato
+      try { await renderTicketHistory(ticket.phone, ticket.id); } catch (_) {}
       
       const statusSelectEl = document.getElementById('statusSelect');
       statusSelectEl.value = ticket.status;
@@ -1819,6 +1867,120 @@
       
       await loadMessages(ticket.id);
       initMessageInfiniteScroll(document.getElementById('messagesContainer'));
+    }
+
+    async function renderTicketHistory(phone, activeTicketId) {
+      const container = document.getElementById('ticketHistory');
+      if (!container) return;
+
+      // Avoid spamming when the user clicks very fast on history items.
+      // This keeps the UX responsive while preventing unnecessary API bursts.
+      if (!renderTicketHistory._navState) {
+        renderTicketHistory._navState = { inFlight: false, lastClickAt: 0, cachedTickets: null, cacheTime: 0, lastPhone: null };
+      }
+
+      const cleanPhone = String(phone || '').split('@')[0];
+      if (!cleanPhone) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+      }
+
+      const nav = renderTicketHistory._navState;
+      const now = Date.now();
+      let tickets = null;
+      
+      // Check cache: reuse tickets list for 10 seconds to avoid refetch on rapid history opens
+      if (nav.lastPhone === cleanPhone && nav.cachedTickets && nav.cacheTime && (now - nav.cacheTime) < 10000) {
+        tickets = nav.cachedTickets;
+      } else {
+        const res = await fetch(`${API_URL}/contacts/${encodeURIComponent(cleanPhone)}/tickets?limit=20&offset=0`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (!res.ok) {
+          container.style.display = 'none';
+          container.innerHTML = '';
+          return;
+        }
+        tickets = await res.json();
+        nav.cachedTickets = tickets;
+        nav.cacheTime = now;
+        nav.lastPhone = cleanPhone;
+      }
+      
+      if (!Array.isArray(tickets) || tickets.length <= 1) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+      }
+
+      const items = tickets
+        .filter(t => t && t.id)
+        .slice(0, 8)
+        .map(t => {
+          const isActive = String(t.id) === String(activeTicketId);
+          const label = isActive ? `#${t.id} (atual)` : `#${t.id}`;
+          return `<a data-ticket-id="${t.id}" ${isActive ? 'aria-current="true"' : ''}>${label}</a>`;
+        })
+        .join(' · ');
+
+      container.innerHTML = `Histórico: ${items}`;
+      container.style.display = 'flex';
+
+      container.querySelectorAll('a[data-ticket-id]').forEach(a => {
+        a.addEventListener('click', async () => {
+          const id = a.getAttribute('data-ticket-id');
+          if (!id) return;
+
+          const nav = renderTicketHistory._navState;
+          const now = Date.now();
+          if (nav.inFlight) return;
+          // Debounce ultra-fast repeated clicks (double-click / rage-click)
+          if (now - nav.lastClickAt < 900) return;
+          nav.lastClickAt = now;
+          nav.inFlight = true;
+
+          // Temporarily disable clicks in the history bar
+          try {
+            container.style.pointerEvents = 'none';
+            container.style.opacity = '0.85';
+          } catch (_) {}
+
+          const selected = tickets.find(t => String(t.id) === String(id));
+          if (!selected) {
+            nav.inFlight = false;
+            try {
+              container.style.pointerEvents = '';
+              container.style.opacity = '';
+            } catch (_) {}
+            return;
+          }
+
+          try {
+            currentTicket = selected;
+            const displayName = selected.contact_name || selected.phone;
+            document.getElementById('currentPhone').textContent = displayName;
+            if (selected.contact_name) {
+              document.getElementById('currentStatus').textContent = selected.phone;
+            } else {
+              document.getElementById('currentStatus').textContent = '';
+            }
+
+            // Recarrega o histórico com o novo ticket ativo
+            try { await renderTicketHistory(selected.phone, selected.id); } catch (_) {}
+            try { updateHeaderFromTicket(selected); } catch (_) {}
+            await loadMessages(selected.id);
+            showToast('Abrindo histórico do contato', 'info');
+          } finally {
+            nav.inFlight = false;
+            try {
+              container.style.pointerEvents = '';
+              container.style.opacity = '';
+            } catch (_) {}
+          }
+        });
+      });
     }
 
     // Atribui ticket a vendedor (admin ou vendedor)
@@ -1928,13 +2090,21 @@
         const prevScrollHeight = container.scrollHeight;
         const prevScrollTop = container.scrollTop;
 
+        const fetchFn = (typeof smartJson === 'function') ? smartJson : async (u, o) => {
+          const r = await fetch(u, o);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        };
+
         // Se for auto-refresh, tenta carregar apenas novas mensagens
         let messages = [];
         if (isAutoRefresh && lastMessageTimestamp[ticketId]) {
-          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages/since/${lastMessageTimestamp[ticketId]}`, {
-            credentials: 'include'
+          const since = encodeURIComponent(String(lastMessageTimestamp[ticketId]));
+          messages = await fetchFn(`${API_URL}/tickets/${ticketId}/messages/since/${since}`, {
+            credentials: 'include',
+            cache: 'no-store',
+            maxRetries: 1,
           });
-          messages = await response.json();
           if (!messages.length) {
             isLoadingMessages = false;
             return;
@@ -1945,20 +2115,22 @@
             isLoadingMessages = false;
             return;
           }
-          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}&before=${encodeURIComponent(before)}`, {
-            credentials: 'include'
+          messages = await fetchFn(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}&before=${encodeURIComponent(before)}`, {
+            credentials: 'include',
+            cache: 'no-store',
+            maxRetries: 1,
           });
-          messages = await response.json();
           if (!messages.length) {
             allHistoryLoaded[ticketId] = true;
             isLoadingMessages = false;
             return;
           }
         } else {
-          const response = await fetch(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}`, {
-            credentials: 'include'
+          messages = await fetchFn(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}`, {
+            credentials: 'include',
+            cache: 'no-store',
+            maxRetries: 1,
           });
-          messages = await response.json();
           container.innerHTML = '';
           lastMessageCount[ticketId] = 0;
           hasLoadedMessages[ticketId] = true;
@@ -1982,12 +2154,21 @@
               div.id = elId;
             }
 
-            div.className = `message message-${msg.sender}`;
+            const isSystem = (msg.sender === 'system') || (msg.message_type === 'system');
+            div.className = isSystem ? 'message message-system' : `message message-${msg.sender}`;
             
             let contentHtml = '';
+
+            if (isSystem) {
+              // Mensagem de sistema (marcador/aviso no meio do chat)
+              contentHtml = `
+                <div>${msg.content}</div>
+                <div class="message-time">${formatMessageTime(msg.created_at)}</div>
+              `;
+            }
             
             // Se for imagem, exibe a imagem
-            if (msg.message_type === 'image' && msg.media_url) {
+            else if (msg.message_type === 'image' && msg.media_url) {
               const imageId = `img-${msg.id}`;
               const contentDiv = msg.content !== '[Imagem]' ? `<div>${msg.content}</div>` : '';
               const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
@@ -2705,17 +2886,10 @@
             document.getElementById('emptyState').style.display = 'flex';
             document.getElementById('chatArea').style.display = 'none';
             
-            // Remove o ticket da lista da esquerda imediatamente
-            const ticketElement = document.querySelector(`.ticket-item[onclick*="selectTicket"][onclick*="id:${resolvedTicketId}"]`);
-            if (ticketElement) {
-              ticketElement.remove();
-            }
-            
             // Mostra mensagem de sucesso no estado vazio
             const emptyState = document.getElementById('emptyState');
             const originalContent = emptyState.innerHTML;
             const statusTexto = status === 'resolvido' ? 'resolvida' : 'encerrada';
-            const statusTitulo = status === 'resolvido' ? 'Resolvida' : 'Encerrada';
             emptyState.innerHTML = `
               <div style="color: #00a884; gap: 15px; display: flex; flex-direction: column; align-items: center;">
                 <div style="font-size: 48px;">✅</div>
@@ -2728,9 +2902,12 @@
             setTimeout(() => {
               emptyState.innerHTML = originalContent;
             }, 2000);
+
+            // Recarrega a lista de tickets (sem filtrar resolvidos/encerrados)
+            await loadTickets({ append: false, refreshTop: false });
           }
           // Se marcou como aguardando, limpa atribuição localmente
-          if (status === 'aguardando') {
+          else if (status === 'aguardando') {
             currentTicket.seller_id = null;
             currentTicket.seller_name = null;
             // Atualiza o sellerSelect para 'Não atribuído' quando existir
@@ -2739,8 +2916,11 @@
               sellerSelect.value = '';
               updateCustomSelect('sellerSelect');
             }
+            await loadTickets({ refreshTop: true });
           }
-          await loadTickets({ refreshTop: true });
+          else {
+            await loadTickets({ refreshTop: true });
+          }
         }
       } catch (error) {
         document.getElementById('statusSelect').value = currentTicket.status;
@@ -2778,10 +2958,42 @@
       // Adaptive polling: use timeouts so we can vary the delay when tab not focused
       // Em escala, polling agressivo derruba o backend (muitos agentes = muitas requisições).
       // Estes valores ainda dão sensação de tempo real, mas com bem menos carga.
-      const POLL_TICKETS_ACTIVE = 4000; // ms when focused (reduzindo carga para evitar 429)
-      const POLL_TICKETS_INACTIVE = 15000; // ms when not focused
-      const POLL_MESSAGES_ACTIVE = 2000; // ms when focused
-      const POLL_MESSAGES_INACTIVE = 8000;
+      const POLL_TICKETS_ACTIVE = 4500; // ms when focused
+      const POLL_TICKETS_INACTIVE = 20000; // ms when not focused
+      const POLL_MESSAGES_ACTIVE = 2500; // ms when focused
+      const POLL_MESSAGES_INACTIVE = 12000;
+
+      // Leader election per browser (reduz carga quando vendedor abre múltiplas abas)
+      const TAB_ID = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const LEADER_KEY = 'ws-system:poll-leader:v1';
+      const LEADER_TTL_MS = 9000;
+      const HEARTBEAT_MS = 2500;
+
+      function readLeader() {
+        try { return JSON.parse(localStorage.getItem(LEADER_KEY) || 'null'); } catch (_) { return null; }
+      }
+
+      function writeLeader(obj) {
+        try { localStorage.setItem(LEADER_KEY, JSON.stringify(obj)); } catch (_) {}
+      }
+
+      function isLeader() {
+        const l = readLeader();
+        if (!l || !l.id || !l.ts) return false;
+        if ((Date.now() - l.ts) > LEADER_TTL_MS) return false;
+        return l.id === TAB_ID;
+      }
+
+      function heartbeatLeader() {
+        const l = readLeader();
+        const stale = !l || !l.ts || (Date.now() - l.ts) > LEADER_TTL_MS;
+        if (stale || (l && l.id === TAB_ID)) {
+          writeLeader({ id: TAB_ID, ts: Date.now() });
+        }
+      }
+
+      setInterval(heartbeatLeader, HEARTBEAT_MS);
+      heartbeatLeader();
 
       let ticketsPollId = null;
       let messagesPollId = null;
@@ -2791,11 +3003,13 @@
         ticketsPollId = setTimeout(async () => {
           try {
             checkConnectionStatus();
-            // Recarrega lista completa (primeira página) para pegar tickets novos
-            await loadTickets({ append: false, refreshTop: false });
+            // Atualiza topo (primeira página) para pegar tickets novos/atualizados sem re-render total
+            await loadTickets({ append: false, refreshTop: true });
           } catch (e) {}
-          const nextDelay = document.hasFocus() ? POLL_TICKETS_ACTIVE : POLL_TICKETS_INACTIVE;
-          scheduleTicketsPoll(nextDelay);
+          const base = (document.hidden || !document.hasFocus()) ? POLL_TICKETS_INACTIVE : POLL_TICKETS_ACTIVE;
+          const multiTabPenalty = isLeader() ? 0 : 9000;
+          const jitter = Math.floor(Math.random() * 400);
+          scheduleTicketsPoll(base + multiTabPenalty + jitter);
         }, delay);
       }
 
@@ -2807,14 +3021,24 @@
               await loadMessages(currentTicket.id, true);
             }
           } catch (e) {}
-          const nextDelay = document.hasFocus() ? POLL_MESSAGES_ACTIVE : POLL_MESSAGES_INACTIVE;
-          scheduleMessagesPoll(nextDelay);
+          const base = (document.hidden || !document.hasFocus()) ? POLL_MESSAGES_INACTIVE : POLL_MESSAGES_ACTIVE;
+          const multiTabPenalty = isLeader() ? 0 : 9000;
+          const jitter = Math.floor(Math.random() * 350);
+          scheduleMessagesPoll(base + multiTabPenalty + jitter);
         }, delay);
       }
 
       // start adaptive loops (primeira tentativa com delay menor para resposta rápida)
       scheduleTicketsPoll(1000); // Inicia com 1s
       scheduleMessagesPoll(800); // Primeira vez um pouco mais rápida
+
+      // Se o usuário voltar para a aba, dá um refresh rápido (mas sem tempestade)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          scheduleTicketsPoll(650 + Math.floor(Math.random() * 250));
+          scheduleMessagesPoll(650 + Math.floor(Math.random() * 250));
+        }
+      });
     })();
 
     // Use shared showNotification (ui.js). Provide fallback if missing.
@@ -3491,6 +3715,5 @@
       });
     }
   </script>
-  <script src="/ui.js"></script>
 </body>
 </html>

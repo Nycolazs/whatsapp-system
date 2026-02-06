@@ -35,6 +35,37 @@ function makeSqliteSessionStore(client) {
   });
 }
 
+function tryCreateRedisSessionStore() {
+  const storeType = String(process.env.SESSION_STORE || '').toLowerCase();
+  const url = process.env.SESSION_REDIS_URL || process.env.REDIS_URL;
+  if (storeType !== 'redis') return null;
+  if (!url) return null;
+
+  try {
+    // Dependências opcionais.
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const { createClient } = require('redis');
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const connectRedis = require('connect-redis');
+    const RedisStore = connectRedis.default || connectRedis;
+
+    const client = createClient({ url });
+    client.on('error', (err) => {
+      try { console.warn('[session] redis error:', err && err.message ? err.message : err); } catch (_) {}
+    });
+    client.connect().catch((err) => {
+      try { console.warn('[session] redis connect failed:', err && err.message ? err.message : err); } catch (_) {}
+    });
+
+    return new RedisStore({ client });
+  } catch (err) {
+    try {
+      console.warn('[session] Redis store not available (install redis + connect-redis):', err && err.message ? err.message : err);
+    } catch (_) {}
+    return null;
+  }
+}
+
 class DynamicSessionStore extends session.Store {
   constructor() {
     super();
@@ -94,12 +125,14 @@ function createSessionMiddleware({
     throw new Error('createSessionMiddleware: accountManager is required');
   }
 
-  const dynamicStore = new DynamicSessionStore();
+  const redisStore = tryCreateRedisSessionStore();
+  const dynamicStore = redisStore ? null : new DynamicSessionStore();
 
   let sessionDb = null;
   let currentSessionDbPath = null;
 
   function ensureSessionStoreForActiveAccount() {
+    if (redisStore) return;
     const desired = accountManager.getSessionsPathForActiveOrDefault();
     if (sessionDb && currentSessionDbPath === desired) return;
 
@@ -120,7 +153,7 @@ function createSessionMiddleware({
   } catch (_) {}
 
   const middleware = session({
-    store: dynamicStore,
+    store: redisStore || dynamicStore,
     secret,
     resave: false,
     saveUninitialized: false,

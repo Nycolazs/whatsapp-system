@@ -180,6 +180,13 @@ function initSchema(db) {
       CREATE INDEX IF NOT EXISTS idx_tickets_seller_updated_at ON tickets(seller_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_tickets_phone ON tickets(phone);
 
+      -- Garante apenas 1 ticket ativo por contato (phone)
+      CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_ticket_per_phone
+        ON tickets(phone)
+        WHERE phone IS NOT NULL
+          AND phone != ''
+          AND status NOT IN ('resolvido', 'encerrado');
+
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_created_at ON messages(ticket_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_updated_at ON messages(ticket_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_sender ON messages(ticket_id, sender);

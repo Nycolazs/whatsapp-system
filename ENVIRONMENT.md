@@ -103,6 +103,57 @@ CORS_ORIGIN="https://seu-dominio.com"
 
 ---
 
+## 🚦 Rate limit (grande porte)
+
+Por padrão, o backend usa rate limiting por **usuário autenticado (sessão)** e cai para **IP** quando não há sessão.
+Em empresas grandes, o problema mais comum é o rate limit contar **assets do frontend** e/ou ser baixo demais para muitas abas e automações internas.
+
+Variáveis principais:
+
+```bash
+# Janela do rate limit (padrão: 10s). Janelas menores evitam bloqueios longos após picos.
+GENERAL_RATE_WINDOW_MS=10000
+
+# Limites por janela (padrões pensados para alta concorrência)
+AUTH_GENERAL_RATE_MAX_ATTEMPTS=1000
+ANON_GENERAL_RATE_MAX_ATTEMPTS=200
+
+# Compatibilidade (se setar esta, sobrescreve auth/anon)
+# GENERAL_RATE_MAX_ATTEMPTS=1000
+
+# Para rotas de criação (ex.: criar vendedor)
+CREATE_RATE_WINDOW_MS=60000
+CREATE_RATE_MAX_ATTEMPTS=30
+
+# Desabilitar rate limit (use só para diagnóstico)
+# DISABLE_RATE_LIMIT=1
+```
+
+### Rate limit distribuído (Redis)
+
+Se você roda **mais de 1 instância** (PM2 cluster/Kubernetes/etc), configure Redis para que o rate limiting seja consistente entre instâncias:
+
+```bash
+RATE_LIMIT_REDIS_URL=redis://localhost:6379
+# ou use REDIS_URL=...
+```
+
+---
+
+## 🧠 Sessões (grande porte / múltiplas instâncias)
+
+Por padrão, as sessões usam SQLite local. Para escalar horizontalmente (várias instâncias), use Redis:
+
+```bash
+SESSION_STORE=redis
+SESSION_REDIS_URL=redis://localhost:6379
+# ou use REDIS_URL=...
+```
+
+> Observação: atrás de proxy/load balancer, configure também `TRUST_PROXY=1` (ou o número de proxies) para o Express calcular IP/cookies corretamente.
+
+---
+
 ## ⚠️ Importante
 
 - ✅ O arquivo `.env` está no `.gitignore` (nunca commite credenciais)
@@ -121,5 +172,16 @@ SESSION_SECRET="K8x7pQm3vZn2JdF9wRtY4hGbL6sNcA5e"
 CORS_ORIGIN="https://app.suaempresa.com,https://admin.suaempresa.com"
 BCRYPT_ROUNDS=12
 LOG_LEVEL=warn
-LOGIN_RATE_MAX_ATTEMPTS=5
+
+# Proxy/LB
+TRUST_PROXY=1
+
+# Rate limit (alta concorrência)
+GENERAL_RATE_WINDOW_MS=10000
+AUTH_GENERAL_RATE_MAX_ATTEMPTS=1000
+ANON_GENERAL_RATE_MAX_ATTEMPTS=200
+
+# Redis (recomendado para múltiplas instâncias)
+SESSION_STORE=redis
+REDIS_URL="redis://127.0.0.1:6379"
 ```
