@@ -72,7 +72,9 @@ whatsapp-system/
 │   └── staging/
 ├── media/
 │   └── audios/            # Áudios recebidos
-├── start.sh               # Script de inicialização
+├── start                  # Script de inicialização
+├── scripts/
+│   └── fix-admin-passwords.js # Utilitário para corrigir hash de admin
 ├── package.json           # Dependências root
 └── README.md              # Este arquivo
 ```
@@ -104,7 +106,7 @@ npm install
 Pela raiz do projeto:
 
 ```bash
-./start.sh
+./start
 ```
 
 Ou diretamente:
@@ -278,7 +280,7 @@ node backend/index.js
 Verifique:
 1. WhatsApp está conectado (status na interface)
 2. Número está na blacklist
-3. Aplicação está rodando (`./start.sh`)
+3. Aplicação está rodando (`./start`)
 4. Browser foi atualizado (F5)
 
 ## Deploy (Diretrizes)
@@ -303,7 +305,7 @@ pm2 save
 Os logs são exibidos no console durante execução. Para production:
 
 ```bash
-./start.sh > logs.txt 2>&1 &
+./start > logs.txt 2>&1 &
 tail -f logs.txt
 ```
 
