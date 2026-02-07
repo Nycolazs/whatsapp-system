@@ -1630,6 +1630,41 @@
     </div>
   </div>
 
+  <!-- Modal de Alterar Senha -->
+  <div class="modal" id="changePasswordModal">
+    <div class="modal-content">
+      <div class="modal-header">🔐 Alterar Senha</div>
+      <p id="changePasswordUserName" style="margin-bottom: 20px; color: #667781; font-size: 14px;"></p>
+      <form id="changePasswordForm" style="margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 8px; color: #111; font-weight: 500; font-size: 14px;">Nova Senha</label>
+          <input 
+            type="password" 
+            id="newPassword" 
+            placeholder="Digite a nova senha"
+            style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
+            required
+          >
+        </div>
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 8px; color: #111; font-weight: 500; font-size: 14px;">Confirmar Senha</label>
+          <input 
+            type="password" 
+            id="confirmPassword" 
+            placeholder="Confirme a nova senha"
+            style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
+            required
+          >
+        </div>
+        <div id="changePasswordError" style="color: #d32f2f; font-size: 13px; margin-bottom: 15px; display: none;"></div>
+      </form>
+      <div class="modal-actions">
+        <button type="button" class="btn-modal btn-cancel" onclick="closeChangePasswordModal()">Cancelar</button>
+        <button type="button" class="btn-modal btn-save" onclick="submitChangePassword()">Alterar Senha</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
     const API_URL = '';
@@ -2254,6 +2289,7 @@
             Criado em: ${formatCreatedAt(user.created_at)}
           </div>
           <div class="seller-actions">
+            <button class="btn-small btn-edit" onclick="openChangePasswordModal('${user.id}', '${(user.name || '').replace(/'/g, "\\'")}')">🔐 Alterar Senha</button>
             ${!user.isAdmin && user.isSeller ? `<button class="btn-small btn-edit" onclick="makeAdminSeller('${user.id}', '${(user.name || '').replace(/'/g, "\\'")}')">👑 Fazer Admin</button>` : ''}
             ${!user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="makeAdminUser('${(user.name || '').replace(/'/g, "\\'")}')">👑 Fazer Admin</button>` : ''}
             ${user.isAdmin && !user.isSeller ? `<button class="btn-small btn-edit" onclick="revertToSeller('${(user.name || '').replace(/'/g, "\\'")}')">👨‍💼 Tornar apenas vendedor</button>` : ''}
@@ -3459,6 +3495,128 @@
       setupDateInputMask('#ticketUpdatedFrom');
       setupDateInputMask('#ticketUpdatedTo');
     }, 100);
+
+    // ===== ALTERAR SENHA =====
+    let changePasswordUserId = null;
+    let changePasswordUserType = null;
+
+    function openChangePasswordModal(userId, userName) {
+      changePasswordUserId = userId;
+      // Determina se é admin ou seller baseado no ID
+      changePasswordUserType = String(userId).startsWith('admin_') ? 'admin' : 'seller';
+      
+      document.getElementById('changePasswordUserName').textContent = `Alterar senha de: ${userName}`;
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      document.getElementById('changePasswordError').style.display = 'none';
+      document.getElementById('changePasswordForm').reset();
+      document.getElementById('changePasswordModal').classList.add('active');
+      document.getElementById('newPassword').focus();
+    }
+
+    function closeChangePasswordModal() {
+      changePasswordUserId = null;
+      changePasswordUserType = null;
+      document.getElementById('changePasswordModal').classList.remove('active');
+    }
+
+    async function submitChangePassword() {
+      const newPassword = document.getElementById('newPassword').value.trim();
+      const confirmPassword = document.getElementById('confirmPassword').value.trim();
+      const errorEl = document.getElementById('changePasswordError');
+
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+
+      // Validações
+      if (!newPassword) {
+        errorEl.textContent = 'Digite a nova senha';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      if (newPassword.length < 4) {
+        errorEl.textContent = 'A senha deve ter no mínimo 4 caracteres';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        errorEl.textContent = 'As senhas não conferem';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        // Extrair ID numérico do formato composto (admin_X ou seller_X)
+        let numericId = changePasswordUserId;
+        if (typeof numericId === 'string' && numericId.includes('_')) {
+          const parts = numericId.split('_');
+          numericId = parts[1];
+        }
+        
+        const endpoint = changePasswordUserType === 'admin' 
+          ? `/users/${numericId}/change-password`
+          : `/sellers/${numericId}/change-password`;
+
+        console.log('[changePassword] Enviando para:', endpoint, { newPassword: '***', numericId, userType: changePasswordUserType });
+
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ newPassword })
+        });
+
+        console.log('[changePassword] Status:', response.status);
+
+        // Verificar se a resposta é JSON antes de fazer parse
+        const contentType = response.headers.get('content-type');
+        let data = {};
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            console.error('[changePassword] Erro ao fazer parse JSON:', parseError);
+            data = { error: 'Erro ao processar resposta do servidor' };
+          }
+        } else {
+          const text = await response.text();
+          console.error('[changePassword] Resposta não é JSON:', text);
+          data = { error: 'Resposta do servidor inválida' };
+        }
+
+        if (!response.ok) {
+          throw new Error(formatErrorMessage(data) || 'Erro ao alterar senha');
+        }
+
+        showToast('Senha alterada com sucesso', 'success');
+        closeChangePasswordModal();
+        loadUsers();
+      } catch (error) {
+        console.error('[changePassword] Erro:', error);
+        errorEl.textContent = error.message || 'Erro ao alterar senha';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    // Fechar modal ao pressionar Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('changePasswordModal');
+        if (modal && modal.classList.contains('active')) {
+          closeChangePasswordModal();
+        }
+      }
+    });
+
+    // Fechar modal ao clicar fora (overlay)
+    document.getElementById('changePasswordModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'changePasswordModal') {
+        closeChangePasswordModal();
+      }
+    });
   </script>
 </body>
 </html>

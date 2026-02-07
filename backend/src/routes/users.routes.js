@@ -498,6 +498,78 @@ function createUsersRouter({
     }
   });
 
+  // Alterar senha de um usuário (admin)
+  router.post('/users/:id/change-password', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    console.log('[change-password] Iniciando alteração de senha. ID:', id, 'Password length:', newPassword?.length);
+
+    if (!newPassword || String(newPassword).trim().length === 0) {
+      console.log('[change-password] Erro: senha vazia');
+      return res.status(400).json({ error: 'Nova senha é obrigatória' });
+    }
+
+    try {
+      // Verifica se é um admin (formato: admin_X)
+      const numericId = String(id).startsWith('admin_') ? id.replace('admin_', '') : id;
+      console.log('[change-password] ID numérico extraído:', numericId);
+      
+      const user = db.prepare("SELECT id, username FROM users WHERE id = ?").get(numericId);
+      console.log('[change-password] Usuário encontrado:', user ? `${user.username} (id: ${user.id})` : 'não encontrado');
+      
+      if (!user) {
+        console.log('[change-password] Usuário não encontrado com ID:', numericId);
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      const result = db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, numericId);
+      console.log('[change-password] UPDATE result:', result.changes, 'changes');
+
+      return res.json({ success: true, message: 'Senha alterada com sucesso' });
+    } catch (error) {
+      console.error('[change-password] Erro ao alterar senha:', error);
+      return res.status(500).json({ error: 'Erro ao alterar senha' });
+    }
+  });
+
+  // Alterar senha de um vendedor (admin)
+  router.post('/sellers/:id/change-password', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    console.log('[change-password-seller] Iniciando alteração de senha. ID:', id, 'Password length:', newPassword?.length);
+
+    if (!newPassword || String(newPassword).trim().length === 0) {
+      console.log('[change-password-seller] Erro: senha vazia');
+      return res.status(400).json({ error: 'Nova senha é obrigatória' });
+    }
+
+    try {
+      // Verifica se é um vendedor (formato: seller_X)
+      const numericId = String(id).startsWith('seller_') ? id.replace('seller_', '') : id;
+      console.log('[change-password-seller] ID numérico extraído:', numericId);
+      
+      const seller = db.prepare("SELECT id, name FROM sellers WHERE id = ?").get(numericId);
+      console.log('[change-password-seller] Vendedor encontrado:', seller ? `${seller.name} (id: ${seller.id})` : 'não encontrado');
+      
+      if (!seller) {
+        console.log('[change-password-seller] Vendedor não encontrado com ID:', numericId);
+        return res.status(404).json({ error: 'Vendedor não encontrado' });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      const result = db.prepare('UPDATE sellers SET password = ? WHERE id = ?').run(hashedPassword, numericId);
+      console.log('[change-password-seller] UPDATE result:', result.changes, 'changes');
+
+      return res.json({ success: true, message: 'Senha alterada com sucesso' });
+    } catch (error) {
+      console.error('[change-password-seller] Erro ao alterar senha:', error);
+      return res.status(500).json({ error: 'Erro ao alterar senha' });
+    }
+  });
+
   return router;
 }
 
