@@ -13,3 +13,21 @@ backend/node_modules/
 backend/whatsapp.db
 data/*
 node_modules/
+
+# Certificados SSL (não versionar chaves privadas)
+key.pem
+cert.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Ambiente
+.env
+
+# Logs
+*.log
+
+# PID files
+*.pid
+backend.pid

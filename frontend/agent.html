@@ -3,11 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    if (window.location.protocol === 'https:') {
-      window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
-    }
-  </script>
+  <!-- Não forçar downgrade para HTTP: áudio (microfone) exige contexto seguro (HTTPS) fora do localhost. -->
   <script src="/ui.js"></script>
   <title>Atendimento - WhatsApp System</title>
   <style>
@@ -1454,8 +1450,16 @@
     function updateConnectionIndicator(connected) {
       const sendButton = document.querySelector('.send-button');
       const messageInput = document.getElementById('messageInput');
+      const audioBtn = document.querySelector('.audio-button');
       
-      if (connected) {
+      // Verifica se o ticket atual está bloqueado (antigo ou encerrado)
+      const shouldBlockInput = currentTicket && (
+        currentTicket.isLatestTicket === false || 
+        currentTicket.status === 'resolvido' || 
+        currentTicket.status === 'encerrado'
+      );
+      
+      if (connected && !shouldBlockInput) {
         if (sendButton) {
           sendButton.disabled = false;
           sendButton.title = '';
@@ -1464,7 +1468,24 @@
           messageInput.disabled = false;
           messageInput.placeholder = 'Digite sua mensagem...';
         }
+        if (audioBtn) {
+          audioBtn.disabled = false;
+        }
+      } else if (shouldBlockInput) {
+        // Mantém bloqueado se for ticket antigo/encerrado
+        if (sendButton) {
+          sendButton.disabled = true;
+          sendButton.title = '';
+        }
+        if (messageInput) {
+          messageInput.disabled = true;
+          messageInput.placeholder = 'Não é possível enviar mensagens em tickets antigos ou encerrados.';
+        }
+        if (audioBtn) {
+          audioBtn.disabled = true;
+        }
       } else {
+        // Desconectado
         if (sendButton) {
           sendButton.disabled = true;
           sendButton.title = 'WhatsApp desconectado. Aguarde a reconexão.';
@@ -1472,6 +1493,9 @@
         if (messageInput) {
           messageInput.disabled = true;
           messageInput.placeholder = 'Aguardando conexão do WhatsApp...';
+        }
+        if (audioBtn) {
+          audioBtn.disabled = true;
         }
       }
     }
@@ -1783,7 +1807,26 @@
       }
 
       // Histórico de tickets desse contato
-      try { await renderTicketHistory(ticket.phone, ticket.id); } catch (_) {}
+      try { 
+        await renderTicketHistory(ticket.phone, ticket.id);
+      } catch (_) {}
+      
+      // Detecta se é o ticket mais recente da conversa
+      try {
+        const cleanPhone = String(ticket.phone || '').split('@')[0];
+        const res = await fetch(`${API_URL}/contacts/${encodeURIComponent(cleanPhone)}/tickets?limit=1&offset=0`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const latestTickets = await res.json();
+          currentTicket.isLatestTicket = Array.isArray(latestTickets) && latestTickets.length > 0 && String(latestTickets[0].id) === String(ticket.id);
+        } else {
+          currentTicket.isLatestTicket = true;
+        }
+      } catch (_) {
+        currentTicket.isLatestTicket = true;
+      }
       
       const statusSelectEl = document.getElementById('statusSelect');
       statusSelectEl.value = ticket.status;
@@ -1867,6 +1910,140 @@
       
       await loadMessages(ticket.id);
       initMessageInfiniteScroll(document.getElementById('messagesContainer'));
+
+      // Controla área de input com base no status do ticket
+      updateMessageInputState(ticket);
+    }
+
+    function updateMessageInputState(ticket) {
+      const messageInput = document.getElementById('messageInput');
+      const sendBtn = document.querySelector('.send-button');
+      const audioBtn = document.querySelector('.audio-button');
+      const messagesContainer = document.getElementById('messagesContainer');
+      let oldTicketNotice = document.getElementById('oldTicketNotice');
+      
+      // Verifica se é um ticket antigo (não é o mais recente) OU se foi encerrado/resolvido
+      const isOldTicket = ticket.isLatestTicket === false;
+      const isClosed = ticket.status === 'resolvido' || ticket.status === 'encerrado';
+      const shouldBlockInput = isOldTicket || isClosed;
+      
+      console.log('updateMessageInputState - ticket:', ticket.id, 'isLatestTicket:', ticket.isLatestTicket, 'status:', ticket.status, 'shouldBlockInput:', shouldBlockInput);
+      
+      if (shouldBlockInput) {
+        // Desabilita input e botões para tickets antigos ou encerrados
+        if (messageInput) {
+          messageInput.disabled = true;
+          messageInput.placeholder = 'Não é possível enviar mensagens em tickets antigos ou encerrados.';
+        }
+        if (sendBtn) sendBtn.disabled = true;
+        if (audioBtn) audioBtn.disabled = true;
+        
+        // Remove mensagem anterior se existir
+        const existingNotice = document.getElementById('oldTicketNotice');
+        if (existingNotice) {
+          existingNotice.remove();
+        }
+        
+        // Mostra mensagem na conversa
+        if (messagesContainer) {
+          oldTicketNotice = document.createElement('div');
+          oldTicketNotice.id = 'oldTicketNotice';
+          oldTicketNotice.style.cssText = `
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: #495057;
+            margin: 20px 16px;
+            font-size: 14px;
+          `;
+          
+          // Determina a mensagem apropriada
+          let title, message;
+          if (isClosed) {
+            title = '🔒 Esta conversa foi encerrada';
+            message = 'O atendimento foi finalizado. Se precisar reabrir a conversa, entre em contato com um administrador.';
+          } else {
+            title = '📋 Este é um histórico de conversa';
+            message = 'Para continuar a conversa, volte ao ticket mais recente com essa pessoa.';
+          }
+          
+          oldTicketNotice.innerHTML = `
+            <div style="margin-bottom: 12px;">
+              <p style="margin: 0 0 8px 0; font-weight: 600; color: #333;">${title}</p>
+              <p style="margin: 0; color: #666;">${message}</p>
+            </div>
+          `;
+          
+          // Se for ticket antigo (mas não encerrado), mostra botão para voltar
+          if (isOldTicket && !isClosed) {
+            const buttonHtml = `
+              <button id="backToLatestBtn" style="
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                transition: background 0.2s;
+              ">↵ Voltar ao ticket recente</button>
+            `;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = buttonHtml;
+            oldTicketNotice.appendChild(tempDiv.firstElementChild);
+          }
+          
+          messagesContainer.appendChild(oldTicketNotice);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          
+          // Adiciona evento ao botão de voltar (se existir)
+          const backBtn = document.getElementById('backToLatestBtn');
+          if (backBtn) {
+            backBtn.addEventListener('click', async () => {
+              try {
+                const cleanPhone = String(ticket.phone || '').split('@')[0];
+                const res = await fetch(`${API_URL}/contacts/${encodeURIComponent(cleanPhone)}/tickets?limit=1&offset=0`, {
+                  credentials: 'include',
+                  cache: 'no-store'
+                });
+                if (res.ok) {
+                  const latestTickets = await res.json();
+                  if (Array.isArray(latestTickets) && latestTickets.length > 0) {
+                    const latestTicket = latestTickets[0];
+                    await selectTicket(latestTicket);
+                    showToast('Voltando ao ticket mais recente...', 'info');
+                  }
+                }
+              } catch (e) {
+                showToast('Erro ao buscar o ticket mais recente', 'error');
+              }
+            });
+            backBtn.addEventListener('mouseenter', () => {
+              backBtn.style.background = '#0056b3';
+            });
+            backBtn.addEventListener('mouseleave', () => {
+              backBtn.style.background = '#007bff';
+            });
+          }
+        }
+      } else {
+        // Habilita input e botões para tickets atuais/pendentes
+        if (messageInput) {
+          messageInput.disabled = false;
+          messageInput.placeholder = 'Digite sua mensagem...';
+        }
+        if (sendBtn) sendBtn.disabled = false;
+        if (audioBtn) audioBtn.disabled = false;
+        
+        // Remove mensagem de histórico se existir
+        const existingNotice = document.getElementById('oldTicketNotice');
+        if (existingNotice) {
+          existingNotice.remove();
+        }
+      }
     }
 
     async function renderTicketHistory(phone, activeTicketId) {
@@ -2444,6 +2621,21 @@
     // Envia mensagem
     async function sendMessage() {
       if (!currentTicket) return;
+      
+      // Verifica se é um ticket antigo (não é o mais recente) ou se foi encerrado
+      const isOldTicket = currentTicket.isLatestTicket === false;
+      const isClosed = currentTicket.status === 'resolvido' || currentTicket.status === 'encerrado';
+      
+      if (isOldTicket && !isClosed) {
+        showToast('❌ Não é possível enviar mensagens em tickets antigos. Volte ao ticket atual para continuar a conversa.', 'error');
+        return;
+      }
+      
+      if (isClosed) {
+        showToast('❌ Não é possível enviar mensagens em conversa encerrada.', 'error');
+        return;
+      }
+      
       if (!isConnected) {
         showToast('WhatsApp desconectado. Por favor, aguarde a reconexão.', 'warning');
         return;
@@ -2485,6 +2677,12 @@
     async function sendRecordedAudio() {
       if (!currentTicket || !window.recordedAudioBlob) {
         showToast('Erro ao enviar áudio', 'error');
+        return;
+      }
+
+      // Verifica se é um ticket antigo (não é o mais recente)
+      if (currentTicket.isLatestTicket === false) {
+        showToast('❌ Não é possível enviar áudio em tickets antigos. Volte ao ticket atual para continuar a conversa.', 'error');
         return;
       }
 
@@ -2544,6 +2742,22 @@
     function initAudioButton() {
       recordBtn = document.getElementById('recordBtn');
       if (!recordBtn) return;
+
+      // Microfone normalmente só funciona em contexto seguro (HTTPS), exceto localhost.
+      // Se estiver acessando por IP via HTTP, o navegador bloqueia getUserMedia.
+      try {
+        const host = String(window.location.hostname || '').toLowerCase();
+        const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+        if (!window.isSecureContext && !isLocal) {
+          recordBtn.disabled = true;
+          recordBtn.title = 'Gravação de áudio requer HTTPS (ou localhost). Abra o sistema em https://SEU_IP:PORTA (ex.: 3443).';
+          recordBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            showToast('⚠️ O navegador bloqueia microfone em HTTP por IP. Acesse o sistema via HTTPS (ou use localhost) para enviar áudio.', 'warning');
+          });
+          return;
+        }
+      } catch (_) {}
 
       isMobile = detectMobile();
 
@@ -2644,14 +2858,14 @@
         if (recordBtn) recordBtn.style.opacity = '1';
         
         let errorMsg = 'Erro ao acessar o microfone. Verifique as permissões.';
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        if (error.name === 'SecurityError') {
+          errorMsg = 'O navegador bloqueou o microfone por segurança. Use HTTPS (ou localhost) para gravar/enviar áudio.';
+        } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
           errorMsg = 'Permissão negada. Clique em "Permitir" quando o navegador pedir.';
         } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
           errorMsg = 'Nenhum microfone conectado ao dispositivo.';
         } else if (error.name === 'NotSupportedError') {
           errorMsg = 'Seu navegador não suporta gravação de áudio. Use Chrome, Firefox ou Edge.';
-        } else if (error.name === 'TypeError') {
-          errorMsg = 'Erro: navegador em HTTPS seguro pode bloquear microfone. Recarregue a página.';
         } else if (error.message) {
           errorMsg = `Erro: ${error.message}`;
         }

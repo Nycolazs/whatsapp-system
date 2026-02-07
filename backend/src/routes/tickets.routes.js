@@ -180,6 +180,15 @@ function createTicketsRouter({
         return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets encerrados' });
       }
 
+      // Verifica se este é o ticket mais recente deste contato
+      const latestTicket = db.prepare(
+        "SELECT id FROM tickets WHERE phone = ? ORDER BY id DESC LIMIT 1"
+      ).get(ticket.phone);
+      
+      if (latestTicket && String(latestTicket.id) !== String(ticket.id)) {
+        return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets antigos. Use o ticket mais recente.' });
+      }
+
       const sock = getSocket();
       if (!sock) {
         return res.status(503).json({ error: 'WhatsApp não conectado. Por favor, aguarde a reconexão.' });
@@ -305,6 +314,16 @@ function createTicketsRouter({
       if (ticket.status === 'resolvido' || ticket.status === 'encerrado') {
         fs.unlink(req.file.path, () => {});
         return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets encerrados' });
+      }
+
+      // Verifica se este é o ticket mais recente deste contato
+      const latestTicket = db.prepare(
+        "SELECT id FROM tickets WHERE phone = ? ORDER BY id DESC LIMIT 1"
+      ).get(ticket.phone);
+      
+      if (latestTicket && String(latestTicket.id) !== String(ticket.id)) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: 'Não é possível enviar mensagens em tickets antigos. Use o ticket mais recente.' });
       }
 
       const sock = getSocket();

@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 const whatsappService = require('./src/whatsapp/whatsappService');
 const { startBot, getSocket, getQrState } = whatsappService;
@@ -219,11 +221,13 @@ app.use((err, req, res, next) => {
 
 // Shutdown gracioso (evita corrupção/locks quando roda por muito tempo)
 let server = null;
+let httpsServer = null;
 let autoAwaitJob = null;
 installGracefulShutdown({
   getServer: () => server,
   onShutdown: () => {
     try { if (autoAwaitJob && typeof autoAwaitJob.stop === 'function') autoAwaitJob.stop(); } catch (_) {}
+    try { if (httpsServer) httpsServer.close(); } catch (_) {}
     try { sessionManager.close(); } catch (_) {}
     try { db.close && db.close(); } catch (_) {}
     // Aguarda um pouco para garantir que os buffers sejam gravados
@@ -242,7 +246,28 @@ startBot()
 
 autoAwaitJob = startAutoAwaitJob({ db });
 
-server = app.listen(3001, '0.0.0.0', () => logger.info('Servidor rodando na porta 3001'));
+const HTTP_PORT = Number(process.env.PORT || process.env.HTTP_PORT || 3001);
+server = http.createServer(app);
+server.listen(HTTP_PORT, '0.0.0.0', () => logger.info(`Servidor HTTP rodando na porta ${HTTP_PORT}`));
+
+// HTTPS opcional (resolve limitações do navegador para microfone ao acessar por IP)
+// Para ativar:
+// - export HTTPS_KEY_PATH=/caminho/key.pem
+// - export HTTPS_CERT_PATH=/caminho/cert.pem
+// - export HTTPS_PORT=3443 (opcional)
+try {
+  const keyPath = process.env.HTTPS_KEY_PATH;
+  const certPath = process.env.HTTPS_CERT_PATH;
+  if (keyPath && certPath) {
+    const key = fs.readFileSync(keyPath);
+    const cert = fs.readFileSync(certPath);
+    const HTTPS_PORT = Number(process.env.HTTPS_PORT || 3443);
+    httpsServer = https.createServer({ key, cert }, app);
+    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => logger.info(`Servidor HTTPS rodando na porta ${HTTPS_PORT}`));
+  }
+} catch (err) {
+  logger.error('[https] Falha ao iniciar HTTPS:', err);
+}
 
 // Limpa recursos periodicamente para evitar memory leaks
 setInterval(() => {

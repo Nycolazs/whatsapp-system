@@ -3,11 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    if (window.location.protocol === 'https:') {
-      window.location.replace(`http://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`);
-    }
-  </script>
+  <!-- Não forçar downgrade para HTTP: permite operar em HTTPS quando configurado. -->
   <title>Admin - WhatsApp System</title>
   <style>
     * {

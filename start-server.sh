@@ -8,9 +8,15 @@ sleep 1
 cd "$(dirname "$0")/backend" || exit 1
 
 # Inicia o servidor
-echo "Iniciando servidor WhatsApp System na porta 3001..."
-echo "Acesse via: http://localhost:3001 ou http://SEU_IP:3001"
+echo "Iniciando servidor WhatsApp System..."
+echo "HTTP: http://localhost:3001 ou http://SEU_IP:3001"
+echo "HTTPS: https://localhost:3443 ou https://SEU_IP:3443"
+echo "Para áudio funcionar via IP, use HTTPS!"
 echo ""
 
-# Executa o servidor
-NODE_ENV=development node index.js
+# Executa o servidor com HTTPS habilitado
+HTTPS_KEY_PATH="$PWD/../key.pem" \
+HTTPS_CERT_PATH="$PWD/../cert.pem" \
+HTTPS_PORT=3443 \
+NODE_ENV=development \
+node index.js
