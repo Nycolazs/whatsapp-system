@@ -32,17 +32,13 @@ function initSchema(db) {
       DELETE FROM messages
       WHERE ticket_id IN (
         SELECT id FROM tickets
-        WHERE phone LIKE '%@%'
-           OR phone NOT LIKE '55%'
-           OR length(phone) < 12
-           OR length(phone) > 13
+        WHERE (phone LIKE '%@%' AND phone NOT LIKE '%@lid')
+          OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'))
       );
 
       DELETE FROM tickets
-      WHERE phone LIKE '%@%'
-         OR phone NOT LIKE '55%'
-         OR length(phone) < 12
-         OR length(phone) > 13;
+      WHERE (phone LIKE '%@%' AND phone NOT LIKE '%@lid')
+        OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'));
 
       COMMIT;
     `);
@@ -161,6 +157,29 @@ function initSchema(db) {
     );
   `).run();
 
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS ticket_reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER NOT NULL,
+      seller_id INTEGER NOT NULL,
+      note TEXT,
+      scheduled_at DATETIME NOT NULL,
+      status TEXT DEFAULT 'scheduled',
+      notified_at DATETIME,
+      created_by_user_id INTEGER,
+      created_by_type TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+      FOREIGN KEY (seller_id) REFERENCES sellers(id)
+    );
+  `).run();
+
+  // Migração: adiciona colunas de lembretes se não existirem
+  try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN notified_at DATETIME').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN created_by_user_id INTEGER').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN created_by_type TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+
   // Migração: Adiciona colunas se não existirem
   try { db.prepare('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "text"').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_url TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
@@ -191,6 +210,11 @@ function initSchema(db) {
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_updated_at ON messages(ticket_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_messages_ticket_sender ON messages(ticket_id, sender);
       CREATE INDEX IF NOT EXISTS idx_messages_reply_to_id ON messages(reply_to_id);
+
+      CREATE INDEX IF NOT EXISTS idx_reminders_ticket_id ON ticket_reminders(ticket_id);
+      CREATE INDEX IF NOT EXISTS idx_reminders_seller_id ON ticket_reminders(seller_id);
+      CREATE INDEX IF NOT EXISTS idx_reminders_scheduled_at ON ticket_reminders(scheduled_at);
+      CREATE INDEX IF NOT EXISTS idx_reminders_status ON ticket_reminders(status);
       
       CREATE INDEX IF NOT EXISTS idx_blacklist_phone ON blacklist(phone);
     `);

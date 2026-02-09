@@ -34,7 +34,19 @@ const ticketStatusSchema = z.object({
 
 // Schema para atribuição de ticket
 const assignTicketSchema = z.object({
-  sellerId: z.number().int().nonnegative(),
+  sellerId: z.union([z.number().int().nonnegative(), z.null()]),
+});
+
+// Schema para lembretes (reminders)
+const reminderCreateSchema = z.object({
+  scheduled_at: z.string().min(5, 'Data/hora é obrigatória'),
+  note: z.string().max(1000, 'Observação muito longa').optional().nullable(),
+});
+
+const reminderUpdateSchema = z.object({
+  scheduled_at: z.string().min(5).optional(),
+  note: z.string().max(1000, 'Observação muito longa').optional().nullable(),
+  status: z.enum(['scheduled', 'canceled', 'done']).optional(),
 });
 
 // Schema para blacklist
@@ -97,6 +109,8 @@ module.exports = {
     sendMessage: sendMessageSchema,
     ticketStatus: ticketStatusSchema,
     assignTicket: assignTicketSchema,
+    reminderCreate: reminderCreateSchema,
+    reminderUpdate: reminderUpdateSchema,
     blacklist: blacklistSchema,
     businessHours: businessHoursSchema,
     businessException: businessExceptionSchema,

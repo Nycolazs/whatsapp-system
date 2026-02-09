@@ -2307,7 +2307,7 @@
         if (!Array.isArray(sellers) || sellers.length === 0) {
           await loadUsers();
         }
-        const response = await fetch(`${API_URL}/admin/tickets`, {
+        const response = await fetch(`${API_URL}/admin/tickets?includeAll=1`, {
           credentials: 'include'
         });
         tickets = await response.json();

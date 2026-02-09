@@ -12,6 +12,7 @@ const fs = require('fs')
 const path = require('path')
 const accountManager = require('../../accountManager');
 const { createLogger } = require('../logger');
+const events = require('../server/events');
 
 const logger = createLogger('whatsapp');
 
@@ -294,7 +295,7 @@ function normalizePhoneFromMessage(msg) {
   const senderPn = msg?.key?.senderPn || '';
 
   if (jid.includes('@lid') && !senderPn) {
-    return null;
+    return jid;
   }
 
   const raw = (senderPn || jid).split('@')[0];
@@ -304,19 +305,19 @@ function normalizePhoneFromMessage(msg) {
   if (!digits) return null;
 
   let normalized = digits;
-  if (!normalized.startsWith('55')) {
-    if (normalized.length >= 10) {
-      normalized = `55${normalized}`;
-    } else {
+
+  if (normalized.startsWith('55')) {
+    if (normalized.length < 12 || normalized.length > 13) {
       return null;
     }
+    return normalized;
   }
 
-  if (normalized.length < 12 || normalized.length > 13) {
-    return null;
+  if (normalized.length >= 10 && normalized.length <= 15) {
+    return normalized;
   }
 
-  return normalized;
+  return null;
 }
 
 function clearAuthFiles() {
@@ -686,6 +687,12 @@ async function startBot() {
         }
       }
 
+      if (isNewTicket) {
+        try {
+          events.emit('ticket', { ticketId: ticket.id, phone: ticket.phone, status: ticket.status });
+        } catch (_) {}
+      }
+
       // MENSAGEM DE BOAS-VINDAS quando estabelecimento está aberto
       // Envia APENAS para números que estão na blacklist
       if (businessStatus.isOpen && shouldSendWelcomeMessage(ticket.id)) {
@@ -773,6 +780,15 @@ async function startBot() {
       // Atualiza timestamp do ticket para manter ordenação correta
       try {
         db.prepare('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(ticket.id)
+      } catch (_) {}
+
+      try {
+        events.emit('message', {
+          ticketId: ticket.id,
+          phone: ticket.phone,
+          messageId: inserted?.lastInsertRowid,
+          ts: Date.now(),
+        });
       } catch (_) {}
 
       const messageId = inserted?.lastInsertRowid

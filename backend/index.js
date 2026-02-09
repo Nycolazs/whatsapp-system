@@ -22,6 +22,7 @@ const { createContactsRouter } = require('./src/routes/contacts.routes');
 const { createBlacklistRouter } = require('./src/routes/blacklist.routes');
 const { createHealthRouter } = require('./src/routes/health.routes');
 const { createAdminConfigRouter } = require('./src/routes/admin-config.routes');
+const { createEventsRouter } = require('./src/routes/events.routes');
 const { createPagesRouter } = require('./src/routes/pages.routes');
 const { startAutoAwaitJob } = require('./src/jobs/autoAwait');
 const { installGracefulShutdown } = require('./src/server/gracefulShutdown');
@@ -198,6 +199,7 @@ app.use(createUsersRouter({ db, hashPassword, requireAuth, requireAdmin, getAdmi
 app.use(createTicketsRouter({ db, requireAuth, requireAdmin, getSocket, uploadAudio }));
 app.use(createBlacklistRouter({ db }));
 app.use(createContactsRouter({ getSocket }));
+app.use(createEventsRouter({ requireAuth }));
 app.use(createHealthRouter({ getQrState, accountContext, db, getSessionsPath: () => sessionManager.getCurrentSessionDbPath() }));
 app.use(createAdminConfigRouter({ db, requireAdmin, accountContext, accountManager }));
 

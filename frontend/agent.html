@@ -96,6 +96,26 @@
       overflow-y: auto;
     }
 
+    .tickets-filters {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid #e0e0e0;
+      background: #f7f9fb;
+      font-size: 12px;
+      color: #667781;
+      gap: 10px;
+    }
+
+    .tickets-filters label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
     .ticket-item {
       padding: 15px 20px;
       border-bottom: 1px solid #e0e0e0;
@@ -270,6 +290,536 @@
     .chat-text h3 {
       font-size: 16px;
       color: #111;
+    }
+
+    .chat-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #e8eef5;
+      color: #2b3a55;
+      border: 1px solid #d1d7db;
+    }
+
+    .status-pill.status-pendente {
+      background: #fff3cd;
+      color: #856404;
+      border-color: #f1e3a5;
+    }
+
+    .status-pill.status-aguardando {
+      background: #fff0e0;
+      color: #7a4b00;
+      border-color: #f7d1a6;
+    }
+
+    .status-pill.status-em_atendimento {
+      background: #d1ecf1;
+      color: #0c5460;
+      border-color: #b8e2e8;
+    }
+
+    .status-pill.status-resolvido,
+    .status-pill.status-encerrado {
+      background: #d4edda;
+      color: #155724;
+      border-color: #bfe3c6;
+    }
+
+    .chat-reminders {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .reminders-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .reminders-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .reminder-btn {
+      background: #00a884;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .reminder-btn.secondary {
+      background: #e2e8f0;
+      color: #111;
+    }
+
+    .reminder-form {
+      display: none;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .reminder-form.active {
+      display: grid;
+    }
+
+    .reminder-form input,
+    .reminder-form textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d1d7db;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .reminder-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .reminder-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1400;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .reminder-modal.active {
+      display: flex;
+      animation: fadeIn 0.16s ease;
+    }
+
+    .reminder-modal-card {
+      width: min(94vw, 420px);
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      padding: 16px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      animation: popIn 0.18s ease;
+      overflow: visible;
+      position: relative;
+    }
+
+    .reminder-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .reminder-modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .reminder-modal-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .reminder-modal-close {
+      border: none;
+      background: #f1f5f9;
+      color: #0f172a;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: transform 0.15s ease, background 0.2s ease;
+    }
+
+    .reminder-modal-close:hover {
+      background: #e2e8f0;
+      transform: rotate(4deg);
+    }
+
+    .reminder-modal-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      overflow: visible;
+    }
+
+    .reminder-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: #475569;
+      font-weight: 600;
+      position: relative;
+    }
+
+    .reminder-field > span::before {
+      display: inline-block;
+      margin-right: 6px;
+      opacity: 0.8;
+    }
+
+    .reminder-field[data-icon="calendar"] > span::before {
+      content: "📅";
+    }
+
+    .reminder-field[data-icon="clock"] > span::before {
+      content: "🕒";
+    }
+
+    .reminder-field[data-icon="note"] > span::before {
+      content: "📝";
+    }
+
+    .reminder-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .reminder-list-section {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+      padding-top: 6px;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .reminder-list-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .reminder-field input,
+    .reminder-field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d7db;
+      border-radius: 10px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #f8fafc;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .reminder-picker-trigger {
+      width: 100%;
+      background: #f8fafc;
+      border: 1px solid #d1d7db;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .reminder-picker-trigger .time-trigger-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .clock-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #ffffff 0 40%, #e2e8f0 41% 100%);
+      border: 1px solid #cbd5f5;
+      position: relative;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 2px #ffffff, 0 2px 6px rgba(15, 23, 42, 0.12);
+    }
+
+    .clock-icon::before,
+    .clock-icon::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform-origin: left center;
+      border-radius: 2px;
+    }
+
+    .clock-icon::before {
+      width: 2px;
+      height: 6px;
+      background: #2563eb;
+      transform: translate(-50%, -80%);
+    }
+
+    .clock-icon::after {
+      width: 6px;
+      height: 2px;
+      background: #0f172a;
+      transform: translate(-10%, -50%);
+    }
+
+    .time-picker-title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .time-picker-title .clock-icon {
+      width: 20px;
+      height: 20px;
+      box-shadow: inset 0 0 0 2px #ffffff, 0 3px 8px rgba(15, 23, 42, 0.14);
+    }
+
+    .reminder-picker-trigger:hover {
+      border-color: #94a3b8;
+    }
+
+    .reminder-picker-trigger:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+
+    .picker-caret {
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    .reminder-picker {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.15);
+      padding: 10px;
+      z-index: 1500;
+      display: none;
+    }
+
+    .reminder-picker.active {
+      display: block;
+      animation: fadeIn 0.16s ease;
+    }
+
+    .picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .picker-month {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      text-align: center;
+      flex: 1;
+    }
+
+    .picker-nav {
+      background: #f1f5f9;
+      border: none;
+      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      color: #0f172a;
+      font-size: 16px;
+    }
+
+    .picker-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      font-size: 10px;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .picker-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .picker-day {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+      color: #0f172a;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .picker-day:hover {
+      background: #e2e8f0;
+    }
+
+    .picker-day.selected {
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .picker-day.muted {
+      color: #cbd5f5;
+      cursor: default;
+    }
+
+    .time-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .time-column-title {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    .time-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    #reminderMinuteList {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .time-chip {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 10px;
+      font-size: 12px;
+      padding: 6px 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .time-chip:hover {
+      border-color: #94a3b8;
+    }
+
+    .time-chip.selected {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+      font-weight: 600;
+    }
+
+    .reminder-field input:focus,
+    .reminder-field textarea:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+
+    .reminder-modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.98) translateY(6px); opacity: 0.6; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .reminders-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .reminder-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+
+    .reminder-item .reminder-date {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .reminder-item .reminder-note {
+      font-size: 12px;
+      color: #4b5563;
+      word-break: break-word;
+    }
+
+    .reminder-item .reminder-actions {
+      justify-content: flex-start;
     }
 
     .chat-actions select {
@@ -647,6 +1197,16 @@
 
     .ticket-history a:hover {
       text-decoration: underline;
+    }
+
+    .history-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 6px;
     }
 
     .message-input {
@@ -1113,6 +1673,27 @@
         max-width: 350px;
         padding: 20px;
       }
+
+      .chat-reminders {
+        padding: 8px 12px;
+      }
+
+      .reminders-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .reminder-btn {
+        width: 100%;
+      }
+
+      .reminder-modal-card {
+        width: min(94vw, 520px);
+      }
+
+      .reminder-modal-body {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 480px) {
@@ -1154,6 +1735,10 @@
         font-size: 12px;
         padding: 8px 10px;
       }
+
+      .reminders-list {
+        max-height: 120px;
+      }
     }
   </style>
   <link rel="stylesheet" href="/ui.css">
@@ -1174,6 +1759,12 @@
             ⚙️ Painel Admin
           </button>
         </div>
+      </div>
+      <div class="tickets-filters">
+        <label>
+          <input type="checkbox" id="toggleClosedTickets" />
+          Mostrar encerrados
+        </label>
       </div>
       <div class="tickets-list" id="ticketsList">
         <!-- Tickets serão inseridos aqui -->
@@ -1197,7 +1788,10 @@
             <div id="chatAvatarContainer"></div>
             <div class="chat-text">
               <h3 id="currentPhone"></h3>
-              <span id="currentStatus" style="font-size: 12px; color: #667781;"></span>
+              <div class="chat-meta">
+                <span id="currentStatus" style="font-size: 12px; color: #667781;"></span>
+                <span id="currentTicketStatus" class="status-pill"></span>
+              </div>
               <div class="ticket-history" id="ticketHistory"></div>
             </div>
           </div>
@@ -1215,6 +1809,13 @@
               <option value="resolvido">Resolvido</option>
               <option value="encerrado">Encerrado</option>
             </select>
+          </div>
+        </div>
+
+        <div class="chat-reminders" id="chatReminders" style="display: none;">
+          <div class="reminders-header">
+            <div class="reminders-title">Lembretes da conversa</div>
+            <button class="reminder-btn" id="openReminderBtn" type="button">⏰ Agendar</button>
           </div>
         </div>
 
@@ -1263,6 +1864,81 @@
     </div>
   </div>
 
+  <!-- Modal de Agendamento -->
+  <div class="reminder-modal" id="reminderModal">
+    <div class="reminder-modal-card">
+      <div class="reminder-modal-header">
+        <div>
+          <div class="reminder-modal-title">⏰ Agendar lembrete</div>
+          <div class="reminder-modal-subtitle">Defina quando retomar esta conversa</div>
+        </div>
+        <button class="reminder-modal-close" id="reminderModalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="reminder-modal-body">
+        <label class="reminder-field" data-icon="calendar">
+          <span>Data</span>
+          <button type="button" class="reminder-picker-trigger" id="reminderDateTrigger">
+            <span id="reminderDateDisplay">Selecione a data</span>
+            <span class="picker-caret">▾</span>
+          </button>
+          <input type="hidden" id="reminderDate" />
+          <div class="reminder-picker" id="reminderDatePicker" aria-hidden="true">
+            <div class="picker-header">
+              <button type="button" class="picker-nav" id="reminderPrevMonth">‹</button>
+              <div class="picker-month" id="reminderMonthLabel"></div>
+              <button type="button" class="picker-nav" id="reminderNextMonth">›</button>
+            </div>
+            <div class="picker-weekdays">
+              <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+            </div>
+            <div class="picker-days" id="reminderCalendarDays"></div>
+          </div>
+        </label>
+        <label class="reminder-field" data-icon="clock">
+          <span>Hora</span>
+          <button type="button" class="reminder-picker-trigger" id="reminderTimeTrigger">
+            <span class="time-trigger-label">
+              <span class="clock-icon" aria-hidden="true"></span>
+              <span id="reminderTimeDisplay">Selecione a hora</span>
+            </span>
+            <span class="picker-caret">▾</span>
+          </button>
+          <input type="hidden" id="reminderTime" />
+          <div class="reminder-picker" id="reminderTimePicker" aria-hidden="true">
+            <div class="picker-header">
+              <div class="picker-month time-picker-title">
+                <span class="clock-icon" aria-hidden="true"></span>
+                Relógio
+              </div>
+            </div>
+            <div class="time-columns">
+              <div class="time-column">
+                <div class="time-column-title">Hora</div>
+                <div class="time-list" id="reminderHourList"></div>
+              </div>
+              <div class="time-column">
+                <div class="time-column-title">Min</div>
+                <div class="time-list" id="reminderMinuteList"></div>
+              </div>
+            </div>
+          </div>
+        </label>
+        <label class="reminder-field full" data-icon="note">
+          <span>Observação</span>
+          <textarea id="reminderNote" rows="3" placeholder="Ex.: retomar contato sobre orçamento"></textarea>
+        </label>
+        <div class="reminder-list-section">
+          <div class="reminder-list-title">Lembretes agendados</div>
+          <div class="reminders-list" id="remindersList"></div>
+        </div>
+      </div>
+      <div class="reminder-modal-actions">
+        <button class="reminder-btn secondary" id="reminderCancelBtn" type="button">Cancelar</button>
+        <button class="reminder-btn" id="reminderSaveBtn" type="button">Salvar lembrete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Lightbox para imagens -->
   <div class="image-lightbox" id="imageLightbox">
     <img id="lightboxImage" src="" alt="Imagem">
@@ -1274,10 +1950,38 @@
     let currentTicket = null;
     let updateInterval = null;
     let isLoadingTickets = false;
+    let pendingTicketsRefresh = false;
     let lastTicketsData = null;
     let profilePictureCache = {};
     const PROFILE_PIC_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
     const PROFILE_PIC_CACHE_MAX = 800;
+    let reminderPollTimer = null;
+    let showClosedTickets = false;
+    const reminderPickerState = {
+      month: new Date(),
+      selectedDate: null,
+      selectedHour: null,
+      selectedMinute: null,
+      open: null,
+    };
+    let reminderPickersReady = false;
+    let isConnected = false;
+    let userId = null;
+    let userType = null;
+    let userName = null;
+    let sellers = [];
+    let tickets = [];
+    const MESSAGES_PAGE_SIZE = 200;
+    let earliestMessageTimestamp = {};
+    let isLoadingOlder = {};
+    let allHistoryLoaded = {};
+    let lazyMediaObserver = null;
+    const TICKETS_PAGE_SIZE = 60;
+    let ticketsOffset = 0;
+    let allTicketsLoaded = false;
+    let isLoadingMoreTickets = false;
+    let currentReminders = [];
+    let reminderEditId = null;
 
     function pruneProfilePictureCache() {
       try {
@@ -1337,20 +2041,214 @@
       }
     }
 
-    let isConnected = false; // Status da conexão WhatsApp
-    let userId = null;
-    let userType = null;
-    let userName = null;
-    let sellers = []; // Lista de vendedores para admin
-    const MESSAGES_PAGE_SIZE = 200;
-    let earliestMessageTimestamp = {}; // Armazena timestamp mais antigo carregado por ticket
-    let isLoadingOlder = {};
-    let allHistoryLoaded = {};
-    let lazyMediaObserver = null;
-    const TICKETS_PAGE_SIZE = 60;
-    let ticketsOffset = 0;
-    let allTicketsLoaded = false;
-    let isLoadingMoreTickets = false;
+    function getStatusLabel(status) {
+      if (status === 'pendente') return 'Pendente';
+      if (status === 'aguardando') return 'Aguardando';
+      if (status === 'em_atendimento') return 'Em Atendimento';
+      if (status === 'encerrado') return 'Encerrado';
+      return 'Resolvido';
+    }
+
+    function updateTicketStatusBadge(ticket) {
+      const statusEl = document.getElementById('currentTicketStatus');
+      if (!statusEl) return;
+      if (!ticket || !ticket.status) {
+        statusEl.textContent = '';
+        statusEl.className = 'status-pill';
+        return;
+      }
+      statusEl.textContent = getStatusLabel(ticket.status);
+      statusEl.className = `status-pill status-${ticket.status}`;
+    }
+
+    function parseUtcDateTime(value) {
+      if (!value) return null;
+      const raw = String(value).trim();
+      if (!raw) return null;
+      const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+      const withZone = normalized.endsWith('Z') ? normalized : `${normalized}Z`;
+      const d = new Date(withZone);
+      if (Number.isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    function formatReminderDate(value) {
+      const d = parseUtcDateTime(value);
+      if (!d) return 'Data inválida';
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function toDatetimeLocalValue(value) {
+      const d = value instanceof Date ? value : parseUtcDateTime(value);
+      if (!d) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function formatDateDisplay(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Selecione a data';
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function formatTimeDisplay(hour, minute) {
+      if (hour == null || minute == null) return 'Selecione a hora';
+      return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+
+    function renderReminderCalendar() {
+      const label = document.getElementById('reminderMonthLabel');
+      const daysContainer = document.getElementById('reminderCalendarDays');
+      if (!label || !daysContainer) return;
+
+      const monthDate = reminderPickerState.month;
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startWeekday = firstDay.getDay();
+
+      label.textContent = firstDay.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      daysContainer.innerHTML = '';
+
+      for (let i = 0; i < startWeekday; i++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'picker-day muted';
+        daysContainer.appendChild(spacer);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'picker-day';
+        btn.textContent = String(day);
+        const date = new Date(year, month, day);
+        if (reminderPickerState.selectedDate && date.toDateString() === reminderPickerState.selectedDate.toDateString()) {
+          btn.classList.add('selected');
+        }
+        btn.addEventListener('click', () => {
+          reminderPickerState.selectedDate = date;
+          const hidden = document.getElementById('reminderDate');
+          const display = document.getElementById('reminderDateDisplay');
+          if (hidden) hidden.value = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          if (display) display.textContent = formatDateDisplay(date);
+          toggleReminderPicker(null);
+        });
+        daysContainer.appendChild(btn);
+      }
+    }
+
+    function renderTimePicker() {
+      const hourList = document.getElementById('reminderHourList');
+      const minuteList = document.getElementById('reminderMinuteList');
+      if (!hourList || !minuteList) return;
+
+      hourList.innerHTML = '';
+      minuteList.innerHTML = '';
+
+      for (let h = 0; h < 24; h++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'time-chip';
+        btn.textContent = String(h).padStart(2, '0');
+        if (reminderPickerState.selectedHour === h) btn.classList.add('selected');
+        btn.addEventListener('click', () => {
+          reminderPickerState.selectedHour = h;
+          renderTimePicker();
+          updateTimeValue();
+        });
+        hourList.appendChild(btn);
+      }
+
+      for (let m = 0; m < 60; m++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'time-chip';
+        btn.textContent = String(m).padStart(2, '0');
+        if (reminderPickerState.selectedMinute === m) btn.classList.add('selected');
+        btn.addEventListener('click', () => {
+          reminderPickerState.selectedMinute = m;
+          renderTimePicker();
+          updateTimeValue();
+          toggleReminderPicker(null);
+        });
+        minuteList.appendChild(btn);
+      }
+    }
+
+    function updateTimeValue() {
+      const hidden = document.getElementById('reminderTime');
+      const display = document.getElementById('reminderTimeDisplay');
+      const hour = reminderPickerState.selectedHour;
+      const minute = reminderPickerState.selectedMinute;
+      if (hour == null || minute == null) return;
+      if (hidden) hidden.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      if (display) display.textContent = formatTimeDisplay(hour, minute);
+    }
+
+    function toggleReminderPicker(which) {
+      const datePicker = document.getElementById('reminderDatePicker');
+      const timePicker = document.getElementById('reminderTimePicker');
+      reminderPickerState.open = which;
+      if (datePicker) datePicker.classList.toggle('active', which === 'date');
+      if (timePicker) timePicker.classList.toggle('active', which === 'time');
+    }
+
+    function initReminderPickers() {
+      if (reminderPickersReady) return;
+      reminderPickersReady = true;
+      const dateTrigger = document.getElementById('reminderDateTrigger');
+      const timeTrigger = document.getElementById('reminderTimeTrigger');
+      const prevBtn = document.getElementById('reminderPrevMonth');
+      const nextBtn = document.getElementById('reminderNextMonth');
+
+      if (dateTrigger) {
+        dateTrigger.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const next = reminderPickerState.open === 'date' ? null : 'date';
+          toggleReminderPicker(next);
+        });
+      }
+
+      if (timeTrigger) {
+        timeTrigger.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const next = reminderPickerState.open === 'time' ? null : 'time';
+          toggleReminderPicker(next);
+        });
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+          reminderPickerState.month = new Date(reminderPickerState.month.getFullYear(), reminderPickerState.month.getMonth() - 1, 1);
+          renderReminderCalendar();
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          reminderPickerState.month = new Date(reminderPickerState.month.getFullYear(), reminderPickerState.month.getMonth() + 1, 1);
+          renderReminderCalendar();
+        });
+      }
+
+      document.addEventListener('click', (event) => {
+        const datePicker = document.getElementById('reminderDatePicker');
+        const timePicker = document.getElementById('reminderTimePicker');
+        const dateTriggerEl = document.getElementById('reminderDateTrigger');
+        const timeTriggerEl = document.getElementById('reminderTimeTrigger');
+        if (!datePicker || !timePicker) return;
+        if (datePicker.contains(event.target) || timePicker.contains(event.target) || dateTriggerEl?.contains(event.target) || timeTriggerEl?.contains(event.target)) {
+          return;
+        }
+        toggleReminderPicker(null);
+      });
+
+      renderReminderCalendar();
+      renderTimePicker();
+    }
 
     // Verifica autenticação via sessão
     async function checkAuth() {
@@ -1594,19 +2492,39 @@
       });
     }
 
+    function dedupeTicketsByPhone(list) {
+      const items = Array.isArray(list) ? list : [];
+      if (!items.length) return [];
+      const seen = new Set();
+      const result = [];
+      for (const t of items) {
+        const rawPhone = t && t.phone != null ? String(t.phone) : '';
+        const key = rawPhone ? rawPhone.split('@')[0] : `id:${t?.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(t);
+      }
+      return result;
+    }
+
     async function loadTickets({ append = false, refreshTop = false } = {}) {
-      if (isLoadingTickets) return;
+      if (isLoadingTickets) {
+        if (!append) pendingTicketsRefresh = true;
+        return;
+      }
       if (append && (allTicketsLoaded || isLoadingMoreTickets)) return;
       isLoadingTickets = true;
       if (append) isLoadingMoreTickets = true;
       
       try {
         const baseEndpoint = userType === 'admin' 
-          ? `${API_URL}/admin/tickets`
+          ? `${API_URL}/admin/tickets?includeAll=1`
           : `${API_URL}/tickets/seller/${userId}`;
 
         const offset = append ? ticketsOffset : 0;
-        const endpoint = `${baseEndpoint}?limit=${TICKETS_PAGE_SIZE}&offset=${offset}`;
+        const includeClosedParam = showClosedTickets ? '&includeClosed=1' : '';
+        const separator = baseEndpoint.includes('?') ? '&' : '?';
+        const endpoint = `${baseEndpoint}${separator}limit=${TICKETS_PAGE_SIZE}&offset=${offset}${includeClosedParam}`;
 
         const fetchFn = (typeof smartJson === 'function') ? smartJson : async (u, o) => {
           const r = await fetch(u, o);
@@ -1614,7 +2532,8 @@
           return r.json();
         };
 
-        const tickets = await fetchFn(endpoint, { credentials: 'include', cache: 'no-store', maxRetries: 1 });
+        const ticketsRaw = await fetchFn(endpoint, { credentials: 'include', cache: 'no-store', maxRetries: 1 });
+        const tickets = dedupeTicketsByPhone(ticketsRaw);
 
         const ticketsList = document.getElementById('ticketsList');
 
@@ -1628,14 +2547,6 @@
           if (scrollPos > 0) {
             setTimeout(() => { ticketsList.scrollTop = scrollPos; }, 10);
           }
-        }
-
-        if (!append && tickets.length === 0) {
-          ticketsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #667781;">Nenhum ticket ainda</div>';
-          return;
-        }
-
-        if (refreshTop) {
           tickets.forEach(ticket => {
             const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
             if (existing) {
@@ -1648,17 +2559,22 @@
           });
         } else {
           for (const ticket of tickets) {
+            const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
+            if (existing) {
+              renderTicketItem(existing, ticket);
+              continue;
+            }
             const div = document.createElement('div');
             renderTicketItem(div, ticket);
             ticketsList.appendChild(div);
           }
-          ticketsOffset += tickets.length;
-          if (tickets.length < TICKETS_PAGE_SIZE) allTicketsLoaded = true;
+          ticketsOffset += ticketsRaw.length;
+          if (ticketsRaw.length < TICKETS_PAGE_SIZE) allTicketsLoaded = true;
         }
 
-        window.latestTickets = tickets;
+        window.latestTickets = ticketsRaw;
         if (currentTicket) {
-          const refreshed = tickets.find(t => t.id === currentTicket.id);
+          const refreshed = ticketsRaw.find(t => t.id === currentTicket.id);
           if (refreshed) {
             currentTicket = refreshed;
             try { updateHeaderFromTicket(currentTicket); } catch (e) {}
@@ -1669,12 +2585,21 @@
       } finally {
         isLoadingTickets = false;
         isLoadingMoreTickets = false;
+        if (pendingTicketsRefresh) {
+          pendingTicketsRefresh = false;
+          loadTickets({ append: false, refreshTop: true });
+        }
       }
     }
 
     // Atualiza selects no header (vendedor e status) com base no currentTicket
     function updateHeaderFromTicket(ticket) {
       if (!ticket) return;
+      updateTicketStatusBadge(ticket);
+      const statusEl = document.getElementById('currentStatus');
+      if (statusEl) {
+        statusEl.textContent = ticket.contact_name ? ticket.phone : '';
+      }
       const statusSelectEl = document.getElementById('statusSelect');
       if (statusSelectEl) {
         statusSelectEl.value = ticket.status;
@@ -1805,6 +2730,7 @@
       } else {
         document.getElementById('currentStatus').textContent = '';
       }
+      updateTicketStatusBadge(ticket);
 
       // Histórico de tickets desse contato
       try { 
@@ -1830,11 +2756,16 @@
       
       const statusSelectEl = document.getElementById('statusSelect');
       statusSelectEl.value = ticket.status;
-
-      // Não permitir voltar para 'pendente' via UI: desativa/oculta a opção quando o ticket não está em pendente
-      const pendOpt = statusSelectEl.querySelector('option[value="pendente"]');
-      if (pendOpt) pendOpt.disabled = ticket.status !== 'pendente';
-
+          for (const ticket of tickets) {
+            const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
+            if (existing) {
+              renderTicketItem(existing, ticket);
+              continue;
+            }
+            const div = document.createElement('div');
+            renderTicketItem(div, ticket);
+            ticketsList.appendChild(div);
+          }
       // Atualiza também o custom-select visual (se existir)
       const wrapper = document.querySelector('[data-select-id="statusSelect"]');
       if (wrapper) {
@@ -1913,6 +2844,10 @@
 
       // Controla área de input com base no status do ticket
       updateMessageInputState(ticket);
+
+      const remindersPanel = document.getElementById('chatReminders');
+      if (remindersPanel) remindersPanel.style.display = 'flex';
+      await loadRemindersForTicket(ticket.id);
     }
 
     function updateMessageInputState(ticket) {
@@ -2046,6 +2981,254 @@
       }
     }
 
+    async function loadRemindersForTicket(ticketId) {
+      if (!ticketId) return;
+      try {
+        const response = await fetch(`${API_URL}/tickets/${ticketId}/reminders`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('Erro ao carregar lembretes');
+        currentReminders = await response.json();
+        renderReminders();
+      } catch (error) {
+        currentReminders = [];
+        renderReminders();
+      }
+    }
+
+    function renderReminders() {
+      const list = document.getElementById('remindersList');
+      if (!list) return;
+
+      const items = Array.isArray(currentReminders) ? currentReminders.filter(r => r.status !== 'canceled') : [];
+      if (!items.length) {
+        list.innerHTML = '<div style="font-size: 12px; color: #667781;">Nenhum lembrete agendado</div>';
+        return;
+      }
+
+      list.innerHTML = items.map(rem => {
+        const isDone = rem.status === 'done';
+        const dateLabel = formatReminderDate(rem.scheduled_at);
+        const noteLabel = rem.note ? escapeHtml(rem.note) : 'Sem observação';
+        return `
+          <div class="reminder-item" data-reminder-id="${rem.id}">
+            <div class="reminder-date">${dateLabel}${isDone ? ' • Concluído' : ''}</div>
+            <div class="reminder-note">${noteLabel}</div>
+            <div class="reminder-actions">
+              ${!isDone ? `<button class="reminder-btn secondary" data-action="edit">Editar</button>` : ''}
+              ${!isDone ? `<button class="reminder-btn secondary" data-action="done">Concluir</button>` : ''}
+              ${!isDone ? `<button class="reminder-btn secondary" data-action="cancel">Cancelar</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      list.querySelectorAll('[data-action]')?.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const action = e.currentTarget.dataset.action;
+          const item = e.currentTarget.closest('.reminder-item');
+          const reminderId = item ? item.dataset.reminderId : null;
+          const reminder = (currentReminders || []).find(r => String(r.id) === String(reminderId));
+          if (!reminderId || !reminder) return;
+
+          if (action === 'edit') {
+            openReminderForm(reminder);
+          } else if (action === 'cancel') {
+            await updateReminder(reminderId, { status: 'canceled' });
+          } else if (action === 'done') {
+            await updateReminder(reminderId, { status: 'done' });
+          }
+        });
+      });
+    }
+
+    function openReminderForm(reminder = null) {
+      initReminderPickers();
+      const modal = document.getElementById('reminderModal');
+      const dateInput = document.getElementById('reminderDate');
+      const timeInput = document.getElementById('reminderTime');
+      const dateDisplay = document.getElementById('reminderDateDisplay');
+      const timeDisplay = document.getElementById('reminderTimeDisplay');
+      const noteInput = document.getElementById('reminderNote');
+      if (!modal || !dateInput || !timeInput || !noteInput || !dateDisplay || !timeDisplay) return;
+
+      reminderEditId = reminder ? reminder.id : null;
+      if (reminder) {
+        const dateValue = toDatetimeLocalValue(reminder.scheduled_at);
+        if (dateValue && dateValue.includes('T')) {
+          const parts = dateValue.split('T');
+          dateInput.value = parts[0] || '';
+          timeInput.value = parts[1] || '';
+          const [y, m, d] = (parts[0] || '').split('-').map(Number);
+          if (y && m && d) {
+            reminderPickerState.selectedDate = new Date(y, m - 1, d);
+            reminderPickerState.month = new Date(y, m - 1, 1);
+            dateDisplay.textContent = formatDateDisplay(reminderPickerState.selectedDate);
+          }
+          const [hh, mm] = (parts[1] || '').split(':').map(Number);
+          if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+            reminderPickerState.selectedHour = hh;
+            reminderPickerState.selectedMinute = mm;
+            timeDisplay.textContent = formatTimeDisplay(hh, mm);
+          }
+        }
+      } else {
+        dateInput.value = '';
+        timeInput.value = '';
+        reminderPickerState.selectedDate = null;
+        reminderPickerState.selectedHour = null;
+        reminderPickerState.selectedMinute = null;
+        dateDisplay.textContent = 'Selecione a data';
+        timeDisplay.textContent = 'Selecione a hora';
+      }
+      noteInput.value = reminder && reminder.note ? reminder.note : '';
+      modal.classList.add('active');
+      renderReminderCalendar();
+      renderTimePicker();
+      dateDisplay.focus();
+    }
+
+    function closeReminderForm() {
+      const modal = document.getElementById('reminderModal');
+      const dateInput = document.getElementById('reminderDate');
+      const timeInput = document.getElementById('reminderTime');
+      const dateDisplay = document.getElementById('reminderDateDisplay');
+      const timeDisplay = document.getElementById('reminderTimeDisplay');
+      const noteInput = document.getElementById('reminderNote');
+      reminderEditId = null;
+      if (dateInput) dateInput.value = '';
+      if (timeInput) timeInput.value = '';
+      if (noteInput) noteInput.value = '';
+      if (dateDisplay) dateDisplay.textContent = 'Selecione a data';
+      if (timeDisplay) timeDisplay.textContent = 'Selecione a hora';
+      reminderPickerState.selectedDate = null;
+      reminderPickerState.selectedHour = null;
+      reminderPickerState.selectedMinute = null;
+      toggleReminderPicker(null);
+      if (modal) modal.classList.remove('active');
+    }
+
+    async function saveReminder() {
+      if (!currentTicket) return;
+      const dateInput = document.getElementById('reminderDate');
+      const timeInput = document.getElementById('reminderTime');
+      const noteInput = document.getElementById('reminderNote');
+      const dateValue = dateInput ? dateInput.value : '';
+      const timeValue = timeInput ? timeInput.value : '';
+      const scheduled_at = dateValue && timeValue ? `${dateValue}T${timeValue}` : '';
+      const note = noteInput ? noteInput.value.trim() : '';
+
+      if (!scheduled_at) {
+        showToast('Informe data e hora do lembrete', 'warning');
+        return;
+      }
+
+      try {
+        if (reminderEditId) {
+          await updateReminder(reminderEditId, { scheduled_at, note });
+        } else {
+          const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/reminders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ scheduled_at, note })
+          });
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Erro ao criar lembrete');
+          }
+        }
+
+        closeReminderForm();
+        await loadRemindersForTicket(currentTicket.id);
+        showToast('Lembrete salvo com sucesso', 'success');
+      } catch (error) {
+        showToast(error.message || 'Erro ao salvar lembrete', 'error');
+      }
+    }
+
+    async function updateReminder(reminderId, payload) {
+      try {
+        const response = await fetch(`${API_URL}/reminders/${reminderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.error || 'Erro ao atualizar lembrete');
+        }
+        await loadRemindersForTicket(currentTicket.id);
+      } catch (error) {
+        showToast(error.message || 'Erro ao atualizar lembrete', 'error');
+      }
+    }
+
+    async function checkDueReminders() {
+      try {
+        const response = await fetch(`${API_URL}/reminders/due`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (!response.ok) return;
+        const due = await response.json();
+        if (!Array.isArray(due) || !due.length) return;
+        due.forEach(showReminderNotification);
+      } catch (_) {}
+    }
+
+    async function openTicketById(ticketId) {
+      const id = String(ticketId);
+      let ticket = null;
+      if (window.latestTickets && Array.isArray(window.latestTickets)) {
+        ticket = window.latestTickets.find(t => String(t.id) === id);
+      }
+      if (!ticket) {
+        try {
+          const response = await fetch(`${API_URL}/tickets/${id}`, { credentials: 'include' });
+          if (response.ok) ticket = await response.json();
+        } catch (_) {}
+      }
+      if (ticket) {
+        await selectTicket(ticket);
+      }
+    }
+
+    function showReminderNotification(reminder) {
+      const toast = document.createElement('div');
+      toast.className = 'custom-toast';
+      const name = reminder.contact_name || reminder.phone || 'Contato';
+      const when = formatReminderDate(reminder.scheduled_at);
+      const note = reminder.note ? escapeHtml(reminder.note) : 'Sem observação';
+      toast.innerHTML = `
+        <div class="custom-toast-icon">⏰</div>
+        <div class="custom-toast-message">
+          <div style="font-weight: 600; margin-bottom: 4px;">Lembrete: ${name}</div>
+          <div style="font-size: 12px; color: #667781;">${when}</div>
+          <div style="font-size: 12px; color: #374151; margin-top: 6px;">${note}</div>
+          <button class="reminder-btn" data-action="open" style="margin-top: 8px;">Abrir conversa</button>
+        </div>
+        <button class="custom-toast-close" data-role="close-toast">×</button>
+      `;
+
+      document.body.appendChild(toast);
+
+      const openBtn = toast.querySelector('[data-action="open"]');
+      if (openBtn) {
+        openBtn.addEventListener('click', async () => {
+          await openTicketById(reminder.ticket_id);
+          toast.remove();
+        });
+      }
+
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+      }, 7000);
+    }
+
     async function renderTicketHistory(phone, activeTicketId) {
       const container = document.getElementById('ticketHistory');
       if (!container) return;
@@ -2098,7 +3281,8 @@
         .map(t => {
           const isActive = String(t.id) === String(activeTicketId);
           const label = isActive ? `#${t.id} (atual)` : `#${t.id}`;
-          return `<a data-ticket-id="${t.id}" ${isActive ? 'aria-current="true"' : ''}>${label}</a>`;
+          const statusLabel = getStatusLabel(t.status);
+          return `<a data-ticket-id="${t.id}" ${isActive ? 'aria-current="true"' : ''}>${label} <span class="history-status status-${t.status}">${statusLabel}</span></a>`;
         })
         .join(' · ');
 
@@ -2252,12 +3436,17 @@
     // Armazena última contagem de mensagens para detectar novas
     let lastMessageCount = {};
     let lastMessageTimestamp = {}; // Armazena timestamp da última mensagem por ticket
+    let lastMessageId = {}; // Cursor por id para evitar perda de mensagens no mesmo segundo
     let isLoadingMessages = false;
     let hasLoadedMessages = {};
+    let pendingMessageRefresh = false;
 
     // Carrega mensagens
     async function loadMessages(ticketId, isAutoRefresh = false, loadOlder = false) {
-      if (isLoadingMessages) return;
+      if (isLoadingMessages) {
+        if (isAutoRefresh) pendingMessageRefresh = true;
+        return;
+      }
       isLoadingMessages = true;
       try {
         const container = document.getElementById('messagesContainer');
@@ -2277,19 +3466,29 @@
         let messages = [];
         if (isAutoRefresh && lastMessageTimestamp[ticketId]) {
           const since = encodeURIComponent(String(lastMessageTimestamp[ticketId]));
-          messages = await fetchFn(`${API_URL}/tickets/${ticketId}/messages/since/${since}`, {
+          const lastId = lastMessageId[ticketId] ? `&lastId=${encodeURIComponent(String(lastMessageId[ticketId]))}` : '';
+          const sinceUrl = `${API_URL}/tickets/${ticketId}/messages/since/${since}${lastId ? `?${lastId.slice(1)}` : ''}`;
+          messages = await fetchFn(sinceUrl, {
             credentials: 'include',
             cache: 'no-store',
             maxRetries: 1,
           });
           if (!messages.length) {
             isLoadingMessages = false;
+            if (pendingMessageRefresh) {
+              pendingMessageRefresh = false;
+              loadMessages(ticketId, true);
+            }
             return;
           }
         } else if (loadOlder) {
           const before = earliestMessageTimestamp[ticketId];
           if (!before) {
             isLoadingMessages = false;
+            if (pendingMessageRefresh) {
+              pendingMessageRefresh = false;
+              loadMessages(ticketId, true);
+            }
             return;
           }
           messages = await fetchFn(`${API_URL}/tickets/${ticketId}/messages?limit=${MESSAGES_PAGE_SIZE}&before=${encodeURIComponent(before)}`, {
@@ -2300,6 +3499,10 @@
           if (!messages.length) {
             allHistoryLoaded[ticketId] = true;
             isLoadingMessages = false;
+            if (pendingMessageRefresh) {
+              pendingMessageRefresh = false;
+              loadMessages(ticketId, true);
+            }
             return;
           }
         } else {
@@ -2313,6 +3516,7 @@
           hasLoadedMessages[ticketId] = true;
           allHistoryLoaded[ticketId] = false;
           earliestMessageTimestamp[ticketId] = null;
+          lastMessageId[ticketId] = 0;
         }
 
         let newCursor = lastMessageTimestamp[ticketId] || null;
@@ -2487,6 +3691,8 @@
         if (messages.length > 0) {
           // Use updated_at when present to catch media processing updates
           if (newCursor) lastMessageTimestamp[ticketId] = newCursor;
+          const maxId = messages.reduce((acc, m) => (m && m.id && m.id > acc ? m.id : acc), lastMessageId[ticketId] || 0);
+          if (maxId) lastMessageId[ticketId] = maxId;
           lastMessageCount[ticketId] = (lastMessageCount[ticketId] || 0) + messages.length;
 
           const oldest = messages[0]?.created_at;
@@ -2520,6 +3726,10 @@
         // Erro ao carregar mensagens
       } finally {
         isLoadingMessages = false;
+        if (pendingMessageRefresh) {
+          pendingMessageRefresh = false;
+          loadMessages(ticketId, true);
+        }
       }
     }
 
@@ -2965,6 +4175,35 @@
         messageInput.addEventListener('keydown', handleEnter);
       }
 
+      const openReminderBtn = document.getElementById('openReminderBtn');
+      if (openReminderBtn) openReminderBtn.addEventListener('click', () => openReminderForm());
+
+      const reminderSaveBtn = document.getElementById('reminderSaveBtn');
+      if (reminderSaveBtn) reminderSaveBtn.addEventListener('click', saveReminder);
+
+      const reminderCancelBtn = document.getElementById('reminderCancelBtn');
+      if (reminderCancelBtn) reminderCancelBtn.addEventListener('click', closeReminderForm);
+
+      const reminderCloseBtn = document.getElementById('reminderModalClose');
+      if (reminderCloseBtn) reminderCloseBtn.addEventListener('click', closeReminderForm);
+
+      const reminderModal = document.getElementById('reminderModal');
+      if (reminderModal) {
+        reminderModal.addEventListener('click', (e) => {
+          if (e.target === reminderModal) closeReminderForm();
+        });
+      }
+
+      const toggleClosed = document.getElementById('toggleClosedTickets');
+      if (toggleClosed) {
+        toggleClosed.addEventListener('change', async () => {
+          showClosedTickets = !!toggleClosed.checked;
+          await loadTickets({ append: false, refreshTop: false });
+        });
+      }
+
+      initReminderPickers();
+
       const lightbox = document.getElementById('imageLightbox');
       if (lightbox) lightbox.addEventListener('click', closeLightbox);
 
@@ -3091,6 +4330,7 @@
 
         if (response.ok) {
           currentTicket.status = status;
+          updateTicketStatusBadge(currentTicket);
           
           // Se marcou como resolvido ou encerrado, fecha e limpa tudo imediatamente
           if (status === 'resolvido' || status === 'encerrado') {
@@ -3099,6 +4339,11 @@
             currentTicket = null;
             document.getElementById('emptyState').style.display = 'flex';
             document.getElementById('chatArea').style.display = 'none';
+            updateTicketStatusBadge(null);
+            const statusEl = document.getElementById('currentStatus');
+            if (statusEl) statusEl.textContent = '';
+            const remindersPanel = document.getElementById('chatReminders');
+            if (remindersPanel) remindersPanel.style.display = 'none';
             
             // Mostra mensagem de sucesso no estado vazio
             const emptyState = document.getElementById('emptyState');
@@ -3131,9 +4376,11 @@
               updateCustomSelect('sellerSelect');
             }
             await loadTickets({ refreshTop: true });
+            await loadRemindersForTicket(currentTicket.id);
           }
           else {
             await loadTickets({ refreshTop: true });
+            await loadRemindersForTicket(currentTicket.id);
           }
         }
       } catch (error) {
@@ -3161,6 +4408,11 @@
       checkConnectionStatus(); // Verifica conexão ao carregar
       await loadTickets(); // Agora userType já está definido
       initTicketsInfiniteScroll();
+
+      if (!reminderPollTimer) {
+        checkDueReminders();
+        reminderPollTimer = setInterval(checkDueReminders, 60000);
+      }
 
       // Garante que mudanças no select de status sempre acionem a função
       const statusSelect = document.getElementById('statusSelect');
@@ -3253,6 +4505,60 @@
           scheduleMessagesPoll(650 + Math.floor(Math.random() * 250));
         }
       });
+
+      // Realtime: SSE para mensagens/tickets (mantém polling como fallback)
+      let sse = null;
+      let sseReconnectTimer = null;
+      let sseRetry = 0;
+      let lastRealtimeRefreshAt = 0;
+
+      function realtimeRefreshTickets() {
+        const now = Date.now();
+        if (now - lastRealtimeRefreshAt < 350) return;
+        lastRealtimeRefreshAt = now;
+        loadTickets({ append: false, refreshTop: true });
+      }
+
+      function handleRealtimeMessage(payload) {
+        if (!payload || !payload.ticketId) return;
+        realtimeRefreshTickets();
+        if (currentTicket && String(currentTicket.id) === String(payload.ticketId)) {
+          loadMessages(currentTicket.id, true);
+        }
+      }
+
+      function handleRealtimeTicket(payload) {
+        if (!payload || !payload.ticketId) return;
+        realtimeRefreshTickets();
+      }
+
+      function connectSse() {
+        try { if (sse) sse.close(); } catch (_) {}
+        sse = null;
+
+        const source = new EventSource('/events', { withCredentials: true });
+        sse = source;
+
+        source.addEventListener('message', (ev) => {
+          try { handleRealtimeMessage(JSON.parse(ev.data || '{}')); } catch (_) {}
+        });
+        source.addEventListener('ticket', (ev) => {
+          try { handleRealtimeTicket(JSON.parse(ev.data || '{}')); } catch (_) {}
+        });
+        source.addEventListener('ready', () => {
+          sseRetry = 0;
+        });
+
+        source.onerror = () => {
+          try { source.close(); } catch (_) {}
+          sse = null;
+          const delay = Math.min(15000, 1000 * Math.pow(2, sseRetry++));
+          if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
+          sseReconnectTimer = setTimeout(connectSse, delay);
+        };
+      }
+
+      connectSse();
     })();
 
     // Use shared showNotification (ui.js). Provide fallback if missing.

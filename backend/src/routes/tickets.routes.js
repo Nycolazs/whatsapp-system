@@ -4,6 +4,28 @@ const { validate, schemas } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
 
 const DEBUG_TICKETS_REPLY = process.env.DEBUG_TICKETS_REPLY === '1';
+const STATUS_LABELS = {
+  pendente: 'Pendente',
+  aguardando: 'Aguardando',
+  em_atendimento: 'Em Atendimento',
+  resolvido: 'Resolvido',
+  encerrado: 'Encerrado',
+};
+
+function toSqliteUtc(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+function parseScheduledAt(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return null;
+  return toSqliteUtc(date);
+}
 
 function createTicketsRouter({
   db,
@@ -30,6 +52,14 @@ function createTicketsRouter({
       }
     }
     return null;
+  }
+
+  function insertSystemMessage(ticketId, content) {
+    try {
+      db.prepare(
+        'INSERT INTO messages (ticket_id, sender, content, message_type, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)'
+      ).run(ticketId, 'system', content, 'system');
+    } catch (_e) {}
   }
 
   // Busca o ticket ativo de um contato (por phone)
@@ -90,15 +120,32 @@ function createTicketsRouter({
       LEFT JOIN messages m
         ON m.ticket_id = t.id
        AND m.sender = 'client'
-      WHERE t.phone LIKE '55%'
-        AND t.phone NOT LIKE '%@%'
-        AND length(t.phone) BETWEEN 12 AND 13
+      WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
+        OR t.phone LIKE '%@lid'
       GROUP BY t.id
       ORDER BY t.updated_at DESC
       LIMIT ? OFFSET ?
     `).all(limit, offset);
 
     return res.json(tickets);
+  });
+
+  // Buscar ticket por id
+  router.get('/tickets/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    try {
+      const ticket = db.prepare(
+        `SELECT t.*, s.name as seller_name
+         FROM tickets t
+         LEFT JOIN sellers s ON t.seller_id = s.id
+         WHERE t.id = ?`
+      ).get(id);
+
+      if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
+      return res.json(ticket);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao buscar ticket' });
+    }
   });
 
   // Endpoint para obter uma mensagem específica (para reply preview)
@@ -146,14 +193,175 @@ function createTicketsRouter({
   // Endpoint para obter apenas novas mensagens (polling otimizado)
   router.get('/tickets/:id/messages/since/:timestamp', requireAuth, (req, res) => {
     const { id, timestamp } = req.params;
+    const lastId = Number(req.query.lastId || 0);
     const messages = db.prepare(`
       SELECT *
       FROM messages
       WHERE ticket_id = ?
-        AND (created_at > ? OR updated_at > ?)
+        AND (
+          created_at > ?
+          OR (created_at = ? AND id > ?)
+          OR updated_at > ?
+        )
       ORDER BY created_at ASC, id ASC
-    `).all(id, timestamp, timestamp);
+    `).all(id, timestamp, timestamp, lastId, timestamp);
     return res.json(messages);
+  });
+
+  // Criar lembrete para um ticket
+  router.post(
+    '/tickets/:id/reminders',
+    requireAuth,
+    validate(schemas.reminderCreate),
+    auditMiddleware('create-reminder'),
+    (req, res) => {
+      const { id } = req.params;
+      const { scheduled_at, note } = req.body;
+
+      try {
+        const ticket = db.prepare('SELECT id, seller_id FROM tickets WHERE id = ?').get(id);
+        if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
+
+        if (!ticket.seller_id) {
+          return res.status(400).json({ error: 'Atribua o ticket a um vendedor antes de criar um lembrete' });
+        }
+
+        if (req.userType === 'seller' && Number(ticket.seller_id) !== Number(req.userId)) {
+          return res.status(403).json({ error: 'Você não pode criar lembretes para este ticket' });
+        }
+
+        const scheduledAt = parseScheduledAt(scheduled_at);
+        if (!scheduledAt) return res.status(400).json({ error: 'Data/hora inválida' });
+
+        const info = db.prepare(
+          `INSERT INTO ticket_reminders
+            (ticket_id, seller_id, note, scheduled_at, status, created_by_user_id, created_by_type, updated_at)
+           VALUES (?, ?, ?, ?, 'scheduled', ?, ?, CURRENT_TIMESTAMP)`
+        ).run(id, ticket.seller_id, note || null, scheduledAt, req.userId, req.userType);
+
+        const reminder = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(info.lastInsertRowid);
+        return res.status(201).json(reminder);
+      } catch (_error) {
+        return res.status(500).json({ error: 'Erro ao criar lembrete' });
+      }
+    }
+  );
+
+  // Listar lembretes de um ticket
+  router.get('/tickets/:id/reminders', requireAuth, (req, res) => {
+    const { id } = req.params;
+    try {
+      const ticket = db.prepare('SELECT id, seller_id FROM tickets WHERE id = ?').get(id);
+      if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
+
+      if (req.userType === 'seller' && Number(ticket.seller_id) !== Number(req.userId)) {
+        return res.status(403).json({ error: 'Você não pode visualizar lembretes deste ticket' });
+      }
+
+      const reminders = db.prepare(
+        `SELECT * FROM ticket_reminders
+         WHERE ticket_id = ?
+         ORDER BY scheduled_at ASC`
+      ).all(id);
+
+      return res.json(reminders);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao listar lembretes' });
+    }
+  });
+
+  // Editar lembrete
+  router.patch(
+    '/reminders/:id',
+    requireAuth,
+    validate(schemas.reminderUpdate),
+    auditMiddleware('update-reminder'),
+    (req, res) => {
+      const { id } = req.params;
+      const { scheduled_at, note, status } = req.body;
+
+      try {
+        const reminder = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(id);
+        if (!reminder) return res.status(404).json({ error: 'Lembrete não encontrado' });
+
+        if (req.userType === 'seller' && Number(reminder.seller_id) !== Number(req.userId)) {
+          return res.status(403).json({ error: 'Você não pode editar este lembrete' });
+        }
+
+        let scheduledAt = reminder.scheduled_at;
+        if (scheduled_at !== undefined) {
+          const parsed = parseScheduledAt(scheduled_at);
+          if (!parsed) return res.status(400).json({ error: 'Data/hora inválida' });
+          scheduledAt = parsed;
+        }
+
+        const nextNote = note !== undefined ? note : reminder.note;
+        const nextStatus = status || reminder.status;
+
+        db.prepare(
+          'UPDATE ticket_reminders SET note = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(nextNote || null, scheduledAt, nextStatus, id);
+
+        const updated = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(id);
+        return res.json(updated);
+      } catch (_error) {
+        return res.status(500).json({ error: 'Erro ao atualizar lembrete' });
+      }
+    }
+  );
+
+  // Próximos lembretes do usuário
+  router.get('/reminders/upcoming', requireAuth, (req, res) => {
+    const withinHours = Math.min(Math.max(parseInt(req.query.withinHours, 10) || 168, 1), 720);
+    const sellerId = req.userType === 'seller' ? req.userId : resolveAssignIdForUser(req);
+    if (!sellerId) return res.json([]);
+
+    try {
+      const reminders = db.prepare(
+        `SELECT r.*, t.phone, t.contact_name
+         FROM ticket_reminders r
+         JOIN tickets t ON t.id = r.ticket_id
+         WHERE r.seller_id = ?
+           AND r.status = 'scheduled'
+           AND r.scheduled_at <= datetime('now', '+' || ? || ' hours')
+         ORDER BY r.scheduled_at ASC`
+      ).all(sellerId, withinHours);
+
+      return res.json(reminders);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao listar lembretes' });
+    }
+  });
+
+  // Lembretes vencidos (para notificação) - marca notified_at
+  router.get('/reminders/due', requireAuth, (req, res) => {
+    const sellerId = req.userType === 'seller' ? req.userId : resolveAssignIdForUser(req);
+    if (!sellerId) return res.json([]);
+
+    try {
+      const due = db.prepare(
+        `SELECT r.*, t.phone, t.contact_name
+         FROM ticket_reminders r
+         JOIN tickets t ON t.id = r.ticket_id
+         WHERE r.seller_id = ?
+           AND r.status = 'scheduled'
+           AND r.notified_at IS NULL
+           AND r.scheduled_at <= datetime('now')
+         ORDER BY r.scheduled_at ASC`
+      ).all(sellerId);
+
+      if (due.length) {
+        const mark = db.prepare('UPDATE ticket_reminders SET notified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        const tx = db.transaction((items) => {
+          items.forEach((r) => mark.run(r.id));
+        });
+        tx(due);
+      }
+
+      return res.json(due);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao buscar lembretes vencidos' });
+    }
   });
 
   router.post(
@@ -437,6 +645,8 @@ function createTicketsRouter({
         return res.status(404).json({ error: 'Ticket não encontrado' });
       }
 
+      const previousStatus = ticket.status;
+
       if (status === 'pendente' && ticket.status !== 'pendente') {
         return res.status(400).json({ error: 'Não é permitido voltar para pendente' });
       }
@@ -457,6 +667,8 @@ function createTicketsRouter({
 
       if (status === 'aguardando') {
         db.prepare('UPDATE tickets SET status = ?, seller_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+        // Ao liberar o ticket, cancela lembretes pendentes
+        db.prepare("UPDATE ticket_reminders SET status = 'canceled', updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(id);
       } else if (status === 'em_atendimento') {
         // Quando alguém marca como 'em_atendimento', atribui ao usuário.
         // - Se for seller, usa req.userId
@@ -494,6 +706,20 @@ function createTicketsRouter({
         db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
       }
 
+      if (status === 'resolvido' || status === 'encerrado') {
+        db.prepare("UPDATE ticket_reminders SET status = 'canceled', updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(id);
+      }
+
+      if (previousStatus && previousStatus !== status) {
+        const prevLabel = STATUS_LABELS[previousStatus] || previousStatus;
+        const nextLabel = STATUS_LABELS[status] || status;
+        const isReopen = ['resolvido', 'encerrado'].includes(previousStatus) && !['resolvido', 'encerrado'].includes(status);
+        const content = isReopen
+          ? `🔓 Conversa reaberta: ${prevLabel} → ${nextLabel}`
+          : `🔔 Status alterado: ${prevLabel} → ${nextLabel}`;
+        insertSystemMessage(id, content);
+      }
+
       return res.json({ success: true, message: 'Status atualizado' });
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao atualizar status' });
@@ -510,14 +736,11 @@ function createTicketsRouter({
     const { id } = req.params;
     const { sellerId } = req.body;
 
-    if (sellerId === undefined || sellerId === null || sellerId === '') {
+    if (sellerId === undefined) {
       return res.status(400).json({ error: 'sellerId é obrigatório' });
     }
 
-    const targetSellerId = Number(sellerId);
-    if (Number.isNaN(targetSellerId)) {
-      return res.status(400).json({ error: 'sellerId inválido' });
-    }
+    const isUnassign = sellerId === null || sellerId === '' || sellerId === '0';
 
     try {
       const ticket = db.prepare('SELECT id, seller_id FROM tickets WHERE id = ?').get(id);
@@ -532,6 +755,20 @@ function createTicketsRouter({
         }
       }
 
+      if (isUnassign) {
+        if (req.userType === 'seller') {
+          return res.status(403).json({ error: 'Você não pode remover a atribuição deste ticket' });
+        }
+        db.prepare('UPDATE tickets SET seller_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+        db.prepare("UPDATE ticket_reminders SET status = 'canceled', updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(id);
+        return res.json({ success: true, message: 'Ticket atribuição removida' });
+      }
+
+      const targetSellerId = Number(sellerId);
+      if (Number.isNaN(targetSellerId)) {
+        return res.status(400).json({ error: 'sellerId inválido' });
+      }
+
       const targetSeller = db.prepare('SELECT id, active FROM sellers WHERE id = ?').get(targetSellerId);
       if (!targetSeller) {
         return res.status(404).json({ error: 'Vendedor não encontrado' });
@@ -541,6 +778,7 @@ function createTicketsRouter({
       }
 
       db.prepare('UPDATE tickets SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetSellerId, id);
+      db.prepare('UPDATE ticket_reminders SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = "scheduled"').run(targetSellerId, id);
       return res.json({ success: true, message: 'Ticket atribuído' });
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao atribuir ticket' });
@@ -552,6 +790,7 @@ function createTicketsRouter({
     const { sellerId } = req.params;
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const includeClosed = String(req.query.includeClosed || '') === '1';
 
     try {
       const tickets = db.prepare(`
@@ -562,11 +801,9 @@ function createTicketsRouter({
         LEFT JOIN sellers s ON t.seller_id = s.id
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
         WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
-          AND t.status != 'resolvido'
-          AND t.status != 'encerrado'
-          AND t.phone LIKE '55%'
-          AND t.phone NOT LIKE '%@%'
-          AND length(t.phone) BETWEEN 12 AND 13
+          ${includeClosed ? '' : "AND t.status != 'resolvido' AND t.status != 'encerrado'"}
+          AND ((t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
+            OR t.phone LIKE '%@lid')
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?
@@ -583,6 +820,7 @@ function createTicketsRouter({
     try {
       const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
       const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+      const includeAll = String(req.query.includeAll || '') === '1';
 
       const tickets = db.prepare(`
         SELECT t.*,
@@ -591,9 +829,7 @@ function createTicketsRouter({
         FROM tickets t
         LEFT JOIN sellers s ON t.seller_id = s.id
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
-        WHERE t.phone LIKE '55%'
-          AND t.phone NOT LIKE '%@%'
-          AND length(t.phone) BETWEEN 12 AND 13
+        ${includeAll ? '' : "WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15) OR t.phone LIKE '%@lid'"}
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?
