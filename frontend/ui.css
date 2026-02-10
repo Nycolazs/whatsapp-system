@@ -5,6 +5,11 @@
 
 :root {
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --app-height: 100vh;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 
   --bg-0: #0b1220;
   --bg-1: #0b2a5b;
@@ -48,10 +53,20 @@ html, body {
 body {
   font-family: var(--font-sans);
   color: var(--text);
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: var(--app-height);
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
   background:
     radial-gradient(1200px 800px at 20% 10%, rgba(96, 165, 250, 0.28), transparent 55%),
     radial-gradient(900px 600px at 80% 0%, rgba(37, 99, 235, 0.24), transparent 60%),
     linear-gradient(135deg, var(--bg-0) 0%, var(--bg-1) 100%);
+}
+
+.container {
+  height: var(--app-height) !important;
+  min-height: var(--app-height) !important;
 }
 
 a { color: var(--primary); }
@@ -62,6 +77,7 @@ a:hover { color: var(--primary-2); }
 /* Better defaults for form controls */
 button, input, textarea, select {
   font-family: inherit;
+  touch-action: manipulation;
 }
 
 input, textarea, select {
@@ -71,6 +87,13 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus {
   box-shadow: var(--focus);
   border-color: rgba(37, 99, 235, 0.55) !important;
+}
+
+.tickets-list,
+.messages-container,
+.content,
+.sidebar-nav {
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Shared containers/cards (used by multiple pages) */
@@ -358,7 +381,7 @@ body.page.leave {
 /* Toast container */
 .toast-container {
   position: fixed;
-  top: 16px;
+  top: calc(16px + var(--safe-top));
   right: 16px;
   display: flex;
   flex-direction: column;
@@ -539,6 +562,15 @@ body.page.leave {
   to { transform: rotate(360deg); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* =============================
    Mobile-first enhancements
    ============================= */
@@ -556,11 +588,11 @@ body.page.leave {
 
 @media (max-width: 900px) {
   body {
-    min-height: 100dvh;
+    min-height: var(--app-height);
   }
 
   .container {
-    height: 100dvh !important;
+    height: var(--app-height) !important;
   }
 
   /* Admin layout: stack sidebar on top */
@@ -621,11 +653,26 @@ body.page.leave {
 
 @media (max-width: 768px) {
   /* General inputs and buttons */
-  button,
+  button {
+    font-size: 14px;
+  }
+
   input,
   textarea,
   select {
-    font-size: 14px;
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  button,
+  .btn,
+  .login-button,
+  .btn-new-seller,
+  .back-btn,
+  .btn-manage-sellers,
+  .logout-btn,
+  .whatsapp-logout-btn {
+    min-height: 44px;
   }
 
   .login-container,
@@ -635,7 +682,7 @@ body.page.leave {
   }
 
   .toast-container {
-    top: 12px;
+    top: calc(12px + var(--safe-top));
     right: 12px;
     left: 12px;
     align-items: stretch;
@@ -687,16 +734,23 @@ body.page.leave {
 
   .message-input-area {
     gap: 8px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-bottom: calc(10px + var(--safe-bottom));
   }
 
   .message-input {
-    min-height: 42px;
+    min-height: 44px;
   }
 
   .send-button,
   .audio-button {
-    min-height: 42px;
+    min-height: 44px;
+  }
+
+  .panel-header,
+  .chat-header,
+  .sidebar-header,
+  .header {
+    padding-top: calc(12px + var(--safe-top)) !important;
   }
 
   /* Admin content spacing */
@@ -726,6 +780,10 @@ body.page.leave {
 @media (max-width: 520px) {
   .sidebar-footer {
     flex-direction: column;
+  }
+
+  .message-input-area {
+    padding-bottom: calc(8px + var(--safe-bottom));
   }
 
   .header h1 {

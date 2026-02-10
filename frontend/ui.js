@@ -2,6 +2,19 @@
 (function () {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+  function setAppHeight() {
+    const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${height}px`);
+  }
+
+  setAppHeight();
+  window.addEventListener('resize', setAppHeight);
+  window.addEventListener('orientationchange', setAppHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setAppHeight);
+    window.visualViewport.addEventListener('scroll', setAppHeight);
+  }
+
   function resolveApiUrl(input) {
     if (!input || typeof input !== 'string') return input;
     const base = (window.API_BASE || '').trim();
@@ -158,6 +171,14 @@
     document.addEventListener('DOMContentLoaded', initPageTransition);
   } else {
     initPageTransition();
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.debug('Service worker registration failed', err);
+      });
+    });
   }
 
   // Expose globally
