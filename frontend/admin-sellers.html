@@ -347,11 +347,48 @@
     }
 
     .tickets-toolbar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px 16px;
+      align-items: start;
+      margin-bottom: 0;
+    }
+
+    .filters-card {
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .filters-header {
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
       gap: 12px;
-      align-items: flex-end;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
+    }
+
+    .filters-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+
+    .filters-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .filters-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
     }
 
     .filter-group {
@@ -359,23 +396,34 @@
       flex-direction: column;
       gap: 6px;
       min-width: 190px;
+      align-self: start;
     }
 
     .filter-group label {
-      font-size: 12px;
-      color: #667781;
-      font-weight: 600;
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
     }
 
     .filter-control {
-      padding: 8px 10px;
-      border: 1px solid #d1d7db;
-      border-radius: 6px;
+      padding: 10px 12px;
+      border: 1px solid #dbe2ea;
+      border-radius: 10px;
       font-size: 13px;
-      background: white;
+      background: #ffffff;
       font-family: inherit;
-      font-family: 'Courier New', monospace;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
+      min-height: 40px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .filter-control:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
     }
 
     .filter-control::placeholder {
@@ -386,8 +434,53 @@
 
     .filter-inline {
       display: flex;
-      gap: 8px;
+      gap: 12px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .ticket-range-group {
+      min-width: 420px;
+      grid-column: span 2;
+    }
+
+    .range-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .range-card-header {
+      display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .range-card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.3px;
+    }
+
+    .range-card-hint {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .ticket-range-grid {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(120px, 160px);
+      gap: 12px;
+      align-items: end;
+    }
+
+    .ticket-time-field {
+      min-width: 120px;
     }
 
     .filter-inline .filter-control {
@@ -396,39 +489,244 @@
       width: auto;
     }
 
+    .ticket-date-field {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 160px;
+    }
+
+    .ticket-picker-trigger {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #dbe2ea;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      letter-spacing: 0.3px;
+      min-height: 40px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+
+    .ticket-picker-trigger:hover {
+      border-color: #94a3b8;
+    }
+
+    .ticket-picker-trigger:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+
+    .picker-caret {
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    .ticket-picker {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: auto;
+      width: 280px;
+      max-width: 320px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.15);
+      padding: 10px;
+      z-index: 1200;
+      display: none;
+    }
+
+    .ticket-picker.active {
+      display: block;
+      animation: fadeIn 0.16s ease;
+    }
+
+    .picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .picker-month {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      text-align: center;
+      flex: 1;
+    }
+
+    .picker-nav {
+      background: #f1f5f9;
+      border: none;
+      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      color: #0f172a;
+      font-size: 16px;
+    }
+
+    .picker-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      font-size: 10px;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .picker-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .picker-day {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+      color: #0f172a;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .picker-day:hover {
+      background: #e2e8f0;
+    }
+
+    .picker-day.selected {
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .picker-day.muted {
+      color: #cbd5f5;
+      cursor: default;
+    }
+
     .filter-actions {
       margin-left: auto;
       display: flex;
       gap: 10px;
     }
 
+    .btn-secondary.btn-clear {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    }
+
+    .btn-secondary.btn-clear:hover {
+      background: #f8fafc;
+    }
+
     .tickets-table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
+      background: #fff;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e6e9ef;
     }
 
     .tickets-table th {
-      padding: 15px;
-      background: #f5f5f5;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+      border-bottom: 1px solid #e6e9ef;
       text-align: left;
       font-weight: 600;
       color: #111;
       font-size: 13px;
+      letter-spacing: 0.2px;
+    }
+
+    .ticket-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tickets-table .btn-open-chat {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 168, 132, 0.25) !important;
+      background: linear-gradient(180deg, #f3fbf8 0%, #e4f6f0 100%) !important;
+      color: #0b6b57 !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.2px !important;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s, border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0, 168, 132, 0.12) !important;
+    }
+
+    .tickets-table .btn-open-chat::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00a884 !important;
+      box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.15);
+    }
+
+    .tickets-table .btn-open-chat:hover {
+      background: linear-gradient(180deg, #e9f9f3 0%, #dff5ee 100%) !important;
+      border-color: rgba(0, 168, 132, 0.45) !important;
+      color: #0a5e4c !important;
+      box-shadow: 0 6px 14px rgba(0, 168, 132, 0.18) !important;
+      transform: translateY(-1px);
+    }
+
+    .btn-open-chat:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(16, 185, 129, 0.14);
+    }
+
+    .btn-open-chat:focus-visible {
+      outline: 2px solid #0ea5e9;
+      outline-offset: 2px;
     }
 
     .tickets-table td {
-      padding: 15px;
-      border-bottom: 1px solid #f0f0f0;
+      padding: 14px 16px;
+      border-bottom: 1px solid #eef1f6;
       font-size: 13px;
+      color: #111;
     }
 
     .tickets-table tr:hover {
-      background: #fafafa;
+      background: #f7f9fc;
+    }
+
+    .tickets-table tbody tr:nth-child(even) {
+      background: #fbfcfe;
     }
 
     .ticket-phone {
@@ -471,11 +769,13 @@
     }
 
     .assign-select {
-      padding: 6px 10px;
-      border: 1px solid #d1d7db;
-      border-radius: 4px;
+      padding: 8px 10px;
+      border: 1px solid #dbe2ea;
+      border-radius: 8px;
       font-size: 12px;
       cursor: pointer;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
     }
 
     /* Business Hours */
@@ -1176,8 +1476,7 @@
       }
 
       .tickets-toolbar {
-        flex-direction: column;
-        align-items: stretch;
+        grid-template-columns: 1fr;
       }
 
       .filter-group {
@@ -1186,6 +1485,39 @@
 
       .filter-actions {
         margin-left: 0;
+      }
+
+      .ticket-range-group {
+        min-width: 0;
+        grid-column: auto;
+      }
+
+      .ticket-range-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .filters-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .filters-actions {
+        width: 100%;
+      }
+
+      .filters-actions .btn-clear {
+        width: 100%;
+      }
+
+      .ticket-date-field {
+        min-width: 0;
+      }
+
+      .ticket-picker {
+        position: static;
+        width: 100%;
+        max-width: none;
+        margin-top: 6px;
       }
 
       .sellers-grid {
@@ -1287,7 +1619,6 @@
     }
   </style>
   <link rel="stylesheet" href="/ui.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -1359,63 +1690,108 @@
         <!-- Tickets Section -->
         <div class="tickets-container" id="ticketsSection">
           <div class="panel">
-            <div class="tickets-toolbar">
-              <div class="filter-group">
-                <label for="ticketSellerFilter">Vendedor</label>
-                <select id="ticketSellerFilter" class="filter-control" onchange="applyTicketFilters()"></select>
-              </div>
-
-              <div class="filter-group">
-                <label for="ticketTimePreset">Período</label>
-                <select id="ticketTimePreset" class="filter-control" onchange="applyTicketTimePreset()">
-                  <option value="">Qualquer data</option>
-                  <option value="today">Hoje</option>
-                  <option value="yesterday">Ontem</option>
-                  <option value="last_24h">Últimas 24 horas</option>
-                  <option value="last_7d">Últimos 7 dias</option>
-                  <option value="last_30d">Últimos 30 dias</option>
-                  <option value="this_month">Este mês</option>
-                  <option value="prev_month">Mês passado</option>
-                  <option value="custom">Personalizado</option>
-                </select>
-              </div>
-
-              <div class="filter-group" style="min-width: 380px;">
-                <label>Atualizado entre</label>
-                <div class="filter-inline" style="flex-wrap: wrap; gap: 8px;">
-                  <div style="flex: 1; min-width: 130px;">
-                    <label style="font-size: 0.85em; color: #667781;">De (DD/MM/YYYY)</label>
-                    <input id="ticketUpdatedFrom" class="filter-control" type="text" placeholder="DD/MM/YYYY" aria-label="Atualizado de (data)" inputmode="numeric" />
-                  </div>
-                  <div style="flex: 1; min-width: 100px;">
-                    <label style="font-size: 0.85em; color: #667781;">Hora</label>
-                    <input id="ticketUpdatedFromTime" class="filter-control" type="time" aria-label="Atualizado de (hora)" oninput="onTicketTimeRangeInputChanged()" />
-                  </div>
-                  <div style="flex: 1; min-width: 130px;">
-                    <label style="font-size: 0.85em; color: #667781;">Até (DD/MM/YYYY)</label>
-                    <input id="ticketUpdatedTo" class="filter-control" type="text" placeholder="DD/MM/YYYY" aria-label="Atualizado até (data)" inputmode="numeric" />
-                  </div>
-                  <div style="flex: 1; min-width: 100px;">
-                    <label style="font-size: 0.85em; color: #667781;">Hora</label>
-                    <input id="ticketUpdatedToTime" class="filter-control" type="time" aria-label="Atualizado até (hora)" oninput="onTicketTimeRangeInputChanged()" />
-                  </div>
+            <div class="filters-card">
+              <div class="filters-header">
+                <div>
+                  <div class="filters-title">Filtros de tickets</div>
+                  <div class="filters-subtitle">Refine a lista por vendedor, status e período</div>
+                </div>
+                <div class="filters-actions">
+                  <button class="btn-secondary btn-clear" type="button" onclick="clearTicketFilters()">Limpar filtros</button>
                 </div>
               </div>
 
-              <div class="filter-group">
-                <label for="ticketStatusFilter">Ação (status)</label>
-                <select id="ticketStatusFilter" class="filter-control" onchange="applyTicketFilters()">
-                  <option value="">Todos</option>
-                  <option value="pendente">Pendente</option>
-                  <option value="em_atendimento">Em atendimento</option>
-                  <option value="aguardando">Aguardando</option>
-                  <option value="resolvido">Resolvido</option>
-                  <option value="encerrado">Encerrado</option>
-                </select>
-              </div>
+              <div class="tickets-toolbar">
+                <div class="filter-group">
+                  <label for="ticketSellerFilter">Vendedor</label>
+                  <select id="ticketSellerFilter" class="filter-control" onchange="applyTicketFilters()"></select>
+                </div>
 
-              <div class="filter-actions">
-                <button class="btn-secondary" type="button" onclick="clearTicketFilters()">Limpar filtros</button>
+                <div class="filter-group">
+                  <label for="ticketTimePreset">Período</label>
+                  <select id="ticketTimePreset" class="filter-control" onchange="applyTicketTimePreset()">
+                    <option value="">Qualquer data</option>
+                    <option value="today">Hoje</option>
+                    <option value="yesterday">Ontem</option>
+                    <option value="last_24h">Últimas 24 horas</option>
+                    <option value="last_7d">Últimos 7 dias</option>
+                    <option value="last_30d">Últimos 30 dias</option>
+                    <option value="this_month">Este mês</option>
+                    <option value="prev_month">Mês passado</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+
+                <div class="filter-group ticket-range-group range-card">
+                  <div class="range-card-header">
+                    <span class="range-card-title">Atualizado entre</span>
+                    <span class="range-card-hint">DD/MM/AAAA</span>
+                  </div>
+                  <div class="filter-inline ticket-range-grid">
+                    <div style="flex: 1; min-width: 130px;">
+                      <label style="font-size: 0.85em; color: #667781;">De</label>
+                      <div class="ticket-date-field">
+                        <button type="button" class="ticket-picker-trigger" id="ticketFromDateTrigger" aria-label="Selecionar data inicial">
+                          <span id="ticketFromDateDisplay">Selecionar data</span>
+                          <span class="picker-caret">▾</span>
+                        </button>
+                        <input id="ticketUpdatedFrom" type="hidden" />
+                        <div class="ticket-picker" id="ticketFromDatePicker" aria-hidden="true">
+                          <div class="picker-header">
+                            <button type="button" class="picker-nav" id="ticketFromPrevMonth">‹</button>
+                            <div class="picker-month" id="ticketFromMonthLabel"></div>
+                            <button type="button" class="picker-nav" id="ticketFromNextMonth">›</button>
+                          </div>
+                          <div class="picker-weekdays">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                          </div>
+                          <div class="picker-days" id="ticketFromCalendarDays"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="ticket-time-field">
+                      <label style="font-size: 0.85em; color: #667781;">Hora</label>
+                      <input id="ticketUpdatedFromTime" class="filter-control" type="time" aria-label="Atualizado de (hora)" oninput="onTicketTimeRangeInputChanged()" />
+                    </div>
+                    <div style="flex: 1; min-width: 130px;">
+                      <label style="font-size: 0.85em; color: #667781;">Até</label>
+                      <div class="ticket-date-field">
+                        <button type="button" class="ticket-picker-trigger" id="ticketToDateTrigger" aria-label="Selecionar data final">
+                          <span id="ticketToDateDisplay">Selecionar data</span>
+                          <span class="picker-caret">▾</span>
+                        </button>
+                        <input id="ticketUpdatedTo" type="hidden" />
+                        <div class="ticket-picker" id="ticketToDatePicker" aria-hidden="true">
+                          <div class="picker-header">
+                            <button type="button" class="picker-nav" id="ticketToPrevMonth">‹</button>
+                            <div class="picker-month" id="ticketToMonthLabel"></div>
+                            <button type="button" class="picker-nav" id="ticketToNextMonth">›</button>
+                          </div>
+                          <div class="picker-weekdays">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                          </div>
+                          <div class="picker-days" id="ticketToCalendarDays"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="ticket-time-field">
+                      <label style="font-size: 0.85em; color: #667781;">Hora</label>
+                      <input id="ticketUpdatedToTime" class="filter-control" type="time" aria-label="Atualizado até (hora)" oninput="onTicketTimeRangeInputChanged()" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="filter-group">
+                  <label for="ticketStatusFilter">Ação (status)</label>
+                  <select id="ticketStatusFilter" class="filter-control" onchange="applyTicketFilters()">
+                    <option value="">Todos</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="em_atendimento">Em atendimento</option>
+                    <option value="aguardando">Aguardando</option>
+                    <option value="resolvido">Resolvido</option>
+                    <option value="encerrado">Encerrado</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1803,6 +2179,176 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
+    const ticketDatePickerState = {
+      open: null,
+      from: { month: new Date(), selectedDate: null },
+      to: { month: new Date(), selectedDate: null },
+    };
+    let ticketDatePickersReady = false;
+
+    function formatTicketDateDisplay(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Selecionar data';
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function parseTicketDateValue(value) {
+      if (!value) return null;
+      const iso = dateStringBRToISO(value);
+      if (!iso) return null;
+      const d = new Date(`${iso}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    function getTicketPickerIds(key) {
+      return key === 'to'
+        ? {
+            trigger: 'ticketToDateTrigger',
+            display: 'ticketToDateDisplay',
+            input: 'ticketUpdatedTo',
+            picker: 'ticketToDatePicker',
+            prev: 'ticketToPrevMonth',
+            next: 'ticketToNextMonth',
+            label: 'ticketToMonthLabel',
+            days: 'ticketToCalendarDays',
+          }
+        : {
+            trigger: 'ticketFromDateTrigger',
+            display: 'ticketFromDateDisplay',
+            input: 'ticketUpdatedFrom',
+            picker: 'ticketFromDatePicker',
+            prev: 'ticketFromPrevMonth',
+            next: 'ticketFromNextMonth',
+            label: 'ticketFromMonthLabel',
+            days: 'ticketFromCalendarDays',
+          };
+    }
+
+    function renderTicketCalendar(key) {
+      const ids = getTicketPickerIds(key);
+      const label = document.getElementById(ids.label);
+      const daysContainer = document.getElementById(ids.days);
+      if (!label || !daysContainer) return;
+
+      const monthDate = ticketDatePickerState[key].month;
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startWeekday = firstDay.getDay();
+
+      label.textContent = firstDay.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      daysContainer.innerHTML = '';
+
+      for (let i = 0; i < startWeekday; i++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'picker-day muted';
+        daysContainer.appendChild(spacer);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'picker-day';
+        btn.textContent = String(day);
+        const date = new Date(year, month, day);
+        if (ticketDatePickerState[key].selectedDate && date.toDateString() === ticketDatePickerState[key].selectedDate.toDateString()) {
+          btn.classList.add('selected');
+        }
+        btn.addEventListener('click', () => {
+          ticketDatePickerState[key].selectedDate = date;
+          const hidden = document.getElementById(ids.input);
+          const display = document.getElementById(ids.display);
+          const formatted = `${pad2(day)}/${pad2(month + 1)}/${year}`;
+          if (hidden) hidden.value = formatted;
+          if (display) display.textContent = formatTicketDateDisplay(date);
+          toggleTicketPicker(null);
+          onTicketTimeRangeInputChanged();
+        });
+        daysContainer.appendChild(btn);
+      }
+    }
+
+    function syncTicketDatePickerFromInput(key) {
+      const ids = getTicketPickerIds(key);
+      const hidden = document.getElementById(ids.input);
+      const display = document.getElementById(ids.display);
+      const value = hidden?.value || '';
+      const d = parseTicketDateValue(value);
+      ticketDatePickerState[key].selectedDate = d;
+      if (d) {
+        ticketDatePickerState[key].month = new Date(d.getFullYear(), d.getMonth(), 1);
+      }
+      if (display) display.textContent = formatTicketDateDisplay(d);
+      renderTicketCalendar(key);
+    }
+
+    function resetTicketDatePickerDisplay(key) {
+      const ids = getTicketPickerIds(key);
+      const display = document.getElementById(ids.display);
+      ticketDatePickerState[key].selectedDate = null;
+      if (display) display.textContent = 'Selecionar data';
+      renderTicketCalendar(key);
+    }
+
+    function toggleTicketPicker(which) {
+      ticketDatePickerState.open = which;
+      ['from', 'to'].forEach(key => {
+        const ids = getTicketPickerIds(key);
+        const picker = document.getElementById(ids.picker);
+        if (picker) picker.classList.toggle('active', which === key);
+      });
+    }
+
+    function initTicketDatePickers() {
+      if (ticketDatePickersReady) return;
+      ticketDatePickersReady = true;
+      ['from', 'to'].forEach(key => {
+        const ids = getTicketPickerIds(key);
+        const trigger = document.getElementById(ids.trigger);
+        const prevBtn = document.getElementById(ids.prev);
+        const nextBtn = document.getElementById(ids.next);
+
+        if (trigger) {
+          trigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const next = ticketDatePickerState.open === key ? null : key;
+            toggleTicketPicker(next);
+          });
+        }
+
+        if (prevBtn) {
+          prevBtn.addEventListener('click', () => {
+            ticketDatePickerState[key].month = new Date(ticketDatePickerState[key].month.getFullYear(), ticketDatePickerState[key].month.getMonth() - 1, 1);
+            renderTicketCalendar(key);
+          });
+        }
+
+        if (nextBtn) {
+          nextBtn.addEventListener('click', () => {
+            ticketDatePickerState[key].month = new Date(ticketDatePickerState[key].month.getFullYear(), ticketDatePickerState[key].month.getMonth() + 1, 1);
+            renderTicketCalendar(key);
+          });
+        }
+
+        syncTicketDatePickerFromInput(key);
+      });
+
+      document.addEventListener('click', (event) => {
+        const fromPicker = document.getElementById('ticketFromDatePicker');
+        const toPicker = document.getElementById('ticketToDatePicker');
+        const fromTrigger = document.getElementById('ticketFromDateTrigger');
+        const toTrigger = document.getElementById('ticketToDateTrigger');
+        if (!fromPicker || !toPicker) return;
+        if (fromPicker.contains(event.target) || toPicker.contains(event.target) || fromTrigger?.contains(event.target) || toTrigger?.contains(event.target)) {
+          return;
+        }
+        toggleTicketPicker(null);
+      });
+    }
+
     function startOfDay(date) {
       const d = new Date(date);
       d.setHours(0, 0, 0, 0);
@@ -2023,12 +2569,49 @@
       if (value == null || value === '') return null;
       const str = String(value).trim();
       if (!str) return null;
+      // Tenta formato brasileiro: DD/MM/YYYY HH:mm:ss
+      const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (brMatch) {
+        const day = Number(brMatch[1]);
+        const month = Number(brMatch[2]);
+        const year = Number(brMatch[3]);
+        const hh = Number(brMatch[4] || '0');
+        const mm = Number(brMatch[5] || '0');
+        const ss = Number(brMatch[6] || '0');
+        if ([day, month, year, hh, mm, ss].every(v => Number.isFinite(v))) {
+          const dBr = new Date(year, month - 1, day, hh, mm, ss, 0);
+          if (!isNaN(dBr.getTime())) return dBr;
+        }
+      }
       // Tenta parsing direto
       let d = new Date(str);
       if (!isNaN(d.getTime())) return d;
-      // Tenta com normalização (espaço → T)
-      const normalized = str.replace(/\s+/g, 'T').replace(/\.\d{3}Z?$/i, '');
-      d = new Date(normalized);
+      // Tenta com normalização (espaço → T), preservando timezone quando existir
+      const normalized = str.replace(/\s+/g, 'T');
+      const hasTz = /Z$|[+-]\d{2}:?\d{2}$/i.test(normalized);
+      if (hasTz) {
+        d = new Date(normalized);
+        if (!isNaN(d.getTime())) return d;
+      }
+      const normalizedNoMs = normalized.replace(/\.\d{3}$/i, '');
+      // Sem timezone explícito: trata como UTC (SQLite CURRENT_TIMESTAMP)
+      d = new Date(`${normalizedNoMs}Z`);
+      if (!isNaN(d.getTime())) return d;
+      // Se não houver timezone, faz parse manual como horário local
+      const match = normalizedNoMs.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+      if (match) {
+        const y = Number(match[1]);
+        const m = Number(match[2]);
+        const day = Number(match[3]);
+        const hh = Number(match[4]);
+        const mm = Number(match[5]);
+        const ss = Number(match[6] || '0');
+        if ([y, m, day, hh, mm, ss].every(v => Number.isFinite(v))) {
+          d = new Date(y, m - 1, day, hh, mm, ss, 0);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
+      d = new Date(normalizedNoMs);
       if (!isNaN(d.getTime())) return d;
       return null;
     }
@@ -2111,6 +2694,8 @@
         toDateEl.value = '';
         fromTimeEl.value = '';
         toTimeEl.value = '';
+        resetTicketDatePickerDisplay('from');
+        resetTicketDatePickerDisplay('to');
         applyTicketFilters();
         return;
       }
@@ -2125,7 +2710,7 @@
 
       if (preset === 'today') {
         from = startOfDay(now);
-        to = now;
+        to = endOfDay(now);
       } else if (preset === 'yesterday') {
         const y = new Date(now);
         y.setDate(y.getDate() - 1);
@@ -2142,7 +2727,7 @@
         to = now;
       } else if (preset === 'this_month') {
         from = startOfMonth(now);
-        to = now;
+        to = endOfDay(now);
       } else if (preset === 'prev_month') {
         const prev = new Date(now);
         prev.setMonth(prev.getMonth() - 1);
@@ -2155,6 +2740,8 @@
         fromTimeEl.value = toTimeValue(from);
         toDateEl.value = toDateValue(to);
         toTimeEl.value = toTimeValue(to);
+        syncTicketDatePickerFromInput('from');
+        syncTicketDatePickerFromInput('to');
       }
 
       applyTicketFilters();
@@ -2171,9 +2758,11 @@
       // Converte DD/MM/YYYY para YYYY-MM-DD e combina com hora
       let fromMs = null;
       let toMs = null;
+      let fromIso = null;
+      let toIso = null;
 
       if (fromDateStr) {
-        const fromIso = dateStringBRToISO(fromDateStr);
+        fromIso = dateStringBRToISO(fromDateStr);
         if (fromIso) {
           const fromDateTime = fromTimeStr ? `${fromIso}T${fromTimeStr}` : `${fromIso}T00:00`;
           const fromDate = new Date(fromDateTime);
@@ -2182,7 +2771,7 @@
       }
 
       if (toDateStr) {
-        const toIso = dateStringBRToISO(toDateStr);
+        toIso = dateStringBRToISO(toDateStr);
         if (toIso) {
           const toDateTime = toTimeStr ? `${toIso}T${toTimeStr}` : `${toIso}T23:59`;
           const toDate = new Date(toDateTime);
@@ -2217,10 +2806,29 @@
 
         if (fromMs != null || toMs != null) {
           const d = parseDateSafe(t.updated_at);
-          if (!d) return false;
-          const ts = d.getTime();
-          if (fromMs != null && ts < fromMs) return false;
-          if (toMs != null && ts > toMs) return false;
+          if (!d) {
+            const raw = String(t.updated_at || '').trim();
+            const datePart = raw ? raw.slice(0, 10) : '';
+            let normalizedDatePart = '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+              normalizedDatePart = datePart;
+            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(datePart)) {
+              normalizedDatePart = dateStringBRToISO(datePart) || '';
+            }
+            if (normalizedDatePart && fromIso && toIso) {
+              if (normalizedDatePart < fromIso || normalizedDatePart > toIso) return false;
+            } else if (normalizedDatePart && fromIso) {
+              if (normalizedDatePart < fromIso) return false;
+            } else if (normalizedDatePart && toIso) {
+              if (normalizedDatePart > toIso) return false;
+            } else {
+              return false;
+            }
+          } else {
+            const ts = d.getTime();
+            if (fromMs != null && ts < fromMs) return false;
+            if (toMs != null && ts > toMs) return false;
+          }
         }
 
         return true;
@@ -2249,6 +2857,8 @@
       if (fromTimeEl) fromTimeEl.value = '';
       if (toDateEl) toDateEl.value = '';
       if (toTimeEl) toTimeEl.value = '';
+      resetTicketDatePickerDisplay('from');
+      resetTicketDatePickerDisplay('to');
       applyTicketFilters();
     }
 
@@ -2335,23 +2945,36 @@
           <td><span class="ticket-status status-${ticket.status}">${ticket.status.replace('_', ' ')}</span></td>
           <td>${new Date(ticket.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
           <td>
-            <select class="assign-select" onchange="assignTicket(${ticket.id}, this.value)">
-              <option value="">Atribuir...</option>
-              <option value="0" ${!ticket.seller_id ? 'selected' : ''}>Não atribuído</option>
-              ${sellers
-                .filter(s => s?.isSeller)
-                .map(s => {
-                  const numericId = getNumericIdFromComposite(s.id);
-                  const selected = (ticket.seller_id != null && numericId != null)
-                    ? Number(ticket.seller_id) === Number(numericId)
-                    : false;
-                  return `<option value="${numericId}" ${selected ? 'selected' : ''}>${s.name}</option>`;
-                })
-                .join('')}
-            </select>
+            <div class="ticket-actions">
+              <button class="btn-open-chat" type="button" onclick="openTicketConversation(${ticket.id})">Abrir conversa</button>
+              <select class="assign-select" onchange="assignTicket(${ticket.id}, this.value)">
+                <option value="">Atribuir...</option>
+                <option value="0" ${!ticket.seller_id ? 'selected' : ''}>Não atribuído</option>
+                ${sellers
+                  .filter(s => s?.isSeller)
+                  .map(s => {
+                    const numericId = getNumericIdFromComposite(s.id);
+                    const selected = (ticket.seller_id != null && numericId != null)
+                      ? Number(ticket.seller_id) === Number(numericId)
+                      : false;
+                    return `<option value="${numericId}" ${selected ? 'selected' : ''}>${s.name}</option>`;
+                  })
+                  .join('')}
+              </select>
+            </div>
           </td>
         </tr>
       `).join('');
+    }
+
+    function openTicketConversation(ticketId) {
+      const id = Number(ticketId);
+      if (!id || Number.isNaN(id)) {
+        showToast('Ticket inválido', 'error');
+        return;
+      }
+      const url = `agent.html?ticketId=${encodeURIComponent(String(id))}&from=admin`;
+      window.open(url, '_blank', 'noopener');
     }
 
     async function loadBusinessHours() {
@@ -3490,10 +4113,9 @@
     checkAuth();
     showSection('sellers');
     
-    // Inicializar input mask de data para tickets
+    // Inicializar calendário de data para filtros de tickets
     setTimeout(function() {
-      setupDateInputMask('#ticketUpdatedFrom');
-      setupDateInputMask('#ticketUpdatedTo');
+      initTicketDatePickers();
     }, 100);
 
     // ===== ALTERAR SENHA =====

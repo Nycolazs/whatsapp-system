@@ -375,6 +375,17 @@
       color: #111;
     }
 
+    .close-chat-btn {
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
     .reminder-form {
       display: none;
       grid-template-columns: 1fr;
@@ -423,7 +434,7 @@
     }
 
     .reminder-modal-card {
-      width: min(94vw, 420px);
+      width: min(94vw, 560px);
       background: #ffffff;
       border-radius: 16px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -601,17 +612,67 @@
       transform: translate(-10%, -50%);
     }
 
-    .time-picker-title {
-      display: flex;
+    .clock-picker-header {
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
+      gap: 6px;
     }
 
-    .time-picker-title .clock-icon {
+    .clock-picker-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .clock-picker-title .clock-icon {
       width: 20px;
       height: 20px;
       box-shadow: inset 0 0 0 2px #ffffff, 0 3px 8px rgba(15, 23, 42, 0.14);
+    }
+
+    .clock-time-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .clock-time-part {
+      border: 1px solid #c7d2fe;
+      background: #eef2ff;
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .clock-time-part.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
+    }
+
+    .clock-time-part:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28);
+    }
+
+    .clock-time-sep {
+      font-size: 18px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .clock-step-hint {
+      font-size: 12px;
+      color: #64748b;
     }
 
     .reminder-picker-trigger:hover {
@@ -718,51 +779,139 @@
       cursor: default;
     }
 
-    .time-columns {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+    .clock-picker-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
     }
 
-    .time-column-title {
-      font-size: 11px;
-      color: #64748b;
-      margin-bottom: 6px;
-    }
-
-    .time-list {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      max-height: 200px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-    #reminderMinuteList {
-      grid-template-columns: repeat(4, 1fr);
-    }
-
-    .time-chip {
+    .clock-face {
+      width: min(520px, 100%);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      position: relative;
+      background: radial-gradient(circle at 30% 30%, #ffffff 0%, #f1f5f9 58%, #e2e8f0 100%);
       border: 1px solid #e2e8f0;
-      background: #f8fafc;
-      border-radius: 10px;
-      font-size: 12px;
-      padding: 6px 4px;
+      box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.7), 0 12px 24px rgba(15, 23, 42, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      outline: none;
+    }
+
+    .clock-markers {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .clock-markers .clock-marker {
+      pointer-events: auto;
+    }
+
+    .clock-hand {
+      position: absolute;
+      width: 3px;
+      height: 40%;
+      background: #2563eb;
+      top: 10%;
+      left: 50%;
+      transform-origin: bottom center;
+      transform: translateX(-50%) rotate(0deg);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    .clock-center {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+    }
+
+    .clock-marker {
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid transparent;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
-      text-align: center;
+      transform: translate(-50%, -50%);
+      transition: all 0.18s ease;
+    }
+
+    .clock-marker.dot {
+      width: 12px;
+      height: 12px;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+
+    .clock-marker:hover {
+      border-color: #94a3b8;
+      background: #e2e8f0;
+    }
+
+    .clock-marker.selected {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+      box-shadow: 0 10px 18px rgba(37, 99, 235, 0.28);
+    }
+
+    .clock-marker:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.3);
+      border-color: #60a5fa;
+    }
+
+    .clock-footer {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .clock-action {
+      flex: 1;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
       transition: all 0.2s ease;
     }
 
-    .time-chip:hover {
-      border-color: #94a3b8;
-    }
-
-    .time-chip.selected {
+    .clock-action.primary {
       background: #2563eb;
       color: #fff;
       border-color: #2563eb;
-      font-weight: 600;
+    }
+
+    .clock-action:hover {
+      border-color: #94a3b8;
+    }
+
+    @media (max-width: 480px) {
+      .clock-face {
+        width: min(380px, 100%);
+      }
+
+      .clock-time-display {
+        font-size: 16px;
+      }
     }
 
     .reminder-field input:focus,
@@ -1404,6 +1553,77 @@
       font-size: 14px;
     }
 
+    .empty-state-reminders {
+      margin-top: 22px;
+      width: min(92%, 520px);
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+
+    .empty-state-reminders-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .empty-state-reminders-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 230px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .empty-reminder-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .empty-reminder-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .empty-reminder-meta {
+      font-size: 12px;
+      color: #64748b;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .empty-reminder-note,
+    .empty-reminder-message {
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .empty-reminder-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     /* Modal de Confirmação */
     .confirmation-modal {
       display: none;
@@ -1779,6 +1999,13 @@
         </svg>
         <h3>Selecione uma conversa</h3>
         <p>Escolha um ticket da lista para iniciar o atendimento</p>
+        <div class="empty-state-reminders" id="emptyReminders">
+          <div class="empty-state-reminders-header">
+            <span>⏰ Lembretes pendentes</span>
+            <button class="reminder-btn secondary" id="emptyRemindersRefreshBtn" type="button">Atualizar</button>
+          </div>
+          <div class="empty-state-reminders-list" id="emptyRemindersList"></div>
+        </div>
       </div>
 
       <div id="chatArea" style="display: none; flex: 1; flex-direction: column; min-height: 0;">
@@ -1802,6 +2029,7 @@
                 <option value="">Não atribuído</option>
               </select>
             </div>
+            <button class="close-chat-btn" id="closeConversationBtn" type="button">Fechar conversa</button>
             <select id="statusSelect">
               <option value="pendente">Pendente</option>
               <option value="aguardando">Aguardando</option>
@@ -1905,20 +2133,26 @@
           </button>
           <input type="hidden" id="reminderTime" />
           <div class="reminder-picker" id="reminderTimePicker" aria-hidden="true">
-            <div class="picker-header">
-              <div class="picker-month time-picker-title">
+            <div class="picker-header clock-picker-header">
+              <div class="clock-picker-title">
                 <span class="clock-icon" aria-hidden="true"></span>
-                Relógio
+                <div class="clock-time-display" aria-live="polite">
+                  <button type="button" class="clock-time-part" id="clockHourBtn" aria-label="Selecionar hora">00</button>
+                  <span class="clock-time-sep">:</span>
+                  <button type="button" class="clock-time-part" id="clockMinuteBtn" aria-label="Selecionar minutos">00</button>
+                </div>
               </div>
+              <div class="clock-step-hint" id="clockStepHint">Escolha a hora</div>
             </div>
-            <div class="time-columns">
-              <div class="time-column">
-                <div class="time-column-title">Hora</div>
-                <div class="time-list" id="reminderHourList"></div>
+            <div class="clock-picker-body">
+              <div class="clock-face" id="clockFace" tabindex="0" aria-label="Selecionar horário">
+                <div class="clock-markers" id="clockMarkers" aria-hidden="true"></div>
+                <div class="clock-hand" id="clockHand"></div>
+                <div class="clock-center" id="clockCenter"></div>
               </div>
-              <div class="time-column">
-                <div class="time-column-title">Min</div>
-                <div class="time-list" id="reminderMinuteList"></div>
+              <div class="clock-footer">
+                <button type="button" class="clock-action" id="clockNowBtn">Agora</button>
+                <button type="button" class="clock-action primary" id="clockConfirmBtn">Ok</button>
               </div>
             </div>
           </div>
@@ -1926,6 +2160,10 @@
         <label class="reminder-field full" data-icon="note">
           <span>Observação</span>
           <textarea id="reminderNote" rows="3" placeholder="Ex.: retomar contato sobre orçamento"></textarea>
+        </label>
+        <label class="reminder-field full" data-icon="note">
+          <span>Mensagem pronta</span>
+          <textarea id="reminderMessage" rows="3" placeholder="Mensagem que será preenchida ao abrir o lembrete"></textarea>
         </label>
         <div class="reminder-list-section">
           <div class="reminder-list-title">Lembretes agendados</div>
@@ -1948,6 +2186,9 @@
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
     const API_URL = '';
     let currentTicket = null;
+    let ticketSelectionToken = 0;
+    let ticketSelectAbortController = null;
+    let messagesAbortController = null;
     let updateInterval = null;
     let isLoadingTickets = false;
     let pendingTicketsRefresh = false;
@@ -2138,42 +2379,203 @@
       }
     }
 
-    function renderTimePicker() {
-      const hourList = document.getElementById('reminderHourList');
-      const minuteList = document.getElementById('reminderMinuteList');
-      if (!hourList || !minuteList) return;
+    const clockPickerState = { mode: 'hour' };
 
-      hourList.innerHTML = '';
-      minuteList.innerHTML = '';
+    function updateClockHeader() {
+      const hourBtn = document.getElementById('clockHourBtn');
+      const minuteBtn = document.getElementById('clockMinuteBtn');
+      const hint = document.getElementById('clockStepHint');
+      const hour = reminderPickerState.selectedHour;
+      const minute = reminderPickerState.selectedMinute;
 
-      for (let h = 0; h < 24; h++) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'time-chip';
-        btn.textContent = String(h).padStart(2, '0');
-        if (reminderPickerState.selectedHour === h) btn.classList.add('selected');
-        btn.addEventListener('click', () => {
-          reminderPickerState.selectedHour = h;
-          renderTimePicker();
-          updateTimeValue();
-        });
-        hourList.appendChild(btn);
+      if (hourBtn) hourBtn.textContent = hour != null ? String(hour).padStart(2, '0') : '--';
+      if (minuteBtn) minuteBtn.textContent = minute != null ? String(minute).padStart(2, '0') : '--';
+
+      if (hourBtn) hourBtn.classList.toggle('active', clockPickerState.mode === 'hour');
+      if (minuteBtn) minuteBtn.classList.toggle('active', clockPickerState.mode === 'minute');
+
+      if (hint) hint.textContent = clockPickerState.mode === 'hour' ? 'Escolha a hora' : 'Escolha os minutos';
+    }
+
+    function updateClockHand() {
+      const hand = document.getElementById('clockHand');
+      if (!hand) return;
+      const mode = clockPickerState.mode;
+      const value = mode === 'hour'
+        ? (reminderPickerState.selectedHour ?? 0)
+        : (reminderPickerState.selectedMinute ?? 0);
+      const max = mode === 'hour' ? 24 : 60;
+      const angle = (value / max) * 360;
+      hand.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+    }
+
+    function setClockMode(mode) {
+      clockPickerState.mode = mode;
+      updateClockHeader();
+      renderClockFace();
+    }
+
+    function selectClockValue(value) {
+      if (clockPickerState.mode === 'hour') {
+        reminderPickerState.selectedHour = value;
+        updateTimeValue();
+        setClockMode('minute');
+        const face = document.getElementById('clockFace');
+        if (face) setTimeout(() => face.focus(), 0);
+        return;
       }
 
-      for (let m = 0; m < 60; m++) {
+      reminderPickerState.selectedMinute = value;
+      updateTimeValue();
+      toggleReminderPicker(null);
+    }
+
+    function renderClockFace() {
+      const face = document.getElementById('clockFace');
+      const markers = document.getElementById('clockMarkers');
+      if (!face) return;
+
+      if (!markers) return;
+      markers.innerHTML = '';
+      face.querySelectorAll('.clock-marker').forEach(el => el.remove());
+
+      const size = face.clientWidth || face.offsetWidth || 0;
+      if (size < 50) {
+        requestAnimationFrame(renderClockFace);
+        return;
+      }
+      const mode = clockPickerState.mode;
+      const count = mode === 'hour' ? 24 : 60;
+      const baseSize = Math.floor(size * (mode === 'hour' ? 0.12 : 0.11));
+      const markerSize = Math.max(30, Math.min(40, baseSize));
+      const dotSize = Math.max(10, Math.min(14, Math.floor(markerSize * 0.32)));
+      const radius = size / 2 - markerSize / 2 - 2;
+      const center = size / 2;
+      const selected = mode === 'hour' ? reminderPickerState.selectedHour : reminderPickerState.selectedMinute;
+
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < count; i += 1) {
+        const angle = (i / count) * (Math.PI * 2) - Math.PI / 2;
+        const x = Math.round(center + radius * Math.cos(angle));
+        const y = Math.round(center + radius * Math.sin(angle));
+
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'time-chip';
-        btn.textContent = String(m).padStart(2, '0');
-        if (reminderPickerState.selectedMinute === m) btn.classList.add('selected');
-        btn.addEventListener('click', () => {
-          reminderPickerState.selectedMinute = m;
-          renderTimePicker();
-          updateTimeValue();
-          toggleReminderPicker(null);
+        btn.className = 'clock-marker';
+        const isDot = mode === 'minute' && i % 5 !== 0;
+        const finalSize = isDot ? dotSize : markerSize;
+        btn.style.width = `${finalSize}px`;
+        btn.style.height = `${finalSize}px`;
+        btn.style.left = `${x}px`;
+        btn.style.top = `${y}px`;
+        btn.style.transform = 'translate(-50%, -50%)';
+
+        if (isDot) {
+          btn.classList.add('dot');
+          btn.textContent = '•';
+        } else {
+          btn.textContent = String(i).padStart(2, '0');
+        }
+
+        btn.setAttribute('aria-label', mode === 'hour' ? `Hora ${String(i).padStart(2, '0')}` : `Minuto ${String(i).padStart(2, '0')}`);
+
+        if (selected === i) btn.classList.add('selected');
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectClockValue(i);
         });
-        minuteList.appendChild(btn);
+        fragment.appendChild(btn);
       }
+
+      markers.appendChild(fragment);
+      if (mode === 'hour') {
+        console.debug('[clock-picker] hour markers:', markers.children.length);
+      }
+
+      updateClockHand();
+    }
+
+    function handleClockKeydown(event) {
+      const mode = clockPickerState.mode;
+      const max = mode === 'hour' ? 24 : 60;
+      let current = mode === 'hour' ? reminderPickerState.selectedHour : reminderPickerState.selectedMinute;
+      if (current == null) current = 0;
+
+      let next = current;
+      if (event.key === 'ArrowRight') next = (current + 1) % max;
+      if (event.key === 'ArrowLeft') next = (current - 1 + max) % max;
+      if (event.key === 'ArrowUp') next = (current + (mode === 'hour' ? -3 : -5) + max * 10) % max;
+      if (event.key === 'ArrowDown') next = (current + (mode === 'hour' ? 3 : 5)) % max;
+      if (event.key === 'Home') next = 0;
+      if (event.key === 'End') next = max - 1;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectClockValue(current);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        toggleReminderPicker(null);
+        return;
+      }
+
+      if (next !== current) {
+        event.preventDefault();
+        if (mode === 'hour') reminderPickerState.selectedHour = next;
+        if (mode === 'minute') reminderPickerState.selectedMinute = next;
+        updateTimeValue();
+        renderClockFace();
+      }
+    }
+
+    function initClockPicker() {
+      const face = document.getElementById('clockFace');
+      const hourBtn = document.getElementById('clockHourBtn');
+      const minuteBtn = document.getElementById('clockMinuteBtn');
+      const nowBtn = document.getElementById('clockNowBtn');
+      const confirmBtn = document.getElementById('clockConfirmBtn');
+
+      if (!face) return;
+
+      if (face.dataset.clockInit !== '1') {
+        face.dataset.clockInit = '1';
+        face.addEventListener('click', (e) => e.stopPropagation());
+        face.addEventListener('keydown', handleClockKeydown);
+
+        if (hourBtn) {
+          hourBtn.addEventListener('click', () => setClockMode('hour'));
+        }
+        if (minuteBtn) {
+          minuteBtn.addEventListener('click', () => setClockMode('minute'));
+        }
+        if (nowBtn) {
+          nowBtn.addEventListener('click', () => {
+            const now = new Date();
+            reminderPickerState.selectedHour = now.getHours();
+            reminderPickerState.selectedMinute = now.getMinutes();
+            updateTimeValue();
+            setClockMode('minute');
+            toggleReminderPicker(null);
+          });
+        }
+        if (confirmBtn) {
+          confirmBtn.addEventListener('click', () => {
+            if (reminderPickerState.selectedHour == null) {
+              reminderPickerState.selectedHour = new Date().getHours();
+            }
+            if (reminderPickerState.selectedMinute == null) {
+              reminderPickerState.selectedMinute = 0;
+            }
+            updateTimeValue();
+            toggleReminderPicker(null);
+          });
+        }
+      }
+
+      updateClockHeader();
+      renderClockFace();
     }
 
     function updateTimeValue() {
@@ -2181,9 +2583,24 @@
       const display = document.getElementById('reminderTimeDisplay');
       const hour = reminderPickerState.selectedHour;
       const minute = reminderPickerState.selectedMinute;
-      if (hour == null || minute == null) return;
-      if (hidden) hidden.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-      if (display) display.textContent = formatTimeDisplay(hour, minute);
+      if (hour == null && minute == null) {
+        if (hidden) hidden.value = '';
+        if (display) display.textContent = 'Selecione a hora';
+        updateClockHeader();
+        return;
+      }
+
+      const hourLabel = hour != null ? String(hour).padStart(2, '0') : '--';
+      const minuteLabel = minute != null ? String(minute).padStart(2, '0') : '--';
+      if (display) display.textContent = `${hourLabel}:${minuteLabel}`;
+
+      if (hour != null && minute != null) {
+        if (hidden) hidden.value = `${hourLabel}:${minuteLabel}`;
+      } else if (hidden) {
+        hidden.value = '';
+      }
+
+      updateClockHeader();
     }
 
     function toggleReminderPicker(which) {
@@ -2192,6 +2609,12 @@
       reminderPickerState.open = which;
       if (datePicker) datePicker.classList.toggle('active', which === 'date');
       if (timePicker) timePicker.classList.toggle('active', which === 'time');
+      if (which === 'time') {
+        const mode = reminderPickerState.selectedHour == null ? 'hour' : 'minute';
+        setClockMode(mode);
+        const face = document.getElementById('clockFace');
+        if (face) setTimeout(() => face.focus(), 0);
+      }
     }
 
     function initReminderPickers() {
@@ -2247,7 +2670,7 @@
       });
 
       renderReminderCalendar();
-      renderTimePicker();
+      initClockPicker();
     }
 
     // Verifica autenticação via sessão
@@ -2537,26 +2960,36 @@
 
         const ticketsList = document.getElementById('ticketsList');
 
-        if (!append && !refreshTop) {
-          // Preserva scroll position ao recarregar
+        if (!append) {
+          // Reordena a lista para refletir o updated_at (mais recentes no topo)
           const scrollPos = ticketsList.scrollTop;
+          const existingNodes = new Map();
+          ticketsList.querySelectorAll('[data-ticket-id]').forEach(el => {
+            existingNodes.set(String(el.dataset.ticketId), el);
+          });
+
+          const fragment = document.createDocumentFragment();
+          tickets.forEach(ticket => {
+            const key = String(ticket.id);
+            let el = existingNodes.get(key);
+            if (el) {
+              renderTicketItem(el, ticket);
+              existingNodes.delete(key);
+            } else {
+              el = document.createElement('div');
+              renderTicketItem(el, ticket);
+            }
+            fragment.appendChild(el);
+          });
+
           ticketsList.innerHTML = '';
+          ticketsList.appendChild(fragment);
           ticketsOffset = 0;
           allTicketsLoaded = false;
-          // Restaura scroll após render (se tinha scroll antes)
+
           if (scrollPos > 0) {
             setTimeout(() => { ticketsList.scrollTop = scrollPos; }, 10);
           }
-          tickets.forEach(ticket => {
-            const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
-            if (existing) {
-              renderTicketItem(existing, ticket);
-            } else {
-              const div = document.createElement('div');
-              renderTicketItem(div, ticket);
-              ticketsList.insertBefore(div, ticketsList.firstChild);
-            }
-          });
         } else {
           for (const ticket of tickets) {
             const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
@@ -2710,10 +3143,40 @@
 
     // Seleciona ticket
     async function selectTicket(ticket) {
-      currentTicket = ticket;
-      
-      document.getElementById('emptyState').style.display = 'none';
-      document.getElementById('chatArea').style.display = 'flex';
+      const selectionToken = ++ticketSelectionToken;
+      isSelectingTicket = true;
+      try {
+        if (ticketSelectAbortController) {
+          try { ticketSelectAbortController.abort(); } catch (_) {}
+        }
+        ticketSelectAbortController = new AbortController();
+        if (messagesAbortController) {
+          try { messagesAbortController.abort(); } catch (_) {}
+        }
+        messagesAbortController = new AbortController();
+        isLoadingMessages = false;
+        pendingMessageRefresh = false;
+
+        currentTicket = ticket;
+        if (typeof currentTicket.isLatestTicket !== 'boolean') {
+          currentTicket.isLatestTicket = true;
+        }
+
+        // Garante recarregamento completo ao trocar de ticket
+        if (currentTicket && currentTicket.id != null) {
+          const tId = currentTicket.id;
+          hasLoadedMessages[tId] = false;
+          lastMessageTimestamp[tId] = null;
+          lastMessageId[tId] = 0;
+          earliestMessageTimestamp[tId] = null;
+          allHistoryLoaded[tId] = false;
+        }
+
+        resetMessageInputForTicket(currentTicket);
+        updateMessageInputState(currentTicket);
+
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('chatArea').style.display = 'flex';
       
       // Mobile: esconde lista de tickets e mostra o chat
       if (window.innerWidth <= 768) {
@@ -2733,16 +3196,18 @@
       updateTicketStatusBadge(ticket);
 
       // Histórico de tickets desse contato
-      try { 
-        await renderTicketHistory(ticket.phone, ticket.id);
+      try {
+        await renderTicketHistory(ticket.phone, ticket.id, { signal: ticketSelectAbortController.signal });
       } catch (_) {}
+      if (selectionToken !== ticketSelectionToken) return;
       
       // Detecta se é o ticket mais recente da conversa
       try {
         const cleanPhone = String(ticket.phone || '').split('@')[0];
         const res = await fetch(`${API_URL}/contacts/${encodeURIComponent(cleanPhone)}/tickets?limit=1&offset=0`, {
           credentials: 'include',
-          cache: 'no-store'
+          cache: 'no-store',
+          signal: ticketSelectAbortController.signal
         });
         if (res.ok) {
           const latestTickets = await res.json();
@@ -2753,19 +3218,12 @@
       } catch (_) {
         currentTicket.isLatestTicket = true;
       }
+      if (selectionToken !== ticketSelectionToken) return;
       
       const statusSelectEl = document.getElementById('statusSelect');
-      statusSelectEl.value = ticket.status;
-          for (const ticket of tickets) {
-            const existing = ticketsList.querySelector(`[data-ticket-id="${ticket.id}"]`);
-            if (existing) {
-              renderTicketItem(existing, ticket);
-              continue;
-            }
-            const div = document.createElement('div');
-            renderTicketItem(div, ticket);
-            ticketsList.appendChild(div);
-          }
+      if (statusSelectEl) {
+        statusSelectEl.value = ticket.status;
+      }
       // Atualiza também o custom-select visual (se existir)
       const wrapper = document.querySelector('[data-select-id="statusSelect"]');
       if (wrapper) {
@@ -2837,9 +3295,11 @@
       
       // Carrega foto de perfil no cabeçalho
       const avatarHtml = await getProfilePictureHtml(ticket.phone, 'chat');
+      if (selectionToken !== ticketSelectionToken) return;
       document.getElementById('chatAvatarContainer').innerHTML = avatarHtml;
-      
+
       await loadMessages(ticket.id);
+      if (selectionToken !== ticketSelectionToken) return;
       initMessageInfiniteScroll(document.getElementById('messagesContainer'));
 
       // Controla área de input com base no status do ticket
@@ -2848,6 +3308,28 @@
       const remindersPanel = document.getElementById('chatReminders');
       if (remindersPanel) remindersPanel.style.display = 'flex';
       await loadRemindersForTicket(ticket.id);
+      } finally {
+        if (selectionToken === ticketSelectionToken) {
+          isSelectingTicket = false;
+        }
+      }
+    }
+
+    function resetMessageInputForTicket(ticket) {
+      const messageInput = document.getElementById('messageInput');
+      const sendBtn = document.querySelector('.send-button');
+      const audioBtn = document.querySelector('.audio-button');
+      const messagesContainer = document.getElementById('messagesContainer');
+      const existingNotice = document.getElementById('oldTicketNotice');
+
+      if (messageInput) messageInput.value = '';
+      if (sendBtn) sendBtn.disabled = true;
+      if (audioBtn) audioBtn.disabled = true;
+      if (existingNotice) existingNotice.remove();
+      if (messagesContainer) {
+        messagesContainer.innerHTML = '';
+        messagesContainer.scrollTop = 0;
+      }
     }
 
     function updateMessageInputState(ticket) {
@@ -2965,19 +3447,15 @@
           }
         }
       } else {
-        // Habilita input e botões para tickets atuais/pendentes
+        const existingNotice = document.getElementById('oldTicketNotice');
+        if (existingNotice) existingNotice.remove();
         if (messageInput) {
           messageInput.disabled = false;
           messageInput.placeholder = 'Digite sua mensagem...';
         }
-        if (sendBtn) sendBtn.disabled = false;
+        if (sendBtn) sendBtn.disabled = !messageInput || !messageInput.value.trim();
         if (audioBtn) audioBtn.disabled = false;
-        
-        // Remove mensagem de histórico se existir
-        const existingNotice = document.getElementById('oldTicketNotice');
-        if (existingNotice) {
-          existingNotice.remove();
-        }
+        updateConnectionIndicator(isConnected);
       }
     }
 
@@ -3008,16 +3486,18 @@
       }
 
       list.innerHTML = items.map(rem => {
-        const isDone = rem.status === 'done';
+        const isDone = rem.status === 'done' || rem.status === 'resolvido';
         const dateLabel = formatReminderDate(rem.scheduled_at);
         const noteLabel = rem.note ? escapeHtml(rem.note) : 'Sem observação';
+        const messageLabel = rem.message ? escapeHtml(rem.message) : '';
         return `
           <div class="reminder-item" data-reminder-id="${rem.id}">
-            <div class="reminder-date">${dateLabel}${isDone ? ' • Concluído' : ''}</div>
+            <div class="reminder-date">${dateLabel}${isDone ? ' • Resolvido' : ''}</div>
             <div class="reminder-note">${noteLabel}</div>
+            ${messageLabel ? `<div class="reminder-note">💬 ${messageLabel}</div>` : ''}
             <div class="reminder-actions">
               ${!isDone ? `<button class="reminder-btn secondary" data-action="edit">Editar</button>` : ''}
-              ${!isDone ? `<button class="reminder-btn secondary" data-action="done">Concluir</button>` : ''}
+              ${!isDone ? `<button class="reminder-btn secondary" data-action="done">Resolver</button>` : ''}
               ${!isDone ? `<button class="reminder-btn secondary" data-action="cancel">Cancelar</button>` : ''}
             </div>
           </div>
@@ -3037,7 +3517,7 @@
           } else if (action === 'cancel') {
             await updateReminder(reminderId, { status: 'canceled' });
           } else if (action === 'done') {
-            await updateReminder(reminderId, { status: 'done' });
+            await updateReminder(reminderId, { status: 'resolvido' });
           }
         });
       });
@@ -3051,7 +3531,8 @@
       const dateDisplay = document.getElementById('reminderDateDisplay');
       const timeDisplay = document.getElementById('reminderTimeDisplay');
       const noteInput = document.getElementById('reminderNote');
-      if (!modal || !dateInput || !timeInput || !noteInput || !dateDisplay || !timeDisplay) return;
+      const messageInput = document.getElementById('reminderMessage');
+      if (!modal || !dateInput || !timeInput || !noteInput || !dateDisplay || !timeDisplay || !messageInput) return;
 
       reminderEditId = reminder ? reminder.id : null;
       if (reminder) {
@@ -3083,9 +3564,10 @@
         timeDisplay.textContent = 'Selecione a hora';
       }
       noteInput.value = reminder && reminder.note ? reminder.note : '';
+      messageInput.value = reminder && reminder.message ? reminder.message : '';
       modal.classList.add('active');
       renderReminderCalendar();
-      renderTimePicker();
+      initClockPicker();
       dateDisplay.focus();
     }
 
@@ -3096,10 +3578,12 @@
       const dateDisplay = document.getElementById('reminderDateDisplay');
       const timeDisplay = document.getElementById('reminderTimeDisplay');
       const noteInput = document.getElementById('reminderNote');
+      const messageInput = document.getElementById('reminderMessage');
       reminderEditId = null;
       if (dateInput) dateInput.value = '';
       if (timeInput) timeInput.value = '';
       if (noteInput) noteInput.value = '';
+      if (messageInput) messageInput.value = '';
       if (dateDisplay) dateDisplay.textContent = 'Selecione a data';
       if (timeDisplay) timeDisplay.textContent = 'Selecione a hora';
       reminderPickerState.selectedDate = null;
@@ -3114,10 +3598,12 @@
       const dateInput = document.getElementById('reminderDate');
       const timeInput = document.getElementById('reminderTime');
       const noteInput = document.getElementById('reminderNote');
+      const messageInput = document.getElementById('reminderMessage');
       const dateValue = dateInput ? dateInput.value : '';
       const timeValue = timeInput ? timeInput.value : '';
       const scheduled_at = dateValue && timeValue ? `${dateValue}T${timeValue}` : '';
       const note = noteInput ? noteInput.value.trim() : '';
+      const message = messageInput ? messageInput.value.trim() : '';
 
       if (!scheduled_at) {
         showToast('Informe data e hora do lembrete', 'warning');
@@ -3126,13 +3612,13 @@
 
       try {
         if (reminderEditId) {
-          await updateReminder(reminderEditId, { scheduled_at, note });
+          await updateReminder(reminderEditId, { scheduled_at, note, message });
         } else {
           const response = await fetch(`${API_URL}/tickets/${currentTicket.id}/reminders`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ scheduled_at, note })
+            body: JSON.stringify({ scheduled_at, note, message })
           });
           if (!response.ok) {
             const error = await response.json().catch(() => ({}));
@@ -3142,6 +3628,7 @@
 
         closeReminderForm();
         await loadRemindersForTicket(currentTicket.id);
+        await loadEmptyStateReminders();
         showToast('Lembrete salvo com sucesso', 'success');
       } catch (error) {
         showToast(error.message || 'Erro ao salvar lembrete', 'error');
@@ -3160,7 +3647,10 @@
           const error = await response.json().catch(() => ({}));
           throw new Error(error.error || 'Erro ao atualizar lembrete');
         }
-        await loadRemindersForTicket(currentTicket.id);
+        if (currentTicket) {
+          await loadRemindersForTicket(currentTicket.id);
+        }
+        await loadEmptyStateReminders();
       } catch (error) {
         showToast(error.message || 'Erro ao atualizar lembrete', 'error');
       }
@@ -3179,7 +3669,163 @@
       } catch (_) {}
     }
 
-    async function openTicketById(ticketId) {
+    function isReminderDue(reminder) {
+      const scheduled = parseUtcDateTime(reminder?.scheduled_at);
+      if (!scheduled) return false;
+      return scheduled.getTime() <= Date.now();
+    }
+
+    function prefillMessage(text) {
+      const messageInput = document.getElementById('messageInput');
+      if (!messageInput || !text) return;
+      messageInput.value = text;
+      messageInput.focus();
+    }
+
+    function buildEmptyReminderHtml(rem, badgeLabel) {
+      const name = escapeHtml(rem.contact_name || rem.phone || 'Contato');
+      const when = formatReminderDate(rem.scheduled_at);
+      const note = rem.note ? escapeHtml(rem.note) : 'Sem observação';
+      const message = rem.message ? escapeHtml(rem.message) : '';
+      return `
+        <div class="empty-reminder-item" data-reminder-id="${rem.id}" data-ticket-id="${rem.ticket_id}">
+          <div class="empty-reminder-title">${name}</div>
+          <div class="empty-reminder-meta">
+            <span>${when}</span>
+            <span>• ${badgeLabel}</span>
+          </div>
+          <div class="empty-reminder-note">${note}</div>
+          ${message ? `<div class="empty-reminder-message">💬 ${message}</div>` : ''}
+          <div class="empty-reminder-actions">
+            <button class="reminder-btn" data-action="open">Abrir conversa</button>
+            <button class="reminder-btn secondary" data-action="edit">Editar</button>
+            ${badgeLabel === 'Vencido' ? `<button class="reminder-btn secondary" data-action="resolved">Resolver</button>` : ''}
+            <button class="reminder-btn secondary" data-action="cancel">Cancelar</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEmptyStateReminders({ dueItems = [], futureItems = [] }) {
+      const panel = document.getElementById('emptyReminders');
+      const list = document.getElementById('emptyRemindersList');
+      if (!panel || !list) return;
+
+      const hasDue = Array.isArray(dueItems) && dueItems.length > 0;
+      const hasFuture = Array.isArray(futureItems) && futureItems.length > 0;
+
+      if (!hasDue && !hasFuture) {
+        panel.style.display = 'none';
+        list.innerHTML = '';
+        return;
+      }
+
+      panel.style.display = 'flex';
+      const dueHtml = hasDue
+        ? `
+          <div class="reminder-list-title">Vencidos</div>
+          ${dueItems.map(rem => buildEmptyReminderHtml(rem, 'Vencido')).join('')}
+        `
+        : '';
+      const futureHtml = hasFuture
+        ? `
+          <div class="reminder-list-title">Agendados</div>
+          ${futureItems.map(rem => buildEmptyReminderHtml(rem, 'Agendado')).join('')}
+        `
+        : '';
+
+      list.innerHTML = `${dueHtml}${futureHtml}`;
+
+      list.querySelectorAll('[data-action]')?.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const action = e.currentTarget.dataset.action;
+          const item = e.currentTarget.closest('.empty-reminder-item');
+          if (!item) return;
+          const reminderId = item.dataset.reminderId;
+          const ticketId = item.dataset.ticketId;
+          const allItems = [...(dueItems || []), ...(futureItems || [])];
+          const reminder = allItems.find(r => String(r.id) === String(reminderId));
+          const reminderMessage = reminder && reminder.message ? reminder.message : '';
+
+          if (action === 'open') {
+            await openTicketById(ticketId, reminderMessage);
+            return;
+          }
+
+          if (action === 'edit' && reminder) {
+            openReminderForm(reminder);
+            return;
+          }
+
+          if (action === 'resolved') {
+            await updateReminder(reminderId, { status: 'resolvido' });
+            return;
+          }
+
+          if (action === 'cancel') {
+            await updateReminder(reminderId, { status: 'canceled' });
+          }
+        });
+      });
+    }
+
+    async function loadEmptyStateReminders() {
+      const panel = document.getElementById('emptyReminders');
+      const list = document.getElementById('emptyRemindersList');
+      if (!panel || !list) return;
+
+      try {
+        const [pendingRes, upcomingRes] = await Promise.all([
+          fetch(`${API_URL}/reminders/pending`, {
+            credentials: 'include',
+            cache: 'no-store'
+          }),
+          fetch(`${API_URL}/reminders/upcoming?withinHours=720`, {
+            credentials: 'include',
+            cache: 'no-store'
+          })
+        ]);
+
+        if (!pendingRes.ok || !upcomingRes.ok) throw new Error('Erro ao carregar lembretes pendentes');
+        const pendingData = await pendingRes.json();
+        const upcomingData = await upcomingRes.json();
+
+        const pendingItems = Array.isArray(pendingData) ? pendingData : [];
+        const upcomingItems = Array.isArray(upcomingData) ? upcomingData : [];
+
+        const byId = new Map();
+        pendingItems.forEach(item => { if (item && item.id != null) byId.set(String(item.id), item); });
+        upcomingItems.forEach(item => { if (item && item.id != null) byId.set(String(item.id), item); });
+
+        const allItems = Array.from(byId.values()).filter(r => r && r.status === 'scheduled');
+        const dueItems = allItems.filter(isReminderDue).sort((a, b) => {
+          const da = parseUtcDateTime(a.scheduled_at)?.getTime() || 0;
+          const db = parseUtcDateTime(b.scheduled_at)?.getTime() || 0;
+          return da - db;
+        });
+        const futureItems = allItems.filter(r => !isReminderDue(r)).sort((a, b) => {
+          const da = parseUtcDateTime(a.scheduled_at)?.getTime() || 0;
+          const db = parseUtcDateTime(b.scheduled_at)?.getTime() || 0;
+          return da - db;
+        });
+
+        renderEmptyStateReminders({ dueItems, futureItems });
+      } catch (_) {
+        renderEmptyStateReminders({ dueItems: [], futureItems: [] });
+      }
+    }
+
+    function bindEmptyStateActions() {
+      const emptyRemindersRefreshBtn = document.getElementById('emptyRemindersRefreshBtn');
+      if (emptyRemindersRefreshBtn && !emptyRemindersRefreshBtn.dataset.bound) {
+        emptyRemindersRefreshBtn.dataset.bound = '1';
+        emptyRemindersRefreshBtn.addEventListener('click', () => {
+          loadEmptyStateReminders();
+        });
+      }
+    }
+
+    async function openTicketById(ticketId, prefillText = '') {
       const id = String(ticketId);
       let ticket = null;
       if (window.latestTickets && Array.isArray(window.latestTickets)) {
@@ -3193,7 +3839,31 @@
       }
       if (ticket) {
         await selectTicket(ticket);
+        if (prefillText) {
+          prefillMessage(prefillText);
+        }
       }
+    }
+
+    async function openTicketFromUrl() {
+      let params = null;
+      try {
+        params = new URLSearchParams(window.location.search || '');
+      } catch (_) {
+        return;
+      }
+      const ticketId = params.get('ticketId');
+      if (!ticketId) return;
+      try {
+        await openTicketById(ticketId);
+      } catch (_) {
+        showToast('Não foi possível abrir este ticket', 'error');
+      }
+      params.delete('ticketId');
+      params.delete('from');
+      const newSearch = params.toString();
+      const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash || ''}`;
+      try { window.history.replaceState({}, '', newUrl); } catch (_) {}
     }
 
     function showReminderNotification(reminder) {
@@ -3202,12 +3872,14 @@
       const name = reminder.contact_name || reminder.phone || 'Contato';
       const when = formatReminderDate(reminder.scheduled_at);
       const note = reminder.note ? escapeHtml(reminder.note) : 'Sem observação';
+      const message = reminder.message ? escapeHtml(reminder.message) : '';
       toast.innerHTML = `
         <div class="custom-toast-icon">⏰</div>
         <div class="custom-toast-message">
           <div style="font-weight: 600; margin-bottom: 4px;">Lembrete: ${name}</div>
           <div style="font-size: 12px; color: #667781;">${when}</div>
           <div style="font-size: 12px; color: #374151; margin-top: 6px;">${note}</div>
+          ${message ? `<div style="font-size: 12px; color: #374151; margin-top: 6px;">💬 ${message}</div>` : ''}
           <button class="reminder-btn" data-action="open" style="margin-top: 8px;">Abrir conversa</button>
         </div>
         <button class="custom-toast-close" data-role="close-toast">×</button>
@@ -3218,7 +3890,7 @@
       const openBtn = toast.querySelector('[data-action="open"]');
       if (openBtn) {
         openBtn.addEventListener('click', async () => {
-          await openTicketById(reminder.ticket_id);
+          await openTicketById(reminder.ticket_id, reminder.message || '');
           toast.remove();
         });
       }
@@ -3229,7 +3901,7 @@
       }, 7000);
     }
 
-    async function renderTicketHistory(phone, activeTicketId) {
+    async function renderTicketHistory(phone, activeTicketId, options = {}) {
       const container = document.getElementById('ticketHistory');
       if (!container) return;
 
@@ -3256,7 +3928,8 @@
       } else {
         const res = await fetch(`${API_URL}/contacts/${encodeURIComponent(cleanPhone)}/tickets?limit=20&offset=0`, {
           credentials: 'include',
-          cache: 'no-store'
+          cache: 'no-store',
+          signal: options.signal
         });
         if (!res.ok) {
           container.style.display = 'none';
@@ -3319,19 +3992,9 @@
           }
 
           try {
-            currentTicket = selected;
-            const displayName = selected.contact_name || selected.phone;
-            document.getElementById('currentPhone').textContent = displayName;
-            if (selected.contact_name) {
-              document.getElementById('currentStatus').textContent = selected.phone;
-            } else {
-              document.getElementById('currentStatus').textContent = '';
-            }
-
-            // Recarrega o histórico com o novo ticket ativo
-            try { await renderTicketHistory(selected.phone, selected.id); } catch (_) {}
-            try { updateHeaderFromTicket(selected); } catch (_) {}
-            await loadMessages(selected.id);
+            const isLatest = Array.isArray(tickets) && tickets.length > 0 && String(tickets[0].id) === String(selected.id);
+            selected.isLatestTicket = isLatest;
+            await selectTicket(selected);
             showToast('Abrindo histórico do contato', 'info');
           } finally {
             nav.inFlight = false;
@@ -3438,17 +4101,32 @@
     let lastMessageTimestamp = {}; // Armazena timestamp da última mensagem por ticket
     let lastMessageId = {}; // Cursor por id para evitar perda de mensagens no mesmo segundo
     let isLoadingMessages = false;
+    let loadingMessagesForTicketId = null;
     let hasLoadedMessages = {};
     let pendingMessageRefresh = false;
+    let isSelectingTicket = false;
 
     // Carrega mensagens
     async function loadMessages(ticketId, isAutoRefresh = false, loadOlder = false) {
       if (isLoadingMessages) {
-        if (isAutoRefresh) pendingMessageRefresh = true;
-        return;
+        if (!isAutoRefresh && loadingMessagesForTicketId && String(loadingMessagesForTicketId) !== String(ticketId)) {
+          try { if (messagesAbortController) messagesAbortController.abort(); } catch (_) {}
+          isLoadingMessages = false;
+          pendingMessageRefresh = false;
+        } else {
+          if (isAutoRefresh) pendingMessageRefresh = true;
+          return;
+        }
       }
       isLoadingMessages = true;
+      loadingMessagesForTicketId = ticketId;
       try {
+        const tokenAtStart = ticketSelectionToken;
+        if (currentTicket && String(currentTicket.id) !== String(ticketId)) {
+          isLoadingMessages = false;
+          return;
+        }
+        const abortSignal = messagesAbortController ? messagesAbortController.signal : undefined;
         const container = document.getElementById('messagesContainer');
         
         const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
@@ -3472,6 +4150,7 @@
             credentials: 'include',
             cache: 'no-store',
             maxRetries: 1,
+            signal: abortSignal,
           });
           if (!messages.length) {
             isLoadingMessages = false;
@@ -3495,6 +4174,7 @@
             credentials: 'include',
             cache: 'no-store',
             maxRetries: 1,
+            signal: abortSignal,
           });
           if (!messages.length) {
             allHistoryLoaded[ticketId] = true;
@@ -3510,6 +4190,7 @@
             credentials: 'include',
             cache: 'no-store',
             maxRetries: 1,
+            signal: abortSignal,
           });
           container.innerHTML = '';
           lastMessageCount[ticketId] = 0;
@@ -3517,6 +4198,11 @@
           allHistoryLoaded[ticketId] = false;
           earliestMessageTimestamp[ticketId] = null;
           lastMessageId[ticketId] = 0;
+        }
+
+        if (tokenAtStart !== ticketSelectionToken || (currentTicket && String(currentTicket.id) !== String(ticketId))) {
+          isLoadingMessages = false;
+          return;
         }
 
         let newCursor = lastMessageTimestamp[ticketId] || null;
@@ -3726,6 +4412,7 @@
         // Erro ao carregar mensagens
       } finally {
         isLoadingMessages = false;
+        loadingMessagesForTicketId = null;
         if (pendingMessageRefresh) {
           pendingMessageRefresh = false;
           loadMessages(ticketId, true);
@@ -4161,6 +4848,9 @@
       const backBtn = document.getElementById('backToTicketsBtn');
       if (backBtn) backBtn.addEventListener('click', backToTicketList);
 
+      const closeConversationBtn = document.getElementById('closeConversationBtn');
+      if (closeConversationBtn) closeConversationBtn.addEventListener('click', closeCurrentConversation);
+
       const sellerSelect = document.getElementById('sellerSelect');
       if (sellerSelect) sellerSelect.addEventListener('change', assignTicketToSeller);
 
@@ -4360,6 +5050,8 @@
             // Restaura o estado vazio original após 2 segundos
             setTimeout(() => {
               emptyState.innerHTML = originalContent;
+              bindEmptyStateActions();
+              loadEmptyStateReminders();
             }, 2000);
 
             // Recarrega a lista de tickets (sem filtrar resolvidos/encerrados)
@@ -4402,16 +5094,36 @@
       document.querySelector('.tickets-panel').classList.remove('hide-mobile');
     }
 
+    function closeCurrentConversation() {
+      currentTicket = null;
+      document.getElementById('emptyState').style.display = 'flex';
+      document.getElementById('chatArea').style.display = 'none';
+      updateTicketStatusBadge(null);
+      const statusEl = document.getElementById('currentStatus');
+      if (statusEl) statusEl.textContent = '';
+      const remindersPanel = document.getElementById('chatReminders');
+      if (remindersPanel) remindersPanel.style.display = 'none';
+      try { backToTicketList(); } catch (_) {}
+      bindEmptyStateActions();
+      loadEmptyStateReminders();
+    }
+
     // Auto-refresh mais agressivo
     (async function init() {
       await checkAuth(); // Verifica autenticação primeiro e aguarda
       checkConnectionStatus(); // Verifica conexão ao carregar
       await loadTickets(); // Agora userType já está definido
+      await openTicketFromUrl();
       initTicketsInfiniteScroll();
+      bindEmptyStateActions();
 
       if (!reminderPollTimer) {
         checkDueReminders();
-        reminderPollTimer = setInterval(checkDueReminders, 60000);
+        loadEmptyStateReminders();
+        reminderPollTimer = setInterval(() => {
+          checkDueReminders();
+          loadEmptyStateReminders();
+        }, 60000);
       }
 
       // Garante que mudanças no select de status sempre acionem a função
@@ -4483,6 +5195,10 @@
         if (messagesPollId) clearTimeout(messagesPollId);
         messagesPollId = setTimeout(async () => {
           try {
+            if (isSelectingTicket) {
+              scheduleMessagesPoll(650);
+              return;
+            }
             if (currentTicket && hasLoadedMessages[currentTicket.id]) {
               await loadMessages(currentTicket.id, true);
             }

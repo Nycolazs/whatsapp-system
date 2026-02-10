@@ -290,18 +290,29 @@ function shouldSendOutOfHours(phoneNumber, now) {
   }
 }
 
+function isLidJid(value) {
+  if (!value) return false;
+  return String(value).trim().endsWith('@lid');
+}
+
 function normalizePhoneFromMessage(msg) {
   const jid = msg?.key?.remoteJid || '';
   const senderPn = msg?.key?.senderPn || '';
+  const participant = msg?.key?.participant || '';
 
-  if (jid.includes('@lid') && !senderPn) {
-    return jid;
+  const candidates = [senderPn, participant, jid].filter(Boolean);
+  let digits = null;
+
+  for (const value of candidates) {
+    if (isLidJid(value)) continue;
+    const raw = String(value).split('@')[0];
+    if (!raw) continue;
+    const onlyDigits = raw.replace(/\D/g, '');
+    if (!onlyDigits) continue;
+    digits = onlyDigits;
+    break;
   }
 
-  const raw = (senderPn || jid).split('@')[0];
-  if (!raw) return null;
-
-  const digits = raw.replace(/\D/g, '');
   if (!digits) return null;
 
   let normalized = digits;
@@ -490,9 +501,9 @@ async function startBot() {
 
         const jid = msg.key.remoteJid
         if (!jid || jid.includes('@g.us') || jid.includes('status@broadcast')) return
-
         const phoneNumber = normalizePhoneFromMessage(msg)
         if (!phoneNumber) return
+        const sendJid = (isLidJid(jid) && phoneNumber) ? `${phoneNumber}@s.whatsapp.net` : jid
 
       // RESPOSTA AUTOMÁTICA SUPER RÁPIDA - Envia PRIMEIRO, processa depois
       const now = new Date()
@@ -508,7 +519,7 @@ async function startBot() {
               if (shouldSendOutOfHours(phoneNumber, now)) {
                 const outOfHoursMessage = getOutOfHoursMessage()
                 if (outOfHoursMessage) {
-                  sock.sendMessage(jid, { text: outOfHoursMessage }).catch(err => {
+                  sock.sendMessage(sendJid, { text: outOfHoursMessage }).catch(err => {
                     logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
                   })
                 }
@@ -705,7 +716,7 @@ async function startBot() {
             if (blacklistEntry) {
               const welcomeMessage = getWelcomeMessage()
               if (welcomeMessage) {
-                sock.sendMessage(jid, { text: welcomeMessage }).then(() => {
+                sock.sendMessage(sendJid, { text: welcomeMessage }).then(() => {
                   // Registra a mensagem de boas-vindas no banco como mensagem do sistema
                   try {
                     db.prepare(`

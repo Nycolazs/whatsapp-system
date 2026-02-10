@@ -24,7 +24,7 @@ function configurePragmas(db) {
 }
 
 function initSchema(db) {
-  // Limpa tickets inválidos (ex.: @lid ou não iniciado com 55)
+  // Limpa tickets inválidos (ex.: jids como @lid ou não iniciado com 55)
   try {
     db.exec(`
       BEGIN TRANSACTION;
@@ -32,12 +32,12 @@ function initSchema(db) {
       DELETE FROM messages
       WHERE ticket_id IN (
         SELECT id FROM tickets
-        WHERE (phone LIKE '%@%' AND phone NOT LIKE '%@lid')
+        WHERE (phone LIKE '%@%')
           OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'))
       );
 
       DELETE FROM tickets
-      WHERE (phone LIKE '%@%' AND phone NOT LIKE '%@lid')
+      WHERE (phone LIKE '%@%')
         OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'));
 
       COMMIT;
@@ -163,6 +163,7 @@ function initSchema(db) {
       ticket_id INTEGER NOT NULL,
       seller_id INTEGER NOT NULL,
       note TEXT,
+      message TEXT,
       scheduled_at DATETIME NOT NULL,
       status TEXT DEFAULT 'scheduled',
       notified_at DATETIME,
@@ -179,6 +180,7 @@ function initSchema(db) {
   try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN notified_at DATETIME').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN created_by_user_id INTEGER').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
   try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN created_by_type TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
+  try { db.prepare('ALTER TABLE ticket_reminders ADD COLUMN message TEXT').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }
 
   // Migração: Adiciona colunas se não existirem
   try { db.prepare('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "text"').run(); } catch (err) { if (!String(err.message || '').includes('duplicate column')) {} }

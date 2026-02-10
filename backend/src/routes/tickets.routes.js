@@ -121,7 +121,6 @@ function createTicketsRouter({
         ON m.ticket_id = t.id
        AND m.sender = 'client'
       WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
-        OR t.phone LIKE '%@lid'
       GROUP BY t.id
       ORDER BY t.updated_at DESC
       LIMIT ? OFFSET ?
@@ -216,7 +215,7 @@ function createTicketsRouter({
     auditMiddleware('create-reminder'),
     (req, res) => {
       const { id } = req.params;
-      const { scheduled_at, note } = req.body;
+      const { scheduled_at, note, message } = req.body;
 
       try {
         const ticket = db.prepare('SELECT id, seller_id FROM tickets WHERE id = ?').get(id);
@@ -235,9 +234,9 @@ function createTicketsRouter({
 
         const info = db.prepare(
           `INSERT INTO ticket_reminders
-            (ticket_id, seller_id, note, scheduled_at, status, created_by_user_id, created_by_type, updated_at)
-           VALUES (?, ?, ?, ?, 'scheduled', ?, ?, CURRENT_TIMESTAMP)`
-        ).run(id, ticket.seller_id, note || null, scheduledAt, req.userId, req.userType);
+            (ticket_id, seller_id, note, message, scheduled_at, status, created_by_user_id, created_by_type, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, CURRENT_TIMESTAMP)`
+        ).run(id, ticket.seller_id, note || null, message || null, scheduledAt, req.userId, req.userType);
 
         const reminder = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(info.lastInsertRowid);
         return res.status(201).json(reminder);
@@ -278,7 +277,7 @@ function createTicketsRouter({
     auditMiddleware('update-reminder'),
     (req, res) => {
       const { id } = req.params;
-      const { scheduled_at, note, status } = req.body;
+      const { scheduled_at, note, status, message } = req.body;
 
       try {
         const reminder = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(id);
@@ -297,10 +296,11 @@ function createTicketsRouter({
 
         const nextNote = note !== undefined ? note : reminder.note;
         const nextStatus = status || reminder.status;
+        const nextMessage = message !== undefined ? message : reminder.message;
 
         db.prepare(
-          'UPDATE ticket_reminders SET note = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        ).run(nextNote || null, scheduledAt, nextStatus, id);
+          'UPDATE ticket_reminders SET note = ?, message = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(nextNote || null, nextMessage || null, scheduledAt, nextStatus, id);
 
         const updated = db.prepare('SELECT * FROM ticket_reminders WHERE id = ?').get(id);
         return res.json(updated);
@@ -361,6 +361,28 @@ function createTicketsRouter({
       return res.json(due);
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao buscar lembretes vencidos' });
+    }
+  });
+
+  // Lembretes pendentes (vencidos) - não marca notified_at
+  router.get('/reminders/pending', requireAuth, (req, res) => {
+    const sellerId = req.userType === 'seller' ? req.userId : resolveAssignIdForUser(req);
+    if (!sellerId) return res.json([]);
+
+    try {
+      const pending = db.prepare(
+        `SELECT r.*, t.phone, t.contact_name
+         FROM ticket_reminders r
+         JOIN tickets t ON t.id = r.ticket_id
+         WHERE r.seller_id = ?
+           AND r.status = 'scheduled'
+           AND r.scheduled_at <= datetime('now')
+         ORDER BY r.scheduled_at ASC`
+      ).all(sellerId);
+
+      return res.json(pending);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Erro ao buscar lembretes pendentes' });
     }
   });
 
@@ -656,8 +678,10 @@ function createTicketsRouter({
           const sock = getSocket();
           if (sock) {
             const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
-            await sock.sendMessage(jid, {
-              text: '✅ Seu atendimento foi encerrado. Obrigado por entrar em contato! Se precisar de ajuda novamente, é só enviar uma mensagem.',
+            setImmediate(() => {
+              sock.sendMessage(jid, {
+                text: '✅ Seu atendimento foi encerrado. Obrigado por entrar em contato! Se precisar de ajuda novamente, é só enviar uma mensagem.',
+              }).catch(() => {});
             });
           }
         } catch (_e) {
@@ -667,8 +691,6 @@ function createTicketsRouter({
 
       if (status === 'aguardando') {
         db.prepare('UPDATE tickets SET status = ?, seller_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
-        // Ao liberar o ticket, cancela lembretes pendentes
-        db.prepare("UPDATE ticket_reminders SET status = 'canceled', updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(id);
       } else if (status === 'em_atendimento') {
         // Quando alguém marca como 'em_atendimento', atribui ao usuário.
         // - Se for seller, usa req.userId
@@ -704,10 +726,6 @@ function createTicketsRouter({
         }
       } else {
         db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
-      }
-
-      if (status === 'resolvido' || status === 'encerrado') {
-        db.prepare("UPDATE ticket_reminders SET status = 'canceled', updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(id);
       }
 
       if (previousStatus && previousStatus !== status) {
@@ -802,8 +820,7 @@ function createTicketsRouter({
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
         WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
           ${includeClosed ? '' : "AND t.status != 'resolvido' AND t.status != 'encerrado'"}
-          AND ((t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
-            OR t.phone LIKE '%@lid')
+          AND (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?
@@ -829,7 +846,7 @@ function createTicketsRouter({
         FROM tickets t
         LEFT JOIN sellers s ON t.seller_id = s.id
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
-        ${includeAll ? '' : "WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15) OR t.phone LIKE '%@lid'"}
+        ${includeAll ? '' : "WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)"}
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?

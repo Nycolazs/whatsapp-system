@@ -41,12 +41,14 @@ const assignTicketSchema = z.object({
 const reminderCreateSchema = z.object({
   scheduled_at: z.string().min(5, 'Data/hora é obrigatória'),
   note: z.string().max(1000, 'Observação muito longa').optional().nullable(),
+  message: z.string().max(10000, 'Mensagem muito longa').optional().nullable(),
 });
 
 const reminderUpdateSchema = z.object({
   scheduled_at: z.string().min(5).optional(),
   note: z.string().max(1000, 'Observação muito longa').optional().nullable(),
-  status: z.enum(['scheduled', 'canceled', 'done']).optional(),
+  message: z.string().max(10000, 'Mensagem muito longa').optional().nullable(),
+  status: z.enum(['scheduled', 'canceled', 'done', 'resolvido']).optional(),
 });
 
 // Schema para blacklist
