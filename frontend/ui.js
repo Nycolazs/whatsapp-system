@@ -2,6 +2,15 @@
 (function () {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+  function resolveApiUrl(input) {
+    if (!input || typeof input !== 'string') return input;
+    const base = (window.API_BASE || '').trim();
+    if (!base) return input;
+    if (/^https?:\/\//i.test(input)) return input;
+    if (input.startsWith('/')) return `${base}${input}`;
+    return `${base}/${input}`;
+  }
+
   // Global fetch wrapper for large-scale usage:
   // - backs off on 429
   // - shares cooldown across the tab
@@ -47,7 +56,7 @@
         await sleep(_cooldownUntilMs - now);
       }
 
-      const res = await fetch(url, opts);
+      const res = await fetch(resolveApiUrl(url), opts);
       if (res.status !== 429) return res;
 
       const baseWait = parseRateLimitWaitMs(res);
@@ -109,10 +118,33 @@
     }
   }
 
+  function resolveAppUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    if (/^https?:\/\//i.test(url) || url.startsWith('ws://') || url.startsWith('wss://')) return url;
+
+    const pathOnly = url.split('?')[0].split('#')[0];
+    const last = pathOnly.split('/').pop() || '';
+    const hasExtension = last.includes('.');
+
+    if (hasExtension || !pathOnly.startsWith('/')) return url;
+
+    const routeMap = {
+      '/': '/index.html',
+      '/login': '/index.html',
+      '/agent': '/agent.html',
+      '/admin-sellers': '/admin-sellers.html',
+      '/whatsapp-qr': '/whatsapp-qr.html',
+      '/setup-admin': '/setup-admin.html',
+    };
+
+    return routeMap[pathOnly] || url;
+  }
+
   function navigateTo(url) {
+    const target = resolveAppUrl(url);
     document.body.classList.remove('enter');
     document.body.classList.add('leave');
-    setTimeout(() => { window.location.href = url; }, 300);
+    setTimeout(() => { window.location.href = target; }, 300);
   }
 
   // Initialize page transition (run immediately if DOMContentLoaded already fired)
@@ -130,6 +162,7 @@
 
   // Expose globally
   window.showNotification = showNotification;
+  window.resolveAppUrl = resolveAppUrl;
   window.navigateTo = navigateTo;
   window.ensureConnected = async function ensureConnected() {
     async function fetchQrState() {

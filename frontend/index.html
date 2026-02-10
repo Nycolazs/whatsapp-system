@@ -186,10 +186,11 @@
 
   </div>
 
+  <script src="/config.js"></script>
   <script src="/ui.js"></script>
   <script>
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
-    const API_URL = '';
+    const API_URL = window.API_BASE || '';
 
     // Helper para formatar mensagens de erro com detalhes
     function formatErrorMessage(data) {
@@ -224,7 +225,7 @@
       loginBtn.textContent = 'Aguarde...';
 
       try {
-        const response = await fetch('/auth/login', {
+        const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // Importante para cookies de sessão

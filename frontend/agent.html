@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Não forçar downgrade para HTTP: áudio (microfone) exige contexto seguro (HTTPS) fora do localhost. -->
+  <script src="/config.js"></script>
   <script src="/ui.js"></script>
   <title>Atendimento - WhatsApp System</title>
   <style>
@@ -2184,7 +2185,7 @@
 
   <script>
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
-    const API_URL = '';
+    const API_URL = window.API_BASE || '';
     let currentTicket = null;
     let ticketSelectionToken = 0;
     let ticketSelectAbortController = null;
@@ -5222,7 +5223,11 @@
         }
       });
 
-      // Realtime: SSE para mensagens/tickets (mantém polling como fallback)
+      // Realtime: WebSocket (fallback para SSE)
+      let ws = null;
+      let wsReconnectTimer = null;
+      let wsRetry = 0;
+      let useSseFallback = false;
       let sse = null;
       let sseReconnectTimer = null;
       let sseRetry = 0;
@@ -5248,11 +5253,23 @@
         realtimeRefreshTickets();
       }
 
+      function getWsUrl() {
+        const base = (window.API_BASE || '').trim();
+        if (base) {
+          const wsBase = base.replace(/^http/i, 'ws');
+          return new URL('/ws', wsBase).toString();
+        }
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${proto}//${window.location.host}/ws`;
+      }
+
       function connectSse() {
         try { if (sse) sse.close(); } catch (_) {}
         sse = null;
 
-        const source = new EventSource('/events', { withCredentials: true });
+        const base = (window.API_BASE || '').trim();
+        const eventsUrl = base ? new URL('/events', base).toString() : '/events';
+        const source = new EventSource(eventsUrl, { withCredentials: true });
         sse = source;
 
         source.addEventListener('message', (ev) => {
@@ -5274,7 +5291,50 @@
         };
       }
 
-      connectSse();
+      function connectWs() {
+        if (!('WebSocket' in window)) {
+          useSseFallback = true;
+          connectSse();
+          return;
+        }
+
+        try { if (ws) ws.close(); } catch (_) {}
+        ws = null;
+
+        const socket = new WebSocket(getWsUrl());
+        ws = socket;
+
+        socket.onopen = () => {
+          wsRetry = 0;
+        };
+
+        socket.onmessage = (ev) => {
+          try {
+            const payload = JSON.parse(ev.data || '{}');
+            if (payload.type === 'message') handleRealtimeMessage(payload.data);
+            if (payload.type === 'ticket') handleRealtimeTicket(payload.data);
+          } catch (_) {}
+        };
+
+        socket.onerror = () => {
+          try { socket.close(); } catch (_) {}
+        };
+
+        socket.onclose = () => {
+          ws = null;
+          if (useSseFallback) return;
+          const delay = Math.min(15000, 1000 * Math.pow(2, wsRetry++));
+          if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+          if (wsRetry >= 3) {
+            useSseFallback = true;
+            connectSse();
+            return;
+          }
+          wsReconnectTimer = setTimeout(connectWs, delay);
+        };
+      }
+
+      connectWs();
     })();
 
     // Use shared showNotification (ui.js). Provide fallback if missing.

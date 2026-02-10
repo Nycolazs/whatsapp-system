@@ -1625,6 +1625,7 @@
 </head>
 <body>
   <div class="container">
+  <script src="/config.js"></script>
   <script src="/ui.js"></script>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
@@ -2006,6 +2007,22 @@
     </div>
   </div>
 
+  <!-- Modal de Desconectar WhatsApp -->
+  <div class="modal" id="disconnectModal">
+    <div class="modal-content">
+      <div class="modal-header">Desconectar WhatsApp</div>
+      <p style="margin-bottom: 16px; color: #667781; font-size: 14px;">Deseja desconectar o WhatsApp desta conta?</p>
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 13px; color: #111;">
+        <input type="checkbox" id="disconnectDeleteDb" />
+        Apagar banco de dados deste número
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn-modal btn-cancel" onclick="closeDisconnectModal()">Cancelar</button>
+        <button type="button" class="btn-modal btn-save" onclick="confirmDisconnectWhatsApp()">Desconectar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de Alterar Senha -->
   <div class="modal" id="changePasswordModal">
     <div class="modal-content">
@@ -2043,7 +2060,7 @@
 
   <script>
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
-    const API_URL = '';
+    const API_URL = window.API_BASE || '';
 
     // Helper para formatar mensagens de erro com detalhes
     function formatErrorMessage(data) {
@@ -2433,28 +2450,48 @@
       }
     }
 
+    function openDisconnectModal() {
+      const modal = document.getElementById('disconnectModal');
+      const checkbox = document.getElementById('disconnectDeleteDb');
+      if (checkbox) checkbox.checked = false;
+      if (modal) modal.classList.add('active');
+    }
+
+    function closeDisconnectModal() {
+      const modal = document.getElementById('disconnectModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    async function confirmDisconnectWhatsApp() {
+      const checkbox = document.getElementById('disconnectDeleteDb');
+      const deleteDb = !!(checkbox && checkbox.checked);
+
+      try {
+        await fetch(`${API_URL}/whatsapp/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ deleteDb })
+        });
+      } catch (error) {
+        // Ignora
+      }
+
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        // Ignora
+      }
+
+      closeDisconnectModal();
+      if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
+    }
+
     async function disconnectWhatsApp() {
-      openConfirmModal('Desconectar WhatsApp? Isso vai limpar os dados do atendimento.', async () => {
-        try {
-          await fetch(`${API_URL}/whatsapp/logout`, {
-            method: 'POST',
-            credentials: 'include'
-          });
-        } catch (error) {
-          // Ignora
-        }
-
-        try {
-          await fetch(`${API_URL}/auth/logout`, {
-            method: 'POST',
-            credentials: 'include'
-          });
-        } catch (error) {
-          // Ignora
-        }
-
-        if (typeof navigateTo === 'function') navigateTo('/whatsapp-qr'); else window.location.href = '/whatsapp-qr';
-      });
+      openDisconnectModal();
     }
 
     async function logout() {

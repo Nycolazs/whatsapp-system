@@ -95,6 +95,7 @@
 </head>
 <body>
   <div class="card">
+  <script src="/config.js"></script>
   <script src="/ui.js"></script>
     <h1>🛠️ Criar Admin</h1>
     <p>Defina o usuário administrador inicial.</p>
@@ -117,6 +118,8 @@
   </div>
 
   <script>
+    const API_URL = window.API_BASE || '';
+
     async function handleSetup(event) {
       event.preventDefault();
 
@@ -130,7 +133,7 @@
       button.textContent = 'Criando...';
 
       try {
-        const response = await fetch('/auth/setup-admin', {
+        const response = await fetch(`${API_URL}/auth/setup-admin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
@@ -176,7 +179,7 @@
       
       try {
         // Apenas verifica se o WhatsApp está conectado, SEM verificar se tem admin
-        const res = await fetch('/whatsapp/qr', { cache: 'no-store' });
+        const res = await fetch(`${API_URL}/whatsapp/qr`, { cache: 'no-store' });
         const qrData = await res.json();
         
         const isConnected = !!qrData.connected || !!qrData.stableConnected;

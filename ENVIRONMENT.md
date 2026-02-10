@@ -103,6 +103,36 @@ CORS_ORIGIN="https://seu-dominio.com"
 
 ---
 
+## 🔌 Separar frontend e backend (API apenas)
+
+Se você vai hospedar o frontend em outro domínio, configure o backend como **API-only** e ajuste CORS/cookies:
+
+```bash
+# Não servir arquivos do frontend pelo backend
+SERVE_FRONTEND=0
+
+# Domínios permitidos do frontend (separados por vírgula)
+CORS_ORIGIN="https://app.suaempresa.com"
+
+# Cookies de sessão para cross-site
+COOKIE_SAMESITE=none
+COOKIE_SECURE=1
+
+# (Opcional) Para dev em HTTP sem HTTPS
+# ALLOW_INSECURE_COOKIES=1
+# COOKIE_SECURE=0
+```
+
+### Frontend
+
+Edite o arquivo [frontend/config.js](frontend/config.js) para definir a URL da API:
+
+```js
+window.API_BASE = 'https://api.suaempresa.com';
+```
+
+---
+
 ## 🚦 Rate limit (grande porte)
 
 Por padrão, o backend usa rate limiting por **usuário autenticado (sessão)** e cai para **IP** quando não há sessão.

@@ -27,6 +27,7 @@ const { createPagesRouter } = require('./src/routes/pages.routes');
 const { startAutoAwaitJob } = require('./src/jobs/autoAwait');
 const { installGracefulShutdown } = require('./src/server/gracefulShutdown');
 const { createSessionMiddleware } = require('./src/session/createSessionMiddleware');
+const { attachRealtimeWebSocket } = require('./src/server/realtime-ws');
 const { createLogger } = require('./src/logger');
 const multer = require('multer');
 const fs = require('fs');
@@ -91,9 +92,16 @@ try {
   app.use(compression());
 } catch (_) {}
 
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : null;
+
+const allowInsecureCookies = process.env.ALLOW_INSECURE_COOKIES === '1';
+const defaultSameSite = process.env.COOKIE_SAMESITE || (corsOrigins ? 'none' : (isProduction ? 'strict' : 'lax'));
+
 const cookieSecure = process.env.COOKIE_SECURE
   ? process.env.COOKIE_SECURE === '1'
-  : (isProduction ? 'auto' : false);
+  : (defaultSameSite === 'none' ? (allowInsecureCookies ? false : true) : (isProduction ? 'auto' : false));
 
 const sessionManager = createSessionMiddleware({
   accountContext,
@@ -103,22 +111,22 @@ const sessionManager = createSessionMiddleware({
     secure: cookieSecure,
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.COOKIE_SAMESITE || (isProduction ? 'strict' : 'lax'),
+    sameSite: defaultSameSite,
   },
 });
 app.use(sessionManager.middleware);
 
-const corsOrigin = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
-  : true;
-
-// Em desenvolvimento, desabilita CORS completamente
 app.use(cors({
-  origin: true, // Permite todas as origens em desenvolvimento
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (!corsOrigins) return cb(null, true);
+    if (corsOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
@@ -160,25 +168,26 @@ const uploadAudio = multer({
   }
 });
 
-app.use(express.static(path.join(__dirname, '../')));
 app.use('/media', express.static(path.join(__dirname, '../media'), {
   maxAge: process.env.MEDIA_CACHE_MAXAGE || '30d',
   immutable: true,
 }));
-
+const serveFrontend = process.env.SERVE_FRONTEND === '1';
 const frontendDir = path.join(__dirname, '../frontend');
 
-// Serve frontend assets
-app.use(express.static(frontendDir, {
-  extensions: ['html', 'htm', 'css', 'js', 'json'],
-  setHeaders: (res, path) => {
-    if (path.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css; charset=utf-8');
-    } else if (path.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+if (serveFrontend) {
+  // Serve frontend assets (modo legado)
+  app.use(express.static(frontendDir, {
+    extensions: ['html', 'htm', 'css', 'js', 'json'],
+    setHeaders: (res, path) => {
+      if (path.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      } else if (path.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      }
     }
-  }
-}));
+  }));
+}
 
 // Rate limit: aplicado apenas depois dos middlewares de static para não contar assets.
 app.use(generalLimiter);
@@ -204,7 +213,9 @@ app.use(createHealthRouter({ getQrState, accountContext, db, getSessionsPath: ()
 app.use(createAdminConfigRouter({ db, requireAdmin, accountContext, accountManager }));
 
 // Pages router deve ser o último para não interceptar rotas de API
-app.use(createPagesRouter({ frontendDir, getQrState }));
+if (serveFrontend) {
+  app.use(createPagesRouter({ frontendDir, getQrState }));
+}
 
 // Error handler middleware - deve vir após todas as rotas
 app.use((err, req, res, next) => {
@@ -251,6 +262,11 @@ autoAwaitJob = startAutoAwaitJob({ db });
 const HTTP_PORT = Number(process.env.PORT || process.env.HTTP_PORT || 3001);
 server = http.createServer(app);
 server.listen(HTTP_PORT, '0.0.0.0', () => logger.info(`Servidor HTTP rodando na porta ${HTTP_PORT}`));
+attachRealtimeWebSocket({
+  server,
+  sessionMiddleware: sessionManager.middleware,
+  allowedOrigins: corsOrigins || null,
+});
 
 // HTTPS opcional (resolve limitações do navegador para microfone ao acessar por IP)
 // Para ativar:
@@ -266,6 +282,11 @@ try {
     const HTTPS_PORT = Number(process.env.HTTPS_PORT || 3443);
     httpsServer = https.createServer({ key, cert }, app);
     httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => logger.info(`Servidor HTTPS rodando na porta ${HTTPS_PORT}`));
+    attachRealtimeWebSocket({
+      server: httpsServer,
+      sessionMiddleware: sessionManager.middleware,
+      allowedOrigins: corsOrigins || null,
+    });
   }
 } catch (err) {
   logger.error('[https] Falha ao iniciar HTTPS:', err);

@@ -75,10 +75,13 @@ function createWhatsAppRouter({ baileys, db, requireAdmin }) {
     }
   });
 
-  router.post('/whatsapp/logout', requireAdmin, async (_req, res) => {
+  router.post('/whatsapp/logout', requireAdmin, async (req, res) => {
     try {
       await baileys.forceNewQr(true);
-      db.clearAllData();
+      const deleteDb = !!(req.body && req.body.deleteDb);
+      if (deleteDb) {
+        db.clearAllData();
+      }
       return res.json({ success: true });
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao desconectar WhatsApp' });
