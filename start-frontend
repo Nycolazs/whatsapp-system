@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PID_FILE="$PROJECT_DIR/data/frontend.pid"
+LOG_FILE="$PROJECT_DIR/frontend.log"
+APP_PORT="${FRONTEND_PORT:-8080}"
+
+start_frontend() {
+  mkdir -p "$PROJECT_DIR/data"
+  touch "$LOG_FILE"
+
+  if [ -f "$PID_FILE" ]; then
+    PID=$(cat "$PID_FILE")
+    if kill -0 "$PID" 2>/dev/null; then
+      echo -e "${RED}✗ Frontend já está rodando (PID: $PID)${NC}"
+      return 1
+    fi
+  fi
+
+  echo -e "${GREEN}✓ Iniciando frontend na porta ${APP_PORT}...${NC}"
+  FRONTEND_PORT="$APP_PORT" nohup node "$PROJECT_DIR/frontend/server.js" >> "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  sleep 1
+
+  if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo -e "${GREEN}✓ Frontend iniciado com sucesso${NC}"
+    echo -e "${BLUE}Acesse:${NC} http://localhost:$APP_PORT"
+    echo -e "${BLUE}Logs:${NC} $LOG_FILE"
+    return 0
+  fi
+
+  echo -e "${RED}✗ Falha ao iniciar frontend${NC}"
+  rm -f "$PID_FILE"
+  return 1
+}
+
+stop_frontend() {
+  if [ ! -f "$PID_FILE" ]; then
+    echo -e "${RED}✗ Frontend não está em execução${NC}"
+    return 1
+  fi
+
+  PID=$(cat "$PID_FILE")
+  if ! kill -0 "$PID" 2>/dev/null; then
+    echo -e "${YELLOW}⋯ PID inválido, limpando estado${NC}"
+    rm -f "$PID_FILE"
+    return 1
+  fi
+
+  echo -e "${YELLOW}⋯ Parando frontend (PID: $PID)...${NC}"
+  kill "$PID" 2>/dev/null
+
+  for i in {1..10}; do
+    if ! kill -0 "$PID" 2>/dev/null; then
+      rm -f "$PID_FILE"
+      echo -e "${GREEN}✓ Frontend parado com sucesso${NC}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo -e "${YELLOW}⋯ Forçando encerramento...${NC}"
+  kill -9 "$PID" 2>/dev/null
+  rm -f "$PID_FILE"
+  echo -e "${GREEN}✓ Frontend encerrado forçadamente${NC}"
+}
+
+status_frontend() {
+  echo ""
+  if [ ! -f "$PID_FILE" ]; then
+    echo -e "${RED}● Frontend: DESLIGADO${NC}"
+    return 0
+  fi
+
+  PID=$(cat "$PID_FILE")
+  if kill -0 "$PID" 2>/dev/null; then
+    echo -e "${GREEN}● Frontend: RODANDO${NC}"
+    echo -e "  PID: $PID"
+    echo -e "  Uptime: $(ps -o etime= -p "$PID" | xargs)"
+    echo -e "  Memória: $(ps -o rss= -p "$PID" | awk '{printf "%.1f MB", $1/1024}')"
+    echo -e "  URL: http://localhost:$APP_PORT"
+    echo -e "  Logs: $LOG_FILE"
+  else
+    echo -e "${RED}● Frontend: PID não encontrado ($PID)${NC}"
+    rm -f "$PID_FILE"
+  fi
+  echo ""
+}
+
+clear_logs() {
+  > "$LOG_FILE"
+  echo -e "${GREEN}✓ Logs do frontend limpos${NC}"
+}
+
+case "$1" in
+  start) start_frontend ;;
+  stop) stop_frontend ;;
+  restart) stop_frontend; sleep 1; start_frontend ;;
+  status) status_frontend ;;
+  logs) clear_logs ;;
+  tail) tail -f "$LOG_FILE" ;;
+  *)
+    echo "Uso: $0 [start|stop|restart|status|logs|tail]"
+    exit 1
+    ;;
+esac

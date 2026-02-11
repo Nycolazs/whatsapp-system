@@ -1,75 +1,59 @@
-# WhatsApp System - Guia de Inicialização
+# WhatsApp System - Guia de Inicialização (Frontend + Backend Separados)
 
-## 🚀 Como usar
+## Portas padrão
 
-### Modo Interativo (Menu)
+- Frontend: `http://localhost:8080`
+- Backend (API): `http://localhost:3001`
+
+## Subir tudo
+
 ```bash
-./start
+npm start
 ```
 
-Abre um menu onde você pode escolher:
-1. Iniciar servidor
-2. Parar servidor
-3. Reiniciar servidor
-4. Ver status
-5. Resetar banco de dados
-6. Limpar logs
+Isso inicia:
+- backend em background (`./start`)
+- frontend em background (`./start-frontend`)
 
-### Modo Linha de Comando
+## Comandos por serviço
+
+### Backend (3001)
 ```bash
-./start start      # Iniciar
-./start stop       # Parar
-./start restart    # Reiniciar
-./start status     # Ver status
-./start reset      # Resetar banco (CUIDADO!)
-./start logs       # Limpar logs
-./start tail       # Ver logs em tempo real
+npm run start:backend
+npm run stop:backend
+npm run restart:backend
+npm run status:backend
+npm run logs
 ```
 
-### Via npm (raiz do projeto)
+### Frontend (8080)
 ```bash
-npm start          # Inicia em background (equivalente a ./start start)
-npm run stop       # Para o servidor
-npm run restart    # Reinicia
-npm run status     # Status
-npm run logs       # Ver logs em tempo real
+npm run start:frontend
+npm run stop:frontend
+npm run restart:frontend
+npm run status:frontend
+npm run logs:frontend
 ```
 
-## 📍 Acesso
+## Comandos gerais
 
-Após iniciar o servidor:
-- **Local**: http://localhost:3001
-- **Rede**: http://seu-ip:3001
-
-## 📋 Requisitos
-
-- Node.js 14+
-- npm
-- Bash
-
-## 🔄 Como funciona
-
-O script automáticamente:
-- ✅ Para qualquer servidor anterior (se rodando)
-- ✅ Inicia o servidor em background
-- ✅ Guarda o PID para controle
-- ✅ Mostra o status e acessos
-- ✅ Mantém logs centralizados
-
-## 🛠️ Troubleshooting
-
-**Servidor não inicia?**
 ```bash
-./start logs    # Limpar logs antigos
-./start restart # Reiniciar
+npm run status   # status dos dois serviços
+npm run stop     # para os dois serviços
+npm run restart  # reinicia os dois serviços
 ```
 
-**Quer ver o log em tempo real?**
+## Troubleshooting rápido
+
+Se o frontend não abrir:
 ```bash
-tail -f server.log
+npm run status:frontend
+npm run logs:frontend
 ```
 
-**Kill forçado (último recurso)?**
+Se a API não responder:
 ```bash
-pkill -f "node.*backend"
+npm run status:backend
+npm run logs
 ```
+

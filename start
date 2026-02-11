@@ -18,10 +18,10 @@ show_menu() {
   echo -e "${BLUE}║        WhatsApp System - Menu de Controle             ║${NC}"
   echo -e "${BLUE}╚═══════════════════════════════════════════════════════╝${NC}"
   echo ""
-  echo -e "${YELLOW}1${NC} - Iniciar servidor"
-  echo -e "${YELLOW}2${NC} - Parar servidor"
-  echo -e "${YELLOW}3${NC} - Reiniciar servidor"
-  echo -e "${YELLOW}4${NC} - Ver status"
+  echo -e "${YELLOW}1${NC} - Iniciar backend (API)"
+  echo -e "${YELLOW}2${NC} - Parar backend (API)"
+  echo -e "${YELLOW}3${NC} - Reiniciar backend (API)"
+  echo -e "${YELLOW}4${NC} - Ver status do backend"
   echo -e "${YELLOW}5${NC} - Resetar banco de dados"
   echo -e "${YELLOW}6${NC} - Limpar logs"
   echo -e "${YELLOW}0${NC} - Sair"
@@ -47,14 +47,14 @@ start_server() {
   cd "$PROJECT_DIR/backend" || exit 1
   # Em LAN/HTTP, 'production' pode ativar headers/cookies (ex: HSTS) que atrapalham acesso por IP.
   # Por padrão usamos development; se você quiser, pode sobrescrever: NODE_ENV=production ./start start
-  NODE_ENV="${NODE_ENV:-development}" SERVE_FRONTEND="${SERVE_FRONTEND:-1}" nohup node index.js >> "$LOG_FILE" 2>&1 &
+  NODE_ENV="${NODE_ENV:-development}" SERVE_FRONTEND="${SERVE_FRONTEND:-0}" nohup node index.js >> "$LOG_FILE" 2>&1 &
   
   echo $! > "$PID_FILE"
   sleep 2
   
   echo -e "${GREEN}✓ Servidor iniciado com sucesso!${NC}"
   echo ""
-  echo -e "${BLUE}Acesse em:${NC}"
+  echo -e "${BLUE}API disponível em:${NC}"
   echo -e "  • Local: http://localhost:$APP_PORT"
   # Tenta obter IP local de diferentes formas
   LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -127,7 +127,7 @@ show_status() {
     echo -e "  Uptime: $(ps -o etime= -p "$PID" | xargs)"
     echo -e "  Memória: $(ps -o rss= -p "$PID" | awk '{printf "%.1f MB", $1/1024}')"
     echo ""
-    echo -e "${BLUE}Acesso:${NC}"
+    echo -e "${BLUE}API:${NC}"
     echo -e "  • Local: http://localhost:$APP_PORT"
     # Tenta obter IP local de diferentes formas
     LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -213,10 +213,10 @@ else
       echo "Uso: $0 [comando]"
       echo ""
       echo "Comandos disponíveis:"
-      echo "  start       - Iniciar o servidor"
-      echo "  stop        - Parar o servidor"
-      echo "  restart     - Reiniciar o servidor"
-      echo "  status      - Ver status do servidor"
+      echo "  start       - Iniciar backend (API)"
+      echo "  stop        - Parar backend (API)"
+      echo "  restart     - Reiniciar backend (API)"
+      echo "  status      - Ver status do backend"
       echo "  reset       - Resetar banco de dados (CUIDADO!)"
       echo "  logs        - Limpar logs"
       echo "  tail        - Acompanhar logs em tempo real"

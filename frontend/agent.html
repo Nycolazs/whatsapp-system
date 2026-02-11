@@ -2198,6 +2198,15 @@
   <script>
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
     const API_URL = window.API_BASE || '';
+
+    function resolveMediaUrl(mediaUrl) {
+      if (!mediaUrl || typeof mediaUrl !== 'string') return mediaUrl;
+      if (mediaUrl === 'loading') return mediaUrl;
+      if (/^(data:|blob:|https?:\/\/)/i.test(mediaUrl)) return mediaUrl;
+      if (!API_URL) return mediaUrl;
+      return mediaUrl.startsWith('/') ? `${API_URL}${mediaUrl}` : `${API_URL}/${mediaUrl}`;
+    }
+
     let currentTicket = null;
     let ticketSelectionToken = 0;
     let ticketSelectAbortController = null;
@@ -4251,7 +4260,8 @@
             else if (msg.message_type === 'image' && msg.media_url) {
               const imageId = `img-${msg.id}`;
               const contentDiv = msg.content !== '[Imagem]' ? `<div>${msg.content}</div>` : '';
-              const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
+              const mediaUrl = resolveMediaUrl(msg.media_url);
+              const isBase64 = mediaUrl && mediaUrl.startsWith('data:');
               contentHtml = `
                 ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
@@ -4262,10 +4272,10 @@
                 </div>
                 <img 
                   id="${imageId}" 
-                  data-src="${msg.media_url}" 
+                  data-src="${mediaUrl}" 
                   data-loading-id="loading-${imageId}"
                   data-error-label="imagem"
-                  data-error-src="${isBase64 ? 'base64 data' : msg.media_url}"
+                  data-error-src="${isBase64 ? 'base64 data' : mediaUrl}"
                   class="message-image lazy-media" 
                   alt="Imagem" 
                   style="cursor: pointer; user-select: none; -webkit-user-select: none;"
@@ -4275,6 +4285,7 @@
             } else if (msg.message_type === 'audio' && msg.media_url) {
               // Se for áudio, exibe o player customizado ou loading
               const audioId = `audio-${msg.id}`;
+              const mediaUrl = resolveMediaUrl(msg.media_url);
               if (msg.media_url === 'loading') {
                 contentHtml = `
                   ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
@@ -4303,7 +4314,7 @@
                         <span id="duration-${audioId}">0:00</span>
                       </div>
                     </div>
-                    <audio id="${audioId}" class="lazy-media" style="display:none;" preload="metadata" data-src="${msg.media_url}"></audio>
+                    <audio id="${audioId}" class="lazy-media" style="display:none;" preload="metadata" data-src="${mediaUrl}"></audio>
                   </div>
                   <div class="message-time">${formatMessageTime(msg.created_at)}</div>
                 `;
@@ -4312,6 +4323,7 @@
               // Se for vídeo, exibe o player ou loading
               const videoId = `video-${msg.id}`;
               const contentDiv = msg.content !== '[Vídeo]' ? `<div>${msg.content}</div>` : '';
+              const mediaUrl = resolveMediaUrl(msg.media_url);
               if (msg.media_url === 'loading') {
                 contentHtml = `
                   ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
@@ -4324,9 +4336,9 @@
                   ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                   ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
                   ${contentDiv}
-                  <video id="${videoId}" controls class="lazy-media" data-src="${msg.media_url}" style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
-                    <source data-src="${msg.media_url}" type="video/mp4">
-                    <source data-src="${msg.media_url}" type="video/webm">
+                  <video id="${videoId}" controls class="lazy-media" data-src="${mediaUrl}" style="max-width: 260px; margin-top: 8px; border-radius: 8px;">
+                    <source data-src="${mediaUrl}" type="video/mp4">
+                    <source data-src="${mediaUrl}" type="video/webm">
                     Seu navegador não suporta o elemento de vídeo.
                   </video>
                   <div class="message-time">${formatMessageTime(msg.created_at)}</div>
@@ -4334,7 +4346,8 @@
               }
             } else if (msg.message_type === 'sticker' && msg.media_url) {
               const stickerId = `sticker-${msg.id}`;
-              const isBase64 = msg.media_url && msg.media_url.startsWith('data:');
+              const mediaUrl = resolveMediaUrl(msg.media_url);
+              const isBase64 = mediaUrl && mediaUrl.startsWith('data:');
               contentHtml = `
                 ${msg.reply_to_id ? generateQuoteBlock(msg) : ''}
                 ${msg.sender === 'agent' && msg.sender_name ? `<strong>${msg.sender_name}:</strong> ` : ''}
@@ -4344,10 +4357,10 @@
                 </div>
                 <img 
                   id="${stickerId}" 
-                  data-src="${msg.media_url}" 
+                  data-src="${mediaUrl}" 
                   data-loading-id="loading-${stickerId}"
                   data-error-label="figurinha"
-                  data-error-src="${isBase64 ? 'base64 data' : msg.media_url}"
+                  data-error-src="${isBase64 ? 'base64 data' : mediaUrl}"
                   class="message-sticker lazy-media" 
                   alt="Figurinha" 
                 >

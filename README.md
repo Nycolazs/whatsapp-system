@@ -65,14 +65,16 @@ whatsapp-system/
 ├── frontend/
 │   ├── index.html         # Página de login
 │   ├── agent.html         # Interface de atendimento
-│   └── admin-sellers.html # Painel admin (vendedores, blacklist e horários)
+│   ├── admin-sellers.html # Painel admin (vendedores, blacklist e horários)
+│   └── server.js          # Servidor HTTP do frontend (porta 8080)
 ├── data/
 │   ├── active-account.json
 │   ├── accounts/          # Dados por conta (db, sessions, wa-auth, backups)
 │   └── staging/
 ├── media/
 │   └── audios/            # Áudios recebidos
-├── start                  # Script de inicialização
+├── start                  # Controle do backend (API)
+├── start-frontend         # Controle do frontend (web)
 ├── scripts/
 │   └── fix-admin-passwords.js # Utilitário para corrigir hash de admin
 ├── package.json           # Dependências root
@@ -103,25 +105,28 @@ npm install
 
 ### Subir o servidor
 
-Pela raiz do projeto:
-
-```bash
-./start
-```
-
-Ou via npm:
+Frontend e backend separados (recomendado):
 
 ```bash
 npm start
 ```
 
-Ou diretamente:
+Comandos individuais:
+
+```bash
+npm run start:backend   # API em http://localhost:3001
+npm run start:frontend  # Frontend em http://localhost:8080
+```
+
+Ou diretamente (backend):
 
 ```bash
 node backend/index.js
 ```
 
-Por padrão, o servidor inicia na porta **3001**.
+Portas padrão:
+- Frontend: **8080**
+- Backend API: **3001**
 
 ## Configuração Inicial
 
@@ -138,7 +143,8 @@ Observação: alguns ambientes podem ter usuários já existentes (ex.: bases an
 
 ### No computador (desktop)
 
-`http://localhost:3001`
+Frontend: `http://localhost:8080/login`  
+Backend API: `http://localhost:3001`
 
 ### Na rede local (mobile/outro computador)
 
@@ -150,7 +156,8 @@ ip addr show | grep "inet " | grep -v 127.0.0.1
 
 Depois acesse:
 
-`http://SEU_IP:3001`
+Frontend: `http://SEU_IP:8080`  
+Backend API: `http://SEU_IP:3001`
 
 ## Endpoints da API
 
@@ -264,7 +271,7 @@ Tabelas criadas automaticamente:
 ```bash
 # Limpe as credenciais e tente novamente
 rm -rf backend/auth/*
-npm start
+npm run restart:backend
 ```
 
 ### Porta 3001 já em uso
@@ -279,14 +286,14 @@ kill -9 <PID>
 ```bash
 # Limpe e recrie (bases legadas)
 rm -f data/db/db.sqlite
-npm start
+npm run restart:backend
 ```
 
 ### Mensagens não aparecem
 Verifique:
 1. WhatsApp está conectado (status na interface)
 2. Número está na blacklist
-3. Aplicação está rodando (`./start`)
+3. Backend e frontend estão rodando (`npm run status`)
 4. Browser foi atualizado (F5)
 
 ## Deploy (Diretrizes)
@@ -301,17 +308,19 @@ Exemplo com PM2:
 
 ```bash
 npm install -g pm2
-pm2 start backend/index.js --name "whatsapp-system"
+SERVE_FRONTEND=0 pm2 start backend/index.js --name "whatsapp-system-api"
+FRONTEND_PORT=8080 pm2 start frontend/server.js --name "whatsapp-system-web"
 pm2 startup
 pm2 save
 ```
 
 ## 📝 Logs e Monitoramento
 
-Quando iniciado por `./start`/`npm start`, os logs ficam em `server.log`. Para acompanhar:
+Logs backend (`server.log`) e frontend (`frontend.log`):
 
 ```bash
 npm run logs
+npm run logs:frontend
 ```
 
 ## 💡 Dicas

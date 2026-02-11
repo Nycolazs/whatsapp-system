@@ -172,7 +172,7 @@ app.use('/media', express.static(path.join(__dirname, '../media'), {
   maxAge: process.env.MEDIA_CACHE_MAXAGE || '30d',
   immutable: true,
 }));
-const serveFrontend = process.env.SERVE_FRONTEND !== '0';
+const serveFrontend = process.env.SERVE_FRONTEND === '1';
 const frontendDir = path.join(__dirname, '../frontend');
 
 if (serveFrontend) {

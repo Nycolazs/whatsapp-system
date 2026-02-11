@@ -123,8 +123,8 @@ COOKIE_SECURE=1
 # COOKIE_SECURE=0
 ```
 
-> Default do sistema: `SERVE_FRONTEND=1` (monolítico, recomendado para uso local).
-> Defina `SERVE_FRONTEND=0` apenas quando o frontend estiver hospedado separadamente.
+> Default recomendado: `SERVE_FRONTEND=0` (backend API-only).
+> Para modo legado (monolítico), defina `SERVE_FRONTEND=1`.
 
 ### Frontend
 
@@ -132,6 +132,14 @@ Edite o arquivo [frontend/config.js](frontend/config.js) para definir a URL da A
 
 ```js
 window.API_BASE = 'https://api.suaempresa.com';
+```
+
+Servidor frontend local separado (porta 8080 por padrão):
+
+```bash
+./start-frontend start
+# ou
+npm run start:frontend
 ```
 
 ---
