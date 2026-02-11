@@ -5,7 +5,15 @@
   "main": "backend/index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node backend/index.js",
+    "start": "./start start",
+    "start:menu": "./start",
+    "start:direct": "node backend/index.js",
+    "stop": "./start stop",
+    "restart": "./start restart",
+    "status": "./start status",
+    "logs": "./start tail",
+    "logs:clear": "./start logs",
+    "reset": "./start reset",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

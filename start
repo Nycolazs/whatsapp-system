@@ -9,6 +9,8 @@ NC='\033[0m' # No Color
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$PROJECT_DIR/data/backend.pid"
+LOG_FILE="$PROJECT_DIR/server.log"
+APP_PORT="${PORT:-${HTTP_PORT:-3001}}"
 
 # Função para mostrar menu
 show_menu() {
@@ -28,6 +30,9 @@ show_menu() {
 
 # Função para iniciar
 start_server() {
+  mkdir -p "$PROJECT_DIR/data"
+  touch "$LOG_FILE"
+
   if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
     if kill -0 "$PID" 2>/dev/null; then
@@ -42,7 +47,7 @@ start_server() {
   cd "$PROJECT_DIR/backend" || exit 1
   # Em LAN/HTTP, 'production' pode ativar headers/cookies (ex: HSTS) que atrapalham acesso por IP.
   # Por padrão usamos development; se você quiser, pode sobrescrever: NODE_ENV=production ./start start
-  NODE_ENV="${NODE_ENV:-development}" node index.js &
+  NODE_ENV="${NODE_ENV:-development}" SERVE_FRONTEND="${SERVE_FRONTEND:-1}" nohup node index.js >> "$LOG_FILE" 2>&1 &
   
   echo $! > "$PID_FILE"
   sleep 2
@@ -50,15 +55,16 @@ start_server() {
   echo -e "${GREEN}✓ Servidor iniciado com sucesso!${NC}"
   echo ""
   echo -e "${BLUE}Acesse em:${NC}"
-  echo -e "  • Local: http://localhost:3001"
+  echo -e "  • Local: http://localhost:$APP_PORT"
   # Tenta obter IP local de diferentes formas
   LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   if [ -z "$LOCAL_IP" ]; then
     LOCAL_IP=$(ip addr 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | head -1 | awk '{print $2}' | cut -d'/' -f1)
   fi
   if [ -n "$LOCAL_IP" ]; then
-    echo -e "  • Rede: http://$LOCAL_IP:3001"
+    echo -e "  • Rede: http://$LOCAL_IP:$APP_PORT"
   fi
+  echo -e "  • Logs: $LOG_FILE"
   echo ""
 }
 
@@ -122,15 +128,16 @@ show_status() {
     echo -e "  Memória: $(ps -o rss= -p "$PID" | awk '{printf "%.1f MB", $1/1024}')"
     echo ""
     echo -e "${BLUE}Acesso:${NC}"
-    echo -e "  • Local: http://localhost:3001"
+    echo -e "  • Local: http://localhost:$APP_PORT"
     # Tenta obter IP local de diferentes formas
     LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     if [ -z "$LOCAL_IP" ]; then
       LOCAL_IP=$(ip addr 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | head -1 | awk '{print $2}' | cut -d'/' -f1)
     fi
     if [ -n "$LOCAL_IP" ]; then
-      echo -e "  • Rede: http://$LOCAL_IP:3001"
+      echo -e "  • Rede: http://$LOCAL_IP:$APP_PORT"
     fi
+    echo -e "  • Logs: $LOG_FILE"
   else
     echo -e "${RED}● Servidor: PID não encontrado ($PID)${NC}"
     rm -f "$PID_FILE"
@@ -164,7 +171,7 @@ reset_database() {
 clear_logs() {
   echo -e "${YELLOW}⋯ Limpando logs...${NC}"
   
-  > "$PROJECT_DIR/server.log"
+  > "$LOG_FILE"
   
   echo -e "${GREEN}✓ Logs limpos${NC}"
 }
@@ -201,6 +208,7 @@ else
     status)     show_status ;;
     reset)      reset_database ;;
     logs)       clear_logs ;;
+    tail)       tail -f "$LOG_FILE" ;;
     *)          
       echo "Uso: $0 [comando]"
       echo ""
@@ -211,6 +219,7 @@ else
       echo "  status      - Ver status do servidor"
       echo "  reset       - Resetar banco de dados (CUIDADO!)"
       echo "  logs        - Limpar logs"
+      echo "  tail        - Acompanhar logs em tempo real"
       echo ""
       echo "Sem argumentos: modo interativo com menu"
       exit 1

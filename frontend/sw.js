@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.0.1';
 const STATIC_CACHE = `wa-system-static-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
@@ -67,6 +67,13 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html')) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  // config.js pode mudar conforme ambiente/configuração do navegador (API_BASE).
+  // Preferimos rede primeiro para evitar CORS por base antiga em cache.
+  if (url.pathname === '/config.js') {
     event.respondWith(networkFirst(event.request));
     return;
   }

@@ -123,6 +123,9 @@ COOKIE_SECURE=1
 # COOKIE_SECURE=0
 ```
 
+> Default do sistema: `SERVE_FRONTEND=1` (monolítico, recomendado para uso local).
+> Defina `SERVE_FRONTEND=0` apenas quando o frontend estiver hospedado separadamente.
+
 ### Frontend
 
 Edite o arquivo [frontend/config.js](frontend/config.js) para definir a URL da API:

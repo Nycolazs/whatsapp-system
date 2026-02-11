@@ -109,6 +109,12 @@ Pela raiz do projeto:
 ./start
 ```
 
+Ou via npm:
+
+```bash
+npm start
+```
+
 Ou diretamente:
 
 ```bash
@@ -258,7 +264,7 @@ Tabelas criadas automaticamente:
 ```bash
 # Limpe as credenciais e tente novamente
 rm -rf backend/auth/*
-node backend/index.js
+npm start
 ```
 
 ### Porta 3001 já em uso
@@ -273,7 +279,7 @@ kill -9 <PID>
 ```bash
 # Limpe e recrie (bases legadas)
 rm -f data/db/db.sqlite
-node backend/index.js
+npm start
 ```
 
 ### Mensagens não aparecem
@@ -302,11 +308,10 @@ pm2 save
 
 ## 📝 Logs e Monitoramento
 
-Os logs são exibidos no console durante execução. Para production:
+Quando iniciado por `./start`/`npm start`, os logs ficam em `server.log`. Para acompanhar:
 
 ```bash
-./start > logs.txt 2>&1 &
-tail -f logs.txt
+npm run logs
 ```
 
 ## 💡 Dicas

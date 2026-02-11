@@ -12,7 +12,7 @@ if pgrep -f "node.*backend/index.js" > /dev/null; then
     pgrep -f "node.*backend/index.js" | xargs ps -p
 else
     echo "✗ Servidor NÃO está rodando"
-    echo "  Execute: ./start-server.sh"
+    echo "  Execute: ./start start  (ou npm start)"
 fi
 echo ""
 

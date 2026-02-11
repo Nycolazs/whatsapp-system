@@ -23,6 +23,16 @@ Abre um menu onde você pode escolher:
 ./start status     # Ver status
 ./start reset      # Resetar banco (CUIDADO!)
 ./start logs       # Limpar logs
+./start tail       # Ver logs em tempo real
+```
+
+### Via npm (raiz do projeto)
+```bash
+npm start          # Inicia em background (equivalente a ./start start)
+npm run stop       # Para o servidor
+npm run restart    # Reinicia
+npm run status     # Status
+npm run logs       # Ver logs em tempo real
 ```
 
 ## 📍 Acesso
