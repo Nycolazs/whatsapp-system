@@ -802,3 +802,467 @@ body.page.leave {
     font-size: 10px !important;
   }
 }
+
+/* =============================
+   Mobile Polish
+   ============================= */
+.login-container,
+.card {
+  border-radius: 18px !important;
+}
+
+.form-group input,
+.btn,
+.login-button {
+  min-height: 46px;
+}
+
+/* Agent chat ergonomics */
+.chat-header {
+  gap: 10px;
+  align-items: center !important;
+}
+
+.chat-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-text {
+  min-width: 0;
+}
+
+.chat-text h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-actions .custom-select,
+.chat-actions select,
+.chat-actions .close-chat-btn {
+  min-height: 42px;
+}
+
+.custom-select-trigger {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.messages-container {
+  scrollbar-width: thin;
+}
+
+.message {
+  border-radius: 10px !important;
+  line-height: 1.35;
+}
+
+.message-input-area {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+}
+
+.message-input {
+  border-radius: 22px !important;
+}
+
+.send-button,
+.audio-button {
+  border-radius: 999px !important;
+}
+
+.recording-modal {
+  bottom: calc(84px + var(--safe-bottom)) !important;
+  border-radius: 16px !important;
+}
+
+.back-button {
+  border-radius: 999px;
+}
+
+/* Admin ergonomics */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(8px);
+}
+
+.panel,
+.filters-card,
+.seller-card {
+  border-radius: 16px !important;
+}
+
+.filter-control,
+.assign-select,
+.btn-small,
+.btn-open-chat,
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-save-hours {
+  min-height: 42px;
+}
+
+.table-empty-row td {
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+.table-empty-row td::before {
+  content: none !important;
+}
+
+@media (max-width: 900px) {
+  .chat-actions {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .container,
+  .tickets-panel,
+  .chat-panel,
+  .main-content {
+    min-height: var(--app-height) !important;
+    height: var(--app-height) !important;
+  }
+
+  .login-container,
+  .card {
+    width: min(100%, 520px) !important;
+    padding: 22px 18px !important;
+    margin: 12px auto !important;
+  }
+
+  .title,
+  .login-header h1 {
+    font-size: 24px !important;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions .btn {
+    width: 100%;
+  }
+
+  .chat-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch !important;
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right)) 10px calc(10px + var(--safe-left)) !important;
+  }
+
+  .chat-info {
+    align-items: center;
+    gap: 8px !important;
+  }
+
+  .chat-text h3 {
+    font-size: 15px !important;
+  }
+
+  .chat-meta {
+    gap: 6px !important;
+  }
+
+  .chat-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+    margin-top: 0;
+  }
+
+  #adminSellerSelect {
+    grid-column: 1 / -1;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+  }
+
+  #adminSellerSelect label {
+    margin: 0 !important;
+    white-space: nowrap;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  #adminSellerSelect .custom-select,
+  #adminSellerSelect select {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .chat-actions .custom-select,
+  .chat-actions select,
+  .chat-actions .close-chat-btn {
+    width: 100% !important;
+  }
+
+  .custom-select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .custom-select-options {
+    max-height: min(45vh, 320px) !important;
+  }
+
+  .messages-container {
+    padding: 12px 10px 14px !important;
+  }
+
+  .message {
+    max-width: 82% !important;
+    font-size: 14px !important;
+    padding: 9px 12px !important;
+  }
+
+  .message-system {
+    max-width: 96% !important;
+  }
+
+  .message-image {
+    max-width: min(72vw, 320px) !important;
+  }
+
+  .message-sticker {
+    max-width: min(50vw, 190px) !important;
+    max-height: min(50vw, 190px) !important;
+  }
+
+  .message video {
+    max-width: min(74vw, 320px) !important;
+  }
+
+  .message-input-area {
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px calc(10px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(10px + var(--safe-left)) !important;
+  }
+
+  .message-input {
+    font-size: 16px !important;
+    line-height: 1.35;
+    min-height: 44px !important;
+    max-height: 34dvh !important;
+    padding: 10px 14px !important;
+  }
+
+  .send-button,
+  .audio-button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 14px !important;
+    font-size: 14px !important;
+  }
+
+  .audio-button {
+    padding: 0 12px !important;
+  }
+
+  .recording-modal {
+    width: min(92vw, 340px) !important;
+    left: 50% !important;
+  }
+
+  .back-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    margin-right: 6px !important;
+  }
+
+  .tickets-filters {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .tickets-filters label {
+    font-size: 12px !important;
+  }
+
+  .ticket-item {
+    padding: 12px 10px !important;
+    gap: 10px !important;
+  }
+
+  .ticket-avatar,
+  .ticket-default-avatar {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .panel-header,
+  .sidebar-header,
+  .header {
+    padding-left: calc(12px + var(--safe-left)) !important;
+    padding-right: calc(12px + var(--safe-right)) !important;
+  }
+
+  .sidebar-footer button {
+    min-height: 44px !important;
+  }
+
+  .content {
+    padding: 12px !important;
+  }
+
+  .filters-header {
+    margin-bottom: 10px !important;
+  }
+
+  .table-scroll {
+    overflow: visible !important;
+  }
+
+  .table-scroll table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .tickets-table thead,
+  .blacklist-table thead,
+  .exceptions-table thead,
+  .ranking-table thead {
+    display: none !important;
+  }
+
+  .tickets-table,
+  .blacklist-table,
+  .exceptions-table,
+  .ranking-table {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .tickets-table tbody,
+  .blacklist-table tbody,
+  .exceptions-table tbody,
+  .ranking-table tbody {
+    display: block;
+  }
+
+  .tickets-table tbody tr,
+  .blacklist-table tbody tr,
+  .exceptions-table tbody tr,
+  .ranking-table tbody tr {
+    display: block;
+    margin-bottom: 10px;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .tickets-table td,
+  .blacklist-table td,
+  .exceptions-table td,
+  .ranking-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    text-align: right;
+    border: none !important;
+  }
+
+  .tickets-table td:last-child,
+  .blacklist-table td:last-child,
+  .exceptions-table td:last-child,
+  .ranking-table td:last-child {
+    border-bottom: none !important;
+  }
+
+  .tickets-table td::before,
+  .blacklist-table td::before,
+  .exceptions-table td::before,
+  .ranking-table td::before {
+    content: attr(data-label);
+    flex: 0 0 44%;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+  }
+
+  .tickets-table td[data-label="Ação"] {
+    display: block;
+    text-align: left;
+  }
+
+  .tickets-table td[data-label="Ação"]::before {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .tickets-table td[data-label="Ação"] .ticket-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .tickets-table td[data-label="Ação"] .btn-open-chat,
+  .tickets-table td[data-label="Ação"] .assign-select {
+    width: 100% !important;
+  }
+
+  .tickets-table td[data-label="Status"] .ticket-status {
+    margin-left: auto;
+  }
+
+  .menu-btn,
+  #headerBtn {
+    min-height: 44px !important;
+  }
+
+  .hours-row {
+    gap: 8px !important;
+  }
+
+  .hours-row input[type="time"] {
+    min-height: 42px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .message {
+    max-width: 88% !important;
+  }
+
+  .panel-header .user-section {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-manage-sellers,
+  .logout-btn {
+    min-height: 40px;
+  }
+}

@@ -1,12 +1,6 @@
-const CACHE_VERSION = 'v1.0.2';
+const CACHE_VERSION = 'v1.0.3';
 const STATIC_CACHE = `wa-system-static-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
-  '/',
-  '/login',
-  '/agent',
-  '/admin-sellers',
-  '/setup-admin',
-  '/whatsapp-qr',
   '/ui.css',
   '/ui.js',
   '/config.js',
@@ -60,6 +54,14 @@ async function networkFirst(request) {
   }
 }
 
+async function networkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch (error) {
+    return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -67,14 +69,14 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html')) {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(networkOnly(event.request));
     return;
   }
 
   // config.js pode mudar conforme ambiente/configuração do navegador (API_BASE).
-  // Preferimos rede primeiro para evitar CORS por base antiga em cache.
+  // Preferimos sempre rede para evitar base antiga em cache.
   if (url.pathname === '/config.js') {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(networkOnly(event.request));
     return;
   }
 

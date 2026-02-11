@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b1220">
   <meta name="color-scheme" content="light">
   <meta name="application-name" content="WhatsApp System">
@@ -1150,6 +1150,53 @@
       font-family: inherit;
     }
 
+    .password-field {
+      position: relative;
+    }
+
+    .password-field input {
+      padding-right: 44px !important;
+    }
+
+    .masked-secret {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: #667781;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      padding: 0;
+    }
+
+    .password-toggle svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .password-toggle:hover {
+      color: #495661;
+    }
+
     .form-group input:focus {
       outline: none;
       border-color: #667eea;
@@ -1552,10 +1599,50 @@
 
       .blacklist-form {
         grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .blacklist-grid {
+        gap: 14px;
+      }
+
+      .blacklist-container .panel {
+        padding: 16px;
+      }
+
+      .blacklist-form input,
+      .blacklist-form textarea {
+        width: 100%;
+        min-height: 44px;
+      }
+
+      .blacklist-form textarea {
+        min-height: 96px;
       }
 
       .blacklist-actions {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .blacklist-actions .btn-primary,
+      .blacklist-actions .btn-secondary {
+        width: 100%;
+        min-height: 46px;
+        font-weight: 700;
+      }
+
+      .blacklist-table {
+        width: 100%;
+      }
+
+      .blacklist-table td {
+        word-break: break-word;
+      }
+
+      .blacklist-table td:last-child .btn-danger {
+        width: 100%;
       }
 
       .exception-form {
@@ -1593,7 +1680,8 @@
         grid-area: close;
       }
 
-      .table-scroll table {
+      .tickets-table,
+      .ranking-table {
         min-width: 720px;
       }
 
@@ -1627,6 +1715,15 @@
 
       .panel {
         padding: 16px;
+      }
+
+      .blacklist-container .panel h3 {
+        font-size: 18px;
+      }
+
+      .blacklist-actions .btn-primary,
+      .blacklist-actions .btn-secondary {
+        font-size: 15px;
       }
     }
   </style>
@@ -1833,7 +1930,7 @@
             <div class="panel">
               <h3>Adicionar número</h3>
               <form id="blacklistForm" class="blacklist-form" onsubmit="addBlacklist(event)">
-                <input type="text" id="blacklistPhone" placeholder="Ex: (11) 999999999" required maxlength="15" oninput="formatPhoneInput(event)">
+                <input type="text" id="blacklistPhone" placeholder="Ex: (11) 999999999" inputmode="tel" autocomplete="tel" required maxlength="15" oninput="formatPhoneInput(event)">
                 <input type="text" id="blacklistReason" placeholder="Motivo (opcional)">
                 <textarea id="blacklistReasonDetails" placeholder="Detalhes adicionais (opcional)"></textarea>
                 <div class="blacklist-actions">
@@ -1888,7 +1985,7 @@
           <div class="panel">
             <h3>Datas de exceção (feriados)</h3>
             <div class="exception-form">
-              <input type="text" id="exceptionDate" placeholder="dd/mm/aaaa" maxlength="10" oninput="formatExceptionDateInput(event)">
+              <input type="text" id="exceptionDate" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" oninput="formatExceptionDateInput(event)">
               <input type="text" id="exceptionReason" placeholder="Motivo (ex: feriado)">
               <button onclick="addException()">Adicionar</button>
             </div>
@@ -1988,15 +2085,20 @@
     <div class="modal-content">
       <div class="modal-header" id="modalTitle">Novo Usuário</div>
       
-      <form id="sellerForm" onsubmit="saveSeller(event)">
+      <form id="sellerForm" autocomplete="off" novalidate data-lpignore="true" onsubmit="saveSeller(event)">
+        <input type="text" name="seller_fake_user" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+        <input type="password" name="seller_fake_pass" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
         <div class="form-group">
           <label>Nome *</label>
-          <input type="text" id="sellerName" required>
+          <input type="text" id="sellerName" name="seller_name_real" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" required>
         </div>
 
         <div class="form-group">
           <label>Senha *</label>
-          <input type="password" id="sellerPassword" required>
+          <div class="password-field">
+            <input type="text" id="sellerPassword" name="seller_secret_token" class="masked-secret" data-secret-input="true" autocomplete="new-password" data-lpignore="true" required>
+            <button type="button" class="password-toggle" data-toggle-password="sellerPassword" aria-label="Mostrar senha" title="Mostrar senha"></button>
+          </div>
         </div>
 
         <div class="modal-actions">
@@ -2040,26 +2142,44 @@
     <div class="modal-content">
       <div class="modal-header">🔐 Alterar Senha</div>
       <p id="changePasswordUserName" style="margin-bottom: 20px; color: #667781; font-size: 14px;"></p>
-      <form id="changePasswordForm" style="margin-bottom: 20px;">
+      <form id="changePasswordForm" autocomplete="off" novalidate data-lpignore="true" style="margin-bottom: 20px;">
+        <input type="text" name="cp_fake_pass_a" autocomplete="off" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+        <input type="text" name="cp_fake_pass_b" autocomplete="off" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
         <div class="form-group" style="margin-bottom: 15px;">
           <label style="display: block; margin-bottom: 8px; color: #111; font-weight: 500; font-size: 14px;">Nova Senha</label>
-          <input 
-            type="password" 
-            id="newPassword" 
-            placeholder="Digite a nova senha"
-            style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
-            required
-          >
+          <div class="password-field">
+            <input 
+              type="text" 
+              id="newPassword" 
+              name="cp_new_secret_token"
+              class="masked-secret"
+              data-secret-input="true"
+              placeholder="Digite a nova senha"
+              autocomplete="new-password"
+              data-lpignore="true"
+              style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
+              required
+            >
+            <button type="button" class="password-toggle" data-toggle-password="newPassword" aria-label="Mostrar senha" title="Mostrar senha"></button>
+          </div>
         </div>
         <div class="form-group" style="margin-bottom: 15px;">
           <label style="display: block; margin-bottom: 8px; color: #111; font-weight: 500; font-size: 14px;">Confirmar Senha</label>
-          <input 
-            type="password" 
-            id="confirmPassword" 
-            placeholder="Confirme a nova senha"
-            style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
-            required
-          >
+          <div class="password-field">
+            <input 
+              type="text" 
+              id="confirmPassword" 
+              name="cp_confirm_secret_token"
+              class="masked-secret"
+              data-secret-input="true"
+              placeholder="Confirme a nova senha"
+              autocomplete="new-password"
+              data-lpignore="true"
+              style="width: 100%; padding: 10px 12px; border: 1px solid #d1d7db; border-radius: 6px; font-size: 14px; font-family: inherit;"
+              required
+            >
+            <button type="button" class="password-toggle" data-toggle-password="confirmPassword" aria-label="Mostrar senha" title="Mostrar senha"></button>
+          </div>
         </div>
         <div id="changePasswordError" style="color: #d32f2f; font-size: 13px; margin-bottom: 15px; display: none;"></div>
       </form>
@@ -2103,6 +2223,91 @@
 
     const UNASSIGNED_FILTER = '__unassigned__';
     let ticketFiltersDebounceTimer = null;
+
+    function hardenSensitiveInputs(selectors) {
+      selectors.forEach((selector) => {
+        const field = document.querySelector(selector);
+        if (!field) return;
+
+        field.value = '';
+        field.readOnly = true;
+        field.setAttribute('autocomplete', 'off');
+        field.setAttribute('data-lpignore', 'true');
+
+        const unlock = () => { field.readOnly = false; };
+        field.addEventListener('focus', unlock, { once: true });
+        field.addEventListener('pointerdown', unlock, { once: true });
+        field.addEventListener('keydown', unlock, { once: true });
+      });
+    }
+
+    function initPasswordToggles() {
+      const supportsMaskedText = typeof CSS !== 'undefined'
+        && typeof CSS.supports === 'function'
+        && (CSS.supports('-webkit-text-security', 'disc') || CSS.supports('text-security', 'disc'));
+
+      const iconShow = `
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      `;
+
+      const iconHide = `
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 3l18 18"></path>
+          <path d="M10.7 10.7a2 2 0 0 0 2.6 2.6"></path>
+          <path d="M9.9 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17.5 17.5 0 0 1-3.2 4.2"></path>
+          <path d="M6.2 6.2A17.4 17.4 0 0 0 2 12s3.5 7 10 7c1.8 0 3.5-.5 5-1.3"></path>
+        </svg>
+      `;
+
+      const setMaskedMode = (input, masked) => {
+        if (supportsMaskedText && input.dataset.secretInput === 'true') {
+          input.type = 'text';
+          input.classList.toggle('masked-secret', masked);
+          return;
+        }
+        input.classList.remove('masked-secret');
+        input.type = masked ? 'password' : 'text';
+      };
+
+      const isShowing = (input) => {
+        if (supportsMaskedText && input.dataset.secretInput === 'true') {
+          return !input.classList.contains('masked-secret');
+        }
+        return input.type === 'text';
+      };
+
+      const updateToggle = (btn, input) => {
+        const showing = isShowing(input);
+        btn.innerHTML = showing ? iconHide : iconShow;
+        btn.setAttribute('aria-label', showing ? 'Ocultar senha' : 'Mostrar senha');
+        btn.setAttribute('title', showing ? 'Ocultar senha' : 'Mostrar senha');
+      };
+
+      window.forceMaskedSecret = (targetId) => {
+        const input = document.getElementById(targetId);
+        const btn = document.querySelector(`[data-toggle-password="${targetId}"]`);
+        if (!input) return;
+        setMaskedMode(input, true);
+        if (btn) updateToggle(btn, input);
+      };
+
+      document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+        const targetId = btn.getAttribute('data-toggle-password');
+        const input = document.getElementById(targetId);
+        if (!input) return;
+
+        setMaskedMode(input, true);
+        updateToggle(btn, input);
+        btn.addEventListener('click', () => {
+          const showing = isShowing(input);
+          setMaskedMode(input, showing);
+          updateToggle(btn, input);
+        });
+      });
+    }
 
     function pad2(n) {
       return String(n).padStart(2, '0');
@@ -2982,18 +3187,18 @@
       
       const items = Array.isArray(list) ? list : [];
       if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #667781;">${filtered ? 'Nenhum ticket para este filtro' : 'Nenhum ticket'}</td></tr>`;
+        tbody.innerHTML = `<tr class="table-empty-row"><td colspan="6" style="text-align: center; color: #667781;">${filtered ? 'Nenhum ticket para este filtro' : 'Nenhum ticket'}</td></tr>`;
         return;
       }
 
       tbody.innerHTML = items.map(ticket => `
         <tr>
-          <td>${ticket.contact_name || '-'}</td>
-          <td class="ticket-phone">${ticket.phone}</td>
-          <td class="ticket-seller">${ticket.seller_name || 'Não atribuído'}</td>
-          <td><span class="ticket-status status-${ticket.status}">${ticket.status.replace('_', ' ')}</span></td>
-          <td>${new Date(ticket.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-          <td>
+          <td data-label="Contato">${ticket.contact_name || '-'}</td>
+          <td class="ticket-phone" data-label="Telefone">${ticket.phone}</td>
+          <td class="ticket-seller" data-label="Vendedor">${ticket.seller_name || 'Não atribuído'}</td>
+          <td data-label="Status"><span class="ticket-status status-${ticket.status}">${String(ticket.status || '').replace(/_/g, ' ')}</span></td>
+          <td data-label="Atualizado em">${new Date(ticket.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+          <td data-label="Ação">
             <div class="ticket-actions">
               <button class="btn-open-chat" type="button" onclick="openTicketConversation(${ticket.id})">Abrir conversa</button>
               <select class="assign-select" onchange="assignTicket(${ticket.id}, this.value)">
@@ -3129,16 +3334,16 @@
     function renderBlacklist() {
       const tbody = document.getElementById('blacklistTableBody');
       if (!Array.isArray(blacklist) || blacklist.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #667781;">Nenhum número bloqueado</td></tr>';
+        tbody.innerHTML = '<tr class="table-empty-row"><td colspan="4" style="text-align: center; color: #667781;">Nenhum número bloqueado</td></tr>';
         return;
       }
 
       tbody.innerHTML = blacklist.map(item => `
         <tr>
-          <td>${item.phone}</td>
-          <td>${item.reason || '—'}</td>
-          <td>${new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
-          <td><button class="btn-danger" onclick="removeBlacklist('${item.phone}')">Remover</button></td>
+          <td data-label="Telefone">${item.phone}</td>
+          <td data-label="Motivo">${item.reason || '—'}</td>
+          <td data-label="Adicionado em">${new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
+          <td data-label="Ação"><button class="btn-danger" onclick="removeBlacklist('${item.phone}')">Remover</button></td>
         </tr>
       `).join('');
     }
@@ -3261,15 +3466,15 @@
     function renderExceptions() {
       const tbody = document.getElementById('exceptionsTableBody');
       if (!exceptions.length) {
-        tbody.innerHTML = '<tr><td colspan="3" style="color: #667781; text-align: center;">Nenhuma exceção cadastrada</td></tr>';
+        tbody.innerHTML = '<tr class="table-empty-row"><td colspan="3" style="color: #667781; text-align: center;">Nenhuma exceção cadastrada</td></tr>';
         return;
       }
 
       tbody.innerHTML = exceptions.map(ex => `
         <tr>
-          <td>${formatISODateBR(ex.date)}</td>
-          <td>${ex.reason || '-'}</td>
-          <td><button class="btn-delete-exception" onclick="deleteException(${ex.id})">Remover</button></td>
+          <td data-label="Data">${formatISODateBR(ex.date)}</td>
+          <td data-label="Motivo">${ex.reason || '-'}</td>
+          <td data-label="Ação"><button class="btn-delete-exception" onclick="deleteException(${ex.id})">Remover</button></td>
         </tr>
       `).join('');
     }
@@ -3411,6 +3616,7 @@
       document.getElementById('sellerName').value = '';
       document.getElementById('sellerPassword').value = '';
       document.getElementById('sellerPassword').required = true;
+      if (window.forceMaskedSecret) window.forceMaskedSecret('sellerPassword');
       document.getElementById('sellerModal').classList.add('active');
     }
 
@@ -3421,6 +3627,7 @@
       document.getElementById('sellerPassword').value = '';
       document.getElementById('sellerPassword').required = false;
       document.getElementById('sellerPassword').placeholder = 'Deixar em branco para manter a senha atual';
+      if (window.forceMaskedSecret) window.forceMaskedSecret('sellerPassword');
       document.getElementById('sellerModal').classList.add('active');
     }
 
@@ -3894,10 +4101,10 @@
 
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td><span class="ranking-position ${positionClass}">${position}º</span></td>
-          <td>${item.seller_name || 'Sem nome'}</td>
-          <td>${item.tickets_resolved}</td>
-          <td>${percent}%</td>
+          <td data-label="Posição"><span class="ranking-position ${positionClass}">${position}º</span></td>
+          <td data-label="Nome">${item.seller_name || 'Sem nome'}</td>
+          <td data-label="Tickets Resolvidos">${item.tickets_resolved}</td>
+          <td data-label="% de Tickets">${percent}%</td>
         `;
         tbody.appendChild(row);
       });
@@ -4158,6 +4365,15 @@
       });
     }
 
+    // Mitiga sugestão/salvamento de credenciais em formulários de senha.
+    initPasswordToggles();
+    hardenSensitiveInputs([
+      '#sellerName',
+      '#sellerPassword',
+      '#newPassword',
+      '#confirmPassword',
+    ]);
+
     // Inicializar
     checkAuth();
     showSection('sellers');
@@ -4181,6 +4397,10 @@
       document.getElementById('confirmPassword').value = '';
       document.getElementById('changePasswordError').style.display = 'none';
       document.getElementById('changePasswordForm').reset();
+      if (window.forceMaskedSecret) {
+        window.forceMaskedSecret('newPassword');
+        window.forceMaskedSecret('confirmPassword');
+      }
       document.getElementById('changePasswordModal').classList.add('active');
       document.getElementById('newPassword').focus();
     }

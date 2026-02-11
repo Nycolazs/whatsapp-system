@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b1220">
   <meta name="color-scheme" content="light">
   <meta name="application-name" content="WhatsApp System">
@@ -76,6 +76,52 @@
       font-size: 14px;
     }
 
+    .password-field {
+      position: relative;
+    }
+
+    .password-field input {
+      padding-right: 44px;
+    }
+
+    .masked-secret {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: #667781;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .password-toggle svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .password-toggle:hover {
+      color: #495661;
+    }
+
     .btn {
       width: 100%;
       padding: 12px;
@@ -102,6 +148,15 @@
       font-size: 13px;
       margin-bottom: 12px;
     }
+
+    .autofill-trap {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
   </style>
   <link rel="stylesheet" href="/ui.css">
 </head>
@@ -114,15 +169,20 @@
 
     <div id="errorMessage" class="error"></div>
 
-    <form id="setupForm">
+    <form id="setupForm" autocomplete="off" novalidate data-lpignore="true">
+      <input class="autofill-trap" type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" />
+      <input class="autofill-trap" type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" />
       <div class="form-group">
-        <label for="username">Usuário</label>
-        <input id="username" type="text" required />
+        <label for="adminAccessKey">Usuário</label>
+        <input id="adminAccessKey" name="setup_admin_user_token" type="text" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" data-lpignore="true" required />
       </div>
 
       <div class="form-group">
-        <label for="password">Senha</label>
-        <input id="password" type="password" required />
+        <label for="adminSecretKey">Senha</label>
+        <div class="password-field">
+          <input id="adminSecretKey" name="setup_admin_secret_token" type="text" class="masked-secret" data-secret-input="true" autocomplete="new-password" autocorrect="off" autocapitalize="none" enterkeyhint="go" data-lpignore="true" required />
+          <button type="button" class="password-toggle" data-toggle-password="adminSecretKey" aria-label="Mostrar senha" title="Mostrar senha"></button>
+        </div>
       </div>
 
       <button class="btn" type="submit" id="submitBtn" disabled>Criar Admin</button>
@@ -135,8 +195,8 @@
     async function handleSetup(event) {
       event.preventDefault();
 
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+      const username = document.getElementById('adminAccessKey').value;
+      const password = document.getElementById('adminSecretKey').value;
       const errorDiv = document.getElementById('errorMessage');
       const button = document.getElementById('submitBtn');
 
@@ -219,9 +279,88 @@
       }
     }
 
+    function initPasswordToggles() {
+      const supportsMaskedText = typeof CSS !== 'undefined'
+        && typeof CSS.supports === 'function'
+        && (CSS.supports('-webkit-text-security', 'disc') || CSS.supports('text-security', 'disc'));
+
+      const iconShow = `
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      `;
+
+      const iconHide = `
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 3l18 18"></path>
+          <path d="M10.7 10.7a2 2 0 0 0 2.6 2.6"></path>
+          <path d="M9.9 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17.5 17.5 0 0 1-3.2 4.2"></path>
+          <path d="M6.2 6.2A17.4 17.4 0 0 0 2 12s3.5 7 10 7c1.8 0 3.5-.5 5-1.3"></path>
+        </svg>
+      `;
+
+      const setMaskedMode = (input, masked) => {
+        if (supportsMaskedText && input.dataset.secretInput === 'true') {
+          input.type = 'text';
+          input.classList.toggle('masked-secret', masked);
+          return;
+        }
+        input.classList.remove('masked-secret');
+        input.type = masked ? 'password' : 'text';
+      };
+
+      const isShowing = (input) => {
+        if (supportsMaskedText && input.dataset.secretInput === 'true') {
+          return !input.classList.contains('masked-secret');
+        }
+        return input.type === 'text';
+      };
+
+      const updateToggle = (btn, input) => {
+        const showing = isShowing(input);
+        btn.innerHTML = showing ? iconHide : iconShow;
+        btn.setAttribute('aria-label', showing ? 'Ocultar senha' : 'Mostrar senha');
+        btn.setAttribute('title', showing ? 'Ocultar senha' : 'Mostrar senha');
+      };
+
+      document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+        const targetId = btn.getAttribute('data-toggle-password');
+        const input = document.getElementById(targetId);
+        if (!input) return;
+
+        setMaskedMode(input, true);
+        updateToggle(btn, input);
+        btn.addEventListener('click', () => {
+          const showing = isShowing(input);
+          setMaskedMode(input, showing);
+          updateToggle(btn, input);
+        });
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      initPasswordToggles();
+
+      const secureFields = [
+        document.getElementById('adminAccessKey'),
+        document.getElementById('adminSecretKey'),
+      ].filter(Boolean);
+
+      secureFields.forEach((field) => {
+        field.value = '';
+        field.readOnly = true;
+        const unlock = () => { field.readOnly = false; };
+        field.addEventListener('focus', unlock, { once: true });
+        field.addEventListener('pointerdown', unlock, { once: true });
+        field.addEventListener('keydown', unlock, { once: true });
+      });
+
       const setupForm = document.getElementById('setupForm');
       if (setupForm) {
+        setupForm.addEventListener('submit', () => {
+          secureFields.forEach((field) => { field.readOnly = false; });
+        });
         setupForm.addEventListener('submit', handleSetup);
       }
       guardWhatsAppConnection();
