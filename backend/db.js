@@ -24,7 +24,8 @@ function configurePragmas(db) {
 }
 
 function initSchema(db) {
-  // Limpa tickets inválidos (ex.: jids como @lid ou não iniciado com 55)
+  // Limpa tickets inválidos.
+  // Mantém identificadores numéricos vindos de LID para não perder conversas.
   try {
     db.exec(`
       BEGIN TRANSACTION;
@@ -33,12 +34,26 @@ function initSchema(db) {
       WHERE ticket_id IN (
         SELECT id FROM tickets
         WHERE (phone LIKE '%@%')
-          OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'))
+          OR (
+            phone NOT LIKE '%@%'
+            AND (
+              length(phone) < 8
+              OR length(phone) > 25
+              OR phone GLOB '*[^0-9]*'
+            )
+          )
       );
 
       DELETE FROM tickets
       WHERE (phone LIKE '%@%')
-        OR (phone NOT LIKE '%@%' AND (length(phone) < 10 OR length(phone) > 15 OR phone GLOB '*[^0-9]*'));
+        OR (
+          phone NOT LIKE '%@%'
+          AND (
+            length(phone) < 8
+            OR length(phone) > 25
+            OR phone GLOB '*[^0-9]*'
+          )
+        );
 
       COMMIT;
     `);
@@ -334,12 +349,15 @@ function attachHelpers(db) {
     try {
       db.exec(`
         BEGIN TRANSACTION;
+        DELETE FROM ticket_reminders;
         DELETE FROM sellers;
         DELETE FROM users;
         COMMIT;
       `);
+      return { ok: true };
     } catch (err) {
       try { db.exec('ROLLBACK;'); } catch (_) {}
+      return { ok: false, error: String(err && err.message ? err.message : err) };
     }
   };
 
@@ -347,6 +365,7 @@ function attachHelpers(db) {
     try {
       db.exec(`
         BEGIN TRANSACTION;
+        DELETE FROM ticket_reminders;
         DELETE FROM messages;
         DELETE FROM tickets;
         DELETE FROM sellers;
@@ -355,8 +374,10 @@ function attachHelpers(db) {
         DELETE FROM out_of_hours_log;
         COMMIT;
       `);
+      return { ok: true };
     } catch (err) {
       try { db.exec('ROLLBACK;'); } catch (_) {}
+      return { ok: false, error: String(err && err.message ? err.message : err) };
     }
   };
 

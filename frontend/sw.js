@@ -1,12 +1,12 @@
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v1.0.2';
 const STATIC_CACHE = `wa-system-static-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
-  '/agent.html',
-  '/admin-sellers.html',
-  '/setup-admin.html',
-  '/whatsapp-qr.html',
+  '/login',
+  '/agent',
+  '/admin-sellers',
+  '/setup-admin',
+  '/whatsapp-qr',
   '/ui.css',
   '/ui.js',
   '/config.js',

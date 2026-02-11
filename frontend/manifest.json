@@ -2,7 +2,7 @@
   "name": "WhatsApp System",
   "short_name": "WA System",
   "description": "Sistema de atendimento ao cliente via WhatsApp.",
-  "start_url": "/index.html",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0b1220",

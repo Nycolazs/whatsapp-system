@@ -295,37 +295,111 @@ function isLidJid(value) {
   return String(value).trim().endsWith('@lid');
 }
 
-function normalizePhoneFromMessage(msg) {
-  const jid = msg?.key?.remoteJid || '';
-  const senderPn = msg?.key?.senderPn || '';
-  const participant = msg?.key?.participant || '';
+function escapeSqlLike(value) {
+  return String(value || '').replace(/[\\%_]/g, (m) => `\\${m}`);
+}
 
-  const candidates = [senderPn, participant, jid].filter(Boolean);
-  let digits = null;
-
-  for (const value of candidates) {
-    if (isLidJid(value)) continue;
-    const raw = String(value).split('@')[0];
-    if (!raw) continue;
-    const onlyDigits = raw.replace(/\D/g, '');
-    if (!onlyDigits) continue;
-    digits = onlyDigits;
-    break;
-  }
-
+function normalizeCandidateDigits(digits, { allowWide = false } = {}) {
   if (!digits) return null;
+  const normalized = String(digits).replace(/\D/g, '');
+  if (!normalized) return null;
 
-  let normalized = digits;
-
-  if (normalized.startsWith('55')) {
-    if (normalized.length < 12 || normalized.length > 13) {
-      return null;
-    }
+  if (normalized.startsWith('55') && (normalized.length === 12 || normalized.length === 13)) {
     return normalized;
   }
 
   if (normalized.length >= 10 && normalized.length <= 15) {
     return normalized;
+  }
+
+  // Fallback para contatos que chegam apenas com identificador LID.
+  if (allowWide && normalized.length >= 8 && normalized.length <= 25) {
+    return normalized;
+  }
+
+  return null;
+}
+
+function findPhoneByKnownJid(remoteJid, participant) {
+  const jidLookups = [
+    { key: 'remoteJid', value: remoteJid },
+    { key: 'participant', value: participant },
+  ];
+
+  for (const lookup of jidLookups) {
+    if (!lookup.value) continue;
+    try {
+      const pattern = `%"${lookup.key}":"${escapeSqlLike(lookup.value)}"%`;
+      const row = db.prepare(`
+        SELECT t.phone
+        FROM messages m
+        JOIN tickets t ON t.id = m.ticket_id
+        WHERE m.sender = 'client'
+          AND m.whatsapp_key LIKE ? ESCAPE '\\'
+        ORDER BY m.id DESC
+        LIMIT 1
+      `).get(pattern);
+
+      const phone = normalizeCandidateDigits(row?.phone, { allowWide: true });
+      if (phone) return phone;
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+function unwrapIncomingMessage(message) {
+  if (!message || typeof message !== 'object') return null;
+  let current = message;
+
+  // Alguns tipos chegam encapsulados (ephemeral/view once/edited).
+  // Desembrulhamos em cadeia para padronizar a leitura do conteúdo.
+  for (let i = 0; i < 5; i++) {
+    const next =
+      current?.ephemeralMessage?.message ||
+      current?.viewOnceMessage?.message ||
+      current?.viewOnceMessageV2?.message ||
+      current?.viewOnceMessageV2Extension?.message ||
+      current?.editedMessage?.message ||
+      null;
+
+    if (!next || typeof next !== 'object') break;
+    current = next;
+  }
+
+  return current;
+}
+
+function normalizePhoneFromMessage(msg) {
+  const jid = msg?.key?.remoteJid || '';
+  const senderPn = msg?.key?.senderPn || '';
+  const participantPn = msg?.key?.participantPn || '';
+  const participant = msg?.key?.participant || '';
+
+  // Prioriza identificadores canônicos (senderPn/participantPn/JID não-LID).
+  const preferredCandidates = [senderPn, participantPn, participant, jid].filter(Boolean);
+  for (const value of preferredCandidates) {
+    if (isLidJid(value)) continue;
+    const raw = String(value).split('@')[0];
+    const normalized = normalizeCandidateDigits(raw);
+    if (normalized) return normalized;
+  }
+
+  // Quando chega só LID (sem senderPn), tenta resolver pelo histórico local.
+  const phoneFromHistory = findPhoneByKnownJid(jid, participant);
+  if (phoneFromHistory) {
+    return phoneFromHistory;
+  }
+
+  // Último fallback: usa os dígitos do próprio LID para não perder o ticket.
+  const lidCandidates = [jid, participant].filter(Boolean);
+  for (const value of lidCandidates) {
+    if (!isLidJid(value)) continue;
+    const raw = String(value).split('@')[0];
+    const normalized = normalizeCandidateDigits(raw, { allowWide: true });
+    if (normalized) {
+      return normalized;
+    }
   }
 
   return null;
@@ -342,6 +416,71 @@ function clearAuthFiles() {
   } catch (e) {
     // Ignora
   }
+}
+
+function getActiveAccountFromFileSafe() {
+  try {
+    const file = accountManager?.paths?.ACTIVE_ACCOUNT_FILE;
+    if (!file || !fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const normalized = accountManager.normalizeAccountNumber
+      ? accountManager.normalizeAccountNumber(raw?.account)
+      : null;
+    return normalized || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function collectAuthDirsToClear() {
+  const dirs = new Set();
+
+  try {
+    const authPath = accountManager.getAuthPathForStartup();
+    if (authPath) dirs.add(path.resolve(authPath));
+  } catch (_) {}
+
+  try {
+    if (accountManager?.paths?.STAGING_AUTH_DIR) {
+      dirs.add(path.resolve(accountManager.paths.STAGING_AUTH_DIR));
+    }
+  } catch (_) {}
+
+  try {
+    if (accountManager?.paths?.LEGACY_AUTH_DIR_BACKEND) {
+      dirs.add(path.resolve(accountManager.paths.LEGACY_AUTH_DIR_BACKEND));
+    }
+  } catch (_) {}
+
+  // Compatibilidade com instalações antigas que criaram diretórios "wa-auth 2", etc.
+  try {
+    const activeAccount = getActiveAccountFromFileSafe();
+    if (activeAccount) {
+      const accountPaths = accountManager.getAccountPaths(activeAccount);
+      if (accountPaths?.accountDir && fs.existsSync(accountPaths.accountDir)) {
+        const entries = fs.readdirSync(accountPaths.accountDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          if (entry.name === 'wa-auth' || entry.name.startsWith('wa-auth ')) {
+            dirs.add(path.resolve(path.join(accountPaths.accountDir, entry.name)));
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  return Array.from(dirs);
+}
+
+function clearAllKnownAuthDirs() {
+  const dirs = collectAuthDirsToClear();
+  for (const authDir of dirs) {
+    try {
+      accountManager.clearAuthDir(authDir);
+    } catch (_) {}
+  }
+  // Mantém limpeza do path legado local por compatibilidade.
+  clearAuthFiles();
 }
 
 async function startBot() {
@@ -494,16 +633,23 @@ async function startBot() {
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
       if (!messages || !Array.isArray(messages) || messages.length === 0) return;
-      
-      try {
-        const msg = messages[0]
-        if (!msg?.message || msg?.key?.fromMe) return
+      const welcomeQueuedForTicket = new Set();
 
-        const jid = msg.key.remoteJid
-        if (!jid || jid.includes('@g.us') || jid.includes('status@broadcast')) return
-        const phoneNumber = normalizePhoneFromMessage(msg)
-        if (!phoneNumber) return
-        const sendJid = (isLidJid(jid) && phoneNumber) ? `${phoneNumber}@s.whatsapp.net` : jid
+      for (const msg of messages) {
+        try {
+          if (msg?.key?.fromMe) continue
+
+          const jid = msg.key.remoteJid
+          if (!jid || jid.includes('@g.us') || jid.includes('status@broadcast')) continue
+          const phoneNumber = normalizePhoneFromMessage(msg)
+          if (!phoneNumber) {
+            const senderPn = msg?.key?.senderPn || msg?.key?.participantPn || ''
+            const participant = msg?.key?.participant || ''
+            logger.warn(`[INBOUND] Mensagem ignorada sem identificador de contato (jid=${jid}, senderPn=${senderPn}, participant=${participant})`)
+            continue
+          }
+          const sendJid = jid || `${phoneNumber}@s.whatsapp.net`
+          const parsedMessage = unwrapIncomingMessage(msg.message)
 
       // RESPOSTA AUTOMÁTICA SUPER RÁPIDA - Envia PRIMEIRO, processa depois
       const now = new Date()
@@ -513,16 +659,12 @@ async function startBot() {
       setImmediate(() => {
         try {
           if (!businessStatus.isOpen && isOutOfHoursEnabled()) {
-            // FORA DO HORÁRIO: envia mensagem apenas para blacklist
-            const blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
-            if (blacklistEntry) {
-              if (shouldSendOutOfHours(phoneNumber, now)) {
-                const outOfHoursMessage = getOutOfHoursMessage()
-                if (outOfHoursMessage) {
-                  sock.sendMessage(sendJid, { text: outOfHoursMessage }).catch(err => {
-                    logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
-                  })
-                }
+            if (shouldSendOutOfHours(phoneNumber, now)) {
+              const outOfHoursMessage = getOutOfHoursMessage()
+              if (outOfHoursMessage) {
+                sock.sendMessage(sendJid, { text: outOfHoursMessage }).catch(err => {
+                  logger.warn(`[AUTO_REPLY] Falha ao enviar mensagem fora do horário (${phoneNumber}): ${err?.message || err}`)
+                })
               }
             }
           }
@@ -536,16 +678,21 @@ async function startBot() {
       let messageType = 'text'
       let mediaUrl = null
 
-      if (msg.message.conversation || msg.message.extendedTextMessage) {
-        messageContent = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
+      if (!parsedMessage) {
+        // Fallback: em casos de falha de descriptografia (PreKey/Session),
+        // ainda registramos no ticket para não perder o fluxo.
+        messageContent = '[Mensagem recebida, mas não pôde ser descriptografada]'
+        messageType = 'unknown'
+      } else if (parsedMessage.conversation || parsedMessage.extendedTextMessage) {
+        messageContent = parsedMessage.conversation || parsedMessage.extendedTextMessage?.text || ''
         messageType = 'text'
-      } else if (msg.message.imageMessage) {
-        messageContent = msg.message.imageMessage.caption || '[Imagem]'
+      } else if (parsedMessage.imageMessage) {
+        messageContent = parsedMessage.imageMessage.caption || '[Imagem]'
         messageType = 'image'
         
         try {
           const buffer = await downloadMediaMessage(msg, 'buffer', {})
-          const mime = msg.message.imageMessage?.mimetype || 'image/jpeg'
+          const mime = parsedMessage.imageMessage?.mimetype || 'image/jpeg'
           const ext = mime.split('/')[1] || 'jpg'
           const timestamp = Date.now()
           const fileName = `img_${timestamp}.${ext}`
@@ -570,15 +717,17 @@ async function startBot() {
           messageContent = '[Imagem - erro ao carregar]'
           logger.error(`[IMAGE ERROR] Erro ao processar imagem de ${phoneNumber}:`, error)
         }
-      } else if (msg.message.videoMessage) {
-        messageContent = msg.message.videoMessage.caption || '[Vídeo]'
+      } else if (parsedMessage.videoMessage || parsedMessage.ptvMessage) {
+        const incomingVideo = parsedMessage.videoMessage || parsedMessage.ptvMessage
+        messageContent = incomingVideo?.caption || '[Vídeo]'
         messageType = 'video'
         mediaUrl = 'loading'
 
         try {
           const buffer = await downloadMediaMessage(msg, 'buffer', {})
-          const mime = msg.message.videoMessage?.mimetype || 'video/mp4'
-          const ext = mime.split('/')[1] || 'mp4'
+          const mime = incomingVideo?.mimetype || 'video/mp4'
+          const extRaw = mime.split('/')[1] || 'mp4'
+          const ext = String(extRaw).split(';')[0] || 'mp4'
           const timestamp = Date.now()
           const fileName = `video_${timestamp}.${ext}`
           const dir = path.join(__dirname, '..', '..', '..', 'media', 'videos')
@@ -601,20 +750,20 @@ async function startBot() {
           messageContent = '[Vídeo - erro ao carregar]'
           logger.error(`[VIDEO ERROR] Erro ao processar vídeo de ${phoneNumber}:`, error)
         }
-      } else if (msg.message.audioMessage) {
+      } else if (parsedMessage.audioMessage) {
         messageContent = '🎤 Áudio'
         messageType = 'audio'
         mediaUrl = 'loading' // Flag temporária (será substituída rapidamente)
-      } else if (msg.message.documentMessage) {
-        messageContent = `[Documento: ${msg.message.documentMessage.fileName || 'arquivo'}]`
+      } else if (parsedMessage.documentMessage) {
+        messageContent = `[Documento: ${parsedMessage.documentMessage.fileName || 'arquivo'}]`
         messageType = 'document'
-      } else if (msg.message.stickerMessage) {
+      } else if (parsedMessage.stickerMessage) {
         messageContent = '[Figurinha]'
         messageType = 'sticker'
         
         try {
           const buffer = await downloadMediaMessage(msg, 'buffer', {})
-          const mime = msg.message.stickerMessage?.mimetype || 'image/webp'
+          const mime = parsedMessage.stickerMessage?.mimetype || 'image/webp'
           const ext = 'webp'
           const timestamp = Date.now()
           const fileName = `sticker_${timestamp}.${ext}`
@@ -705,29 +854,23 @@ async function startBot() {
       }
 
       // MENSAGEM DE BOAS-VINDAS quando estabelecimento está aberto
-      // Envia APENAS para números que estão na blacklist
-      if (businessStatus.isOpen && shouldSendWelcomeMessage(ticket.id)) {
+      if (businessStatus.isOpen && !welcomeQueuedForTicket.has(ticket.id) && shouldSendWelcomeMessage(ticket.id)) {
+        welcomeQueuedForTicket.add(ticket.id);
         setImmediate(() => {
           try {
-            // Verifica se o número está na blacklist
-            const blacklistEntry = db.prepare('SELECT * FROM blacklist WHERE phone = ?').get(phoneNumber)
-            
-            // Só envia se ESTIVER na blacklist
-            if (blacklistEntry) {
-              const welcomeMessage = getWelcomeMessage()
-              if (welcomeMessage) {
-                sock.sendMessage(sendJid, { text: welcomeMessage }).then(() => {
-                  // Registra a mensagem de boas-vindas no banco como mensagem do sistema
-                  try {
-                    db.prepare(`
-                      INSERT INTO messages (ticket_id, sender, content, message_type, updated_at)
-                      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    `).run(ticket.id, 'system', welcomeMessage, 'text')
-                  } catch (_) {}
-                }).catch(err => {
-                  logger.warn(`[WELCOME] Falha ao enviar mensagem de boas-vindas (${phoneNumber}): ${err?.message || err}`)
-                })
-              }
+            const welcomeMessage = getWelcomeMessage()
+            if (welcomeMessage) {
+              sock.sendMessage(sendJid, { text: welcomeMessage }).then(() => {
+                // Registra a mensagem de boas-vindas no banco como mensagem do sistema
+                try {
+                  db.prepare(`
+                    INSERT INTO messages (ticket_id, sender, content, message_type, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  `).run(ticket.id, 'system', welcomeMessage, 'text')
+                } catch (_) {}
+              }).catch(err => {
+                logger.warn(`[WELCOME] Falha ao enviar mensagem de boas-vindas (${phoneNumber}): ${err?.message || err}`)
+              })
             }
           } catch (e) {
             logger.error('[WELCOME] Erro:', e)
@@ -737,9 +880,9 @@ async function startBot() {
 
       // Verifica se a mensagem é uma resposta (quoted message)
       let reply_to_id = null
-      if (msg.message.extendedTextMessage?.contextInfo?.stanzaId) {
+      if (parsedMessage?.extendedTextMessage?.contextInfo?.stanzaId) {
         // Tenta encontrar a mensagem original pelo stanzaId do WhatsApp
-        const quotedStanzaId = msg.message.extendedTextMessage.contextInfo.stanzaId
+        const quotedStanzaId = parsedMessage.extendedTextMessage.contextInfo.stanzaId
         // Por enquanto, não vamos vincular automaticamente (WhatsApp usa IDs diferentes)
         // Mas podemos armazenar a informação se necessário
       }
@@ -823,11 +966,11 @@ async function startBot() {
         }
       }
 
-      // Auto-reply já foi enviado no início (antes de processar mídia)
-      // Nada mais a fazer aqui
-      
-      } catch (err) {
-        logger.error('[messages.upsert] Erro não tratado no handler:', err)
+          // Auto-reply já foi enviado no início (antes de processar mídia)
+          // Nada mais a fazer aqui
+        } catch (err) {
+          logger.error('[messages.upsert] Erro não tratado no handler:', err)
+        }
       }
     })
 
@@ -867,14 +1010,15 @@ module.exports.forceNewQr = async (allowWhenConnected = false) => {
     return { ok: false, reason: 'connected' };
   }
 
-  clearAuthFiles();
-
   try {
     if (currentSock) {
       try { await currentSock.logout(); } catch (e) {}
+      try { currentSock.ev?.removeAllListeners?.(); } catch (e) {}
       try { currentSock.ws?.close(); } catch (e) {}
     }
   } catch (e) {}
+
+  clearAllKnownAuthDirs();
 
   activeSock = null;
   currentSock = null;

@@ -135,22 +135,26 @@
     if (!url || typeof url !== 'string') return url;
     if (/^https?:\/\//i.test(url) || url.startsWith('ws://') || url.startsWith('wss://')) return url;
 
-    const pathOnly = url.split('?')[0].split('#')[0];
-    const last = pathOnly.split('/').pop() || '';
-    const hasExtension = last.includes('.');
+    const hashIndex = url.indexOf('#');
+    const rawWithoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+    const hash = hashIndex >= 0 ? url.slice(hashIndex) : '';
+    const queryIndex = rawWithoutHash.indexOf('?');
+    const pathOnly = queryIndex >= 0 ? rawWithoutHash.slice(0, queryIndex) : rawWithoutHash;
+    const query = queryIndex >= 0 ? rawWithoutHash.slice(queryIndex) : '';
 
-    if (hasExtension || !pathOnly.startsWith('/')) return url;
+    if (!pathOnly.startsWith('/')) return url;
 
     const routeMap = {
-      '/': '/index.html',
-      '/login': '/index.html',
-      '/agent': '/agent.html',
-      '/admin-sellers': '/admin-sellers.html',
-      '/whatsapp-qr': '/whatsapp-qr.html',
-      '/setup-admin': '/setup-admin.html',
+      '/index.html': '/',
+      '/agent.html': '/agent',
+      '/admin-sellers.html': '/admin-sellers',
+      '/whatsapp-qr.html': '/whatsapp-qr',
+      '/setup-admin.html': '/setup-admin',
     };
 
-    return routeMap[pathOnly] || url;
+    const mapped = routeMap[pathOnly];
+    if (!mapped) return url;
+    return `${mapped}${query}${hash}`;
   }
 
   function navigateTo(url) {

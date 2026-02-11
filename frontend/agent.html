@@ -1448,9 +1448,9 @@
       background: white;
       border-radius: 50px;
       box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-      padding: 12px 24px;
+      padding: 12px 16px;
       z-index: 1000;
-      min-width: 180px;
+      min-width: 220px;
       text-align: center;
     }
 
@@ -1490,27 +1490,28 @@
     }
 
     .recording-controls {
-      display: none;
+      margin-top: 8px;
+      display: flex;
+      justify-content: center;
     }
 
     .recording-controls button {
-      display: none;
-    }
-
-    .recording-controls .stop-btn {
-      display: none;
-    }
-
-    .recording-controls .stop-btn:hover {
-      display: none;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      transition: background 0.2s;
     }
 
     .recording-controls .cancel-btn {
-      display: none;
+      background: #ffe5e5;
+      color: #d64545;
     }
 
     .recording-controls .cancel-btn:hover {
-      display: none;
+      background: #ffd6d6;
     }
 
     .playback-controls {
@@ -2091,6 +2092,9 @@
   <!-- Modal de Gravação de Áudio -->
   <div class="recording-modal" id="recordingModal">
     <div class="recording-timer" id="recordingTimer">Gravando 00:00</div>
+    <div class="recording-controls">
+      <button type="button" class="cancel-btn" id="recordingCancelBtn">Cancelar envio</button>
+    </div>
   </div>
 
   <!-- Modal de Confirmação -->
@@ -2199,12 +2203,33 @@
     // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
     const API_URL = window.API_BASE || '';
 
+    function getEffectiveApiBase() {
+      if (API_URL) return API_URL;
+
+      try {
+        const host = window.location && window.location.hostname ? window.location.hostname : '';
+        const protocol = window.location && window.location.protocol ? window.location.protocol : 'http:';
+        const port = window.location && window.location.port ? String(window.location.port) : '';
+        const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+        const isPrivateIp = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+
+        // Fallback seguro para este projeto (frontend em 8080, backend em 3001).
+        if ((isLocalHost || isPrivateIp) || port === '8080') {
+          return `${protocol}//${host}:3001`;
+        }
+      } catch (_) {}
+
+      return '';
+    }
+
     function resolveMediaUrl(mediaUrl) {
       if (!mediaUrl || typeof mediaUrl !== 'string') return mediaUrl;
       if (mediaUrl === 'loading') return mediaUrl;
       if (/^(data:|blob:|https?:\/\/)/i.test(mediaUrl)) return mediaUrl;
-      if (!API_URL) return mediaUrl;
-      return mediaUrl.startsWith('/') ? `${API_URL}${mediaUrl}` : `${API_URL}/${mediaUrl}`;
+
+      const effectiveApiBase = getEffectiveApiBase();
+      if (!effectiveApiBase) return mediaUrl;
+      return mediaUrl.startsWith('/') ? `${effectiveApiBase}${mediaUrl}` : `${effectiveApiBase}/${mediaUrl}`;
     }
 
     let currentTicket = null;
@@ -4655,6 +4680,10 @@
     let isMobile = false;
     let holdTimeout = null;
     let recordBtn = null;
+    let recordingModal = null;
+    let recordingTimer = null;
+    let recordingCancelBtn = null;
+    let shouldSendRecording = false;
 
     // Detecta se é mobile
     function detectMobile() {
@@ -4664,7 +4693,19 @@
     // Inicializa event listeners do botão de áudio
     function initAudioButton() {
       recordBtn = document.getElementById('recordBtn');
+      recordingModal = document.getElementById('recordingModal');
+      recordingTimer = document.getElementById('recordingTimer');
+      recordingCancelBtn = document.getElementById('recordingCancelBtn');
       if (!recordBtn) return;
+      if (recordBtn.dataset.audioInitialized === 'true') return;
+      recordBtn.dataset.audioInitialized = 'true';
+
+      if (recordingCancelBtn) {
+        recordingCancelBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          cancelRecording(true);
+        });
+      }
 
       // Microfone normalmente só funciona em contexto seguro (HTTPS), exceto localhost.
       // Se estiver acessando por IP via HTTP, o navegador bloqueia getUserMedia.
@@ -4747,6 +4788,7 @@
 
       try {
         isRecording = true;
+        shouldSendRecording = false;
         // Solicita permissão do microfone
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -4755,14 +4797,58 @@
         audioChunks = [];
 
         mediaRecorder.ondataavailable = (event) => {
-          audioChunks.push(event.data);
+          if (event.data && event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const recorder = mediaRecorder;
+          const chunks = [...audioChunks];
+          const duration = recordingStartTime ? (Date.now() - recordingStartTime) / 1000 : 0;
+          const shouldSend = shouldSendRecording;
+
+          clearInterval(recordingTimerInterval);
+          recordingTimerInterval = null;
+          clearTimeout(holdTimeout);
+          holdTimeout = null;
+
+          if (recorder && recorder.stream) {
+            recorder.stream.getTracks().forEach(track => track.stop());
+          }
+
+          if (recordingModal) recordingModal.classList.remove('active');
+          if (recordingTimer) recordingTimer.textContent = 'Gravando 00:00';
+          if (recordBtn) recordBtn.style.opacity = '1';
+
+          mediaRecorder = null;
+          audioChunks = [];
+          recordingStartTime = null;
+          isRecording = false;
+          shouldSendRecording = false;
+
+          if (!shouldSend) {
+            window.recordedAudioBlob = null;
+            return;
+          }
+
+          // Valida duração mínima (1 segundo)
+          if (duration < 1.0) {
+            showToast('Áudio muito curto. Grave por pelo menos 1 segundo.', 'warning');
+            window.recordedAudioBlob = null;
+            return;
+          }
+
+          // Armazena o blob e envia automaticamente
+          window.recordedAudioBlob = new Blob(chunks, { type: 'audio/webm' });
+          sendRecordedAudio();
         };
 
         mediaRecorder.start();
         recordingStartTime = Date.now();
 
         // Mostra modal
-        document.getElementById('recordingModal').classList.add('active');
+        if (recordingModal) recordingModal.classList.add('active');
 
         // Atualiza botão para indicar gravação ativa
         if (recordBtn) recordBtn.style.opacity = '0.6';
@@ -4772,12 +4858,14 @@
           const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
           const minutes = Math.floor(elapsed / 60);
           const seconds = elapsed % 60;
-          document.getElementById('recordingTimer').textContent = 
-            `Gravando ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+          if (recordingTimer) {
+            recordingTimer.textContent = `Gravando ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+          }
         }, 100);
       } catch (error) {
         console.error('Erro ao acessar microfone:', error);
         isRecording = false;
+        shouldSendRecording = false;
         if (recordBtn) recordBtn.style.opacity = '1';
         
         let errorMsg = 'Erro ao acessar o microfone. Verifique as permissões.';
@@ -4799,64 +4887,53 @@
     function stopRecording() {
       if (!mediaRecorder || !isRecording) return;
 
+      shouldSendRecording = true;
       isRecording = false;
-      
-      // Calcula duração ANTES de resetar recordingStartTime
-      const recordingEndTime = Date.now();
-      const recordingDuration = (recordingEndTime - recordingStartTime) / 1000;
-      
-      mediaRecorder.stop();
-      recordingStartTime = null;
       clearInterval(recordingTimerInterval);
+      recordingTimerInterval = null;
 
       // Volta botão ao normal
       if (recordBtn) recordBtn.style.opacity = '1';
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-        // Para o stream de áudio
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
-
-        // Fecha modal
-        document.getElementById('recordingModal').classList.remove('active');
-        document.getElementById('recordingTimer').textContent = 'Gravando 00:00';
-
-        // Valida duração mínima (1 segundo)
-        if (recordingDuration < 1.0) {
-          showToast('Áudio muito curto. Grave por pelo menos 1 segundo.', 'warning');
-          cancelRecording();
-          return;
-        }
-
-        // Armazena o blob e envia automaticamente
-        window.recordedAudioBlob = audioBlob;
-        
-        // Envia áudio automaticamente
-        sendRecordedAudio();
-      };
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
     }
 
-    function cancelRecording() {
-      if (!mediaRecorder) return;
+    function cancelRecording(showFeedback = false) {
+      shouldSendRecording = false;
+      window.recordedAudioBlob = null;
+      clearTimeout(holdTimeout);
+      holdTimeout = null;
 
       isRecording = false;
-      mediaRecorder.stop();
-      recordingStartTime = null;
       clearInterval(recordingTimerInterval);
-      clearTimeout(holdTimeout);
+      recordingTimerInterval = null;
 
-      // Para o stream de áudio
-      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      if (!mediaRecorder) {
+        recordingStartTime = null;
+        if (recordingModal) recordingModal.classList.remove('active');
+        if (recordingTimer) recordingTimer.textContent = 'Gravando 00:00';
+        if (recordBtn) recordBtn.style.opacity = '1';
+        if (showFeedback) showToast('Gravação cancelada.', 'info');
+        return;
+      }
 
-      // Fecha modal
-      document.getElementById('recordingModal').classList.remove('active');
-      document.getElementById('recordingTimer').textContent = 'Gravando 00:00';
-
-      // Volta botão ao normal
       if (recordBtn) recordBtn.style.opacity = '1';
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      } else {
+        if (mediaRecorder.stream) {
+          mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        mediaRecorder = null;
+        audioChunks = [];
+        recordingStartTime = null;
+        if (recordingModal) recordingModal.classList.remove('active');
+        if (recordingTimer) recordingTimer.textContent = 'Gravando 00:00';
+      }
 
-      window.recordedAudioBlob = null;
+      if (showFeedback) showToast('Gravação cancelada.', 'info');
     }
 
     function initUiBindings() {

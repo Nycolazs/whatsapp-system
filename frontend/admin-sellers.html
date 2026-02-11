@@ -3022,7 +3022,7 @@
         showToast('Ticket inválido', 'error');
         return;
       }
-      const url = `agent.html?ticketId=${encodeURIComponent(String(id))}&from=admin`;
+      const url = `/agent?ticketId=${encodeURIComponent(String(id))}&from=admin`;
       window.open(url, '_blank', 'noopener');
     }
 

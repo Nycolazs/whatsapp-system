@@ -15,6 +15,14 @@ const PAGE_ROUTES = {
   '/setup-admin': 'setup-admin.html',
 };
 
+const HTML_TO_CLEAN_ROUTE = {
+  '/index.html': '/',
+  '/agent.html': '/agent',
+  '/admin-sellers.html': '/admin-sellers',
+  '/whatsapp-qr.html': '/whatsapp-qr',
+  '/setup-admin.html': '/setup-admin',
+};
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -54,6 +62,14 @@ function isInsideFrontendDir(targetPath) {
   return normalized.startsWith(path.normalize(FRONTEND_DIR + path.sep));
 }
 
+function getBackendBaseFromRequest(req) {
+  const hostHeader = String((req && req.headers && req.headers.host) || '');
+  const hostOnly = hostHeader ? hostHeader.split(':')[0] : 'localhost';
+  const forced = String(process.env.API_PROXY_BASE || '').trim().replace(/\/+$/, '');
+  if (forced) return forced;
+  return `http://${hostOnly}:3001`;
+}
+
 const server = http.createServer((req, res) => {
   if (!req.url) {
     res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -62,6 +78,25 @@ const server = http.createServer((req, res) => {
   }
 
   const pathname = new URL(req.url, 'http://localhost').pathname;
+
+  // Fallback de compatibilidade: quando a mídia vier como URL relativa (/media/*),
+  // encaminha para o backend (porta 3001), onde os arquivos realmente são servidos.
+  if (pathname.startsWith('/media/')) {
+    const backendBase = getBackendBaseFromRequest(req);
+    const target = `${backendBase}${req.url}`;
+    res.writeHead(302, { Location: target });
+    res.end();
+    return;
+  }
+
+  if (HTML_TO_CLEAN_ROUTE[pathname]) {
+    const urlObj = new URL(req.url, 'http://localhost');
+    const cleanPath = HTML_TO_CLEAN_ROUTE[pathname];
+    const redirectTo = `${cleanPath}${urlObj.search || ''}${urlObj.hash || ''}`;
+    res.writeHead(301, { Location: redirectTo });
+    res.end();
+    return;
+  }
 
   if (PAGE_ROUTES[pathname]) {
     const filePath = path.join(FRONTEND_DIR, PAGE_ROUTES[pathname]);
@@ -94,4 +129,3 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Frontend server running at http://${HOST}:${PORT}`);
 });
-

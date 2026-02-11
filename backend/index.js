@@ -79,6 +79,9 @@ app.use(
         upgradeInsecureRequests: isProduction ? [] : null,
       },
     },
+    // Frontend roda na 8080 e backend (mídias) na 3001.
+    // Sem isso, imagens/áudios/vídeos podem ser bloqueados por CORP.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
     // Evita Strict-Transport-Security em HTTP/LAN (senão o browser força HTTPS e quebra tudo)
     hsts: isProduction,
@@ -171,6 +174,10 @@ const uploadAudio = multer({
 app.use('/media', express.static(path.join(__dirname, '../media'), {
   maxAge: process.env.MEDIA_CACHE_MAXAGE || '30d',
   immutable: true,
+  setHeaders: (res) => {
+    // Permite consumo das mídias pelo frontend em outra origem/porta (8080 -> 3001).
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
 }));
 const serveFrontend = process.env.SERVE_FRONTEND === '1';
 const frontendDir = path.join(__dirname, '../frontend');

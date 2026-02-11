@@ -78,9 +78,17 @@ function createWhatsAppRouter({ baileys, db, requireAdmin }) {
   router.post('/whatsapp/logout', requireAdmin, async (req, res) => {
     try {
       await baileys.forceNewQr(true);
-      const deleteDb = !!(req.body && req.body.deleteDb);
+      const rawDeleteDb = req.body && req.body.deleteDb;
+      const deleteDb =
+        rawDeleteDb === true ||
+        rawDeleteDb === 'true' ||
+        rawDeleteDb === 1 ||
+        rawDeleteDb === '1';
       if (deleteDb) {
-        db.clearAllData();
+        const result = db.clearAllData ? db.clearAllData() : { ok: false, error: 'clearAllData indisponível' };
+        if (!result || result.ok !== true) {
+          return res.status(500).json({ error: 'Erro ao limpar banco de dados', details: result && result.error ? result.error : 'unknown' });
+        }
       }
       return res.json({ success: true });
     } catch (_error) {

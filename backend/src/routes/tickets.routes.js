@@ -62,6 +62,27 @@ function createTicketsRouter({
     } catch (_e) {}
   }
 
+  function resolveTicketJid(ticket) {
+    const fallback = ticket.phone && String(ticket.phone).includes('@')
+      ? String(ticket.phone)
+      : `${ticket.phone}@s.whatsapp.net`;
+
+    try {
+      const row = db.prepare(
+        "SELECT whatsapp_key FROM messages WHERE ticket_id = ? AND sender = 'client' AND whatsapp_key IS NOT NULL ORDER BY id DESC LIMIT 1"
+      ).get(ticket.id);
+      if (!row || !row.whatsapp_key) return fallback;
+
+      const key = JSON.parse(row.whatsapp_key);
+      const remoteJid = key && typeof key.remoteJid === 'string' ? key.remoteJid.trim() : '';
+      if (remoteJid && (remoteJid.endsWith('@lid') || remoteJid.endsWith('@s.whatsapp.net'))) {
+        return remoteJid;
+      }
+    } catch (_) {}
+
+    return fallback;
+  }
+
   // Busca o ticket ativo de um contato (por phone)
   router.get('/contacts/:phone/active-ticket', requireAuth, (req, res) => {
     const phone = String(req.params.phone || '').split('@')[0];
@@ -120,7 +141,13 @@ function createTicketsRouter({
       LEFT JOIN messages m
         ON m.ticket_id = t.id
        AND m.sender = 'client'
-      WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
+      WHERE (
+        t.phone IS NOT NULL
+        AND t.phone != ''
+        AND t.phone NOT LIKE '%@%'
+        AND t.phone NOT GLOB '*[^0-9]*'
+        AND length(t.phone) BETWEEN 8 AND 25
+      )
       GROUP BY t.id
       ORDER BY t.updated_at DESC
       LIMIT ? OFFSET ?
@@ -425,7 +452,7 @@ function createTicketsRouter({
       }
 
       // Envia mensagem via WhatsApp com nome do agente
-      const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
+      const jid = resolveTicketJid(ticket);
       const messageWithSender = `*${req.userName}:*\n\n${message}`;
 
       // Se for reply, busca a mensagem original para incluir no envio
@@ -564,7 +591,7 @@ function createTicketsRouter({
       }
 
       // Envia áudio via WhatsApp
-      const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
+      const jid = resolveTicketJid(ticket);
       const audioPath = req.file.path;
 
       // Se for reply, busca a mensagem original para incluir no envio
@@ -677,7 +704,7 @@ function createTicketsRouter({
         try {
           const sock = getSocket();
           if (sock) {
-            const jid = ticket.phone.includes('@') ? ticket.phone : `${ticket.phone}@s.whatsapp.net`;
+            const jid = resolveTicketJid(ticket);
             setImmediate(() => {
               sock.sendMessage(jid, {
                 text: '✅ Seu atendimento foi encerrado. Obrigado por entrar em contato! Se precisar de ajuda novamente, é só enviar uma mensagem.',
@@ -820,7 +847,13 @@ function createTicketsRouter({
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
         WHERE (t.seller_id = ? OR t.seller_id IS NULL OR t.status = 'aguardando')
           ${includeClosed ? '' : "AND t.status != 'resolvido' AND t.status != 'encerrado'"}
-          AND (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)
+          AND (
+            t.phone IS NOT NULL
+            AND t.phone != ''
+            AND t.phone NOT LIKE '%@%'
+            AND t.phone NOT GLOB '*[^0-9]*'
+            AND length(t.phone) BETWEEN 8 AND 25
+          )
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?
@@ -846,7 +879,7 @@ function createTicketsRouter({
         FROM tickets t
         LEFT JOIN sellers s ON t.seller_id = s.id
         LEFT JOIN messages m ON m.ticket_id = t.id AND m.sender = 'client'
-        ${includeAll ? '' : "WHERE (t.phone NOT LIKE '%@%' AND length(t.phone) BETWEEN 10 AND 15)"}
+        ${includeAll ? '' : "WHERE (t.phone IS NOT NULL AND t.phone != '' AND t.phone NOT LIKE '%@%' AND t.phone NOT GLOB '*[^0-9]*' AND length(t.phone) BETWEEN 8 AND 25)"}
         GROUP BY t.id
         ORDER BY t.updated_at DESC
         LIMIT ? OFFSET ?
