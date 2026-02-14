@@ -1,13 +1,26 @@
 {
+  "id": "/",
   "name": "WhatsApp System",
   "short_name": "WA System",
   "description": "Sistema de atendimento ao cliente via WhatsApp.",
-  "start_url": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "orientation": "portrait-primary",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
+  "categories": ["business", "productivity", "communication"],
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
@@ -19,6 +32,34 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Atendimento",
+      "short_name": "Atendimento",
+      "description": "Abrir painel de atendimento",
+      "url": "/agent",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "short_name": "Admin",
+      "description": "Abrir painel administrativo",
+      "url": "/admin-sellers",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

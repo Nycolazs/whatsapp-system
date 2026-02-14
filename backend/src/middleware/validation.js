@@ -63,14 +63,14 @@ const businessHoursSchema = z.array(
     day: z.number().int().min(0).max(6),
     open_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable(),
     close_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable(),
-    enabled: z.boolean(),
+    enabled: z.union([z.boolean(), z.number().int().min(0).max(1)]).transform((value) => Boolean(value)),
   })
 );
 
 // Schema para exceção de horário
 const businessExceptionSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  closed: z.boolean(),
+  closed: z.union([z.boolean(), z.number().int().min(0).max(1)]).transform((value) => Boolean(value)),
   open_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
   close_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
   reason: z.string().max(500).nullable().optional(),

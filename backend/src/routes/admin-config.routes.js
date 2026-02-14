@@ -37,9 +37,15 @@ function createAdminConfigRouter({ db, requireAdmin, accountContext, accountMana
   // Endpoints de horários de funcionamento (admin)
   router.get('/business-hours', requireAdmin, (req, res) => {
     try {
-      const hours = db
+      const rows = db
         .prepare('SELECT day, open_time, close_time, enabled FROM business_hours ORDER BY day ASC')
         .all();
+      const hours = rows.map((row) => ({
+        day: Number(row.day),
+        open_time: row.open_time || null,
+        close_time: row.close_time || null,
+        enabled: row.enabled === 1 || row.enabled === true,
+      }));
       return res.json(hours);
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao carregar horários' });
@@ -83,11 +89,15 @@ function createAdminConfigRouter({ db, requireAdmin, accountContext, accountMana
 
   router.get('/business-exceptions', requireAdmin, (req, res) => {
     try {
-      const exceptions = db
+      const rows = db
         .prepare(
           'SELECT id, date, closed, open_time, close_time, reason FROM business_exceptions ORDER BY date DESC'
         )
         .all();
+      const exceptions = rows.map((row) => ({
+        ...row,
+        closed: row.closed === 1 || row.closed === true,
+      }));
       return res.json(exceptions);
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao carregar exceções' });

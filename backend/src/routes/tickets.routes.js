@@ -36,6 +36,17 @@ function createTicketsRouter({
 }) {
   const router = express.Router();
 
+  function isPhoneInBlacklist(phoneValue) {
+    try {
+      const normalized = String(phoneValue || '').split('@')[0].replace(/\D/g, '');
+      if (!normalized) return false;
+      const row = db.prepare('SELECT 1 FROM blacklist WHERE phone = ? LIMIT 1').get(normalized);
+      return !!row;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function resolveAssignIdForUser(req) {
     if (req.userType === 'seller') return req.userId;
     if (req.userType === 'admin' && req.userName) {
@@ -553,7 +564,7 @@ function createTicketsRouter({
   // Endpoint para enviar áudio
   router.post('/tickets/:id/send-audio', requireAuth, uploadAudio.single('audio'), async (req, res) => {
     const { id } = req.params;
-    const { reply_to_id } = req.body;
+    const reply_to_id = req.body && req.body.reply_to_id;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Arquivo de áudio é obrigatório' });
@@ -700,7 +711,7 @@ function createTicketsRouter({
         return res.status(400).json({ error: 'Não é permitido voltar para pendente' });
       }
 
-      if (status === 'resolvido' || status === 'encerrado') {
+      if ((status === 'resolvido' || status === 'encerrado') && isPhoneInBlacklist(ticket.phone)) {
         try {
           const sock = getSocket();
           if (sock) {
@@ -823,7 +834,7 @@ function createTicketsRouter({
       }
 
       db.prepare('UPDATE tickets SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetSellerId, id);
-      db.prepare('UPDATE ticket_reminders SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = "scheduled"').run(targetSellerId, id);
+      db.prepare("UPDATE ticket_reminders SET seller_id = ?, updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ? AND status = 'scheduled'").run(targetSellerId, id);
       return res.json({ success: true, message: 'Ticket atribuído' });
     } catch (_error) {
       return res.status(500).json({ error: 'Erro ao atribuir ticket' });

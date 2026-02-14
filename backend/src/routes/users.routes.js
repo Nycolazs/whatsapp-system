@@ -238,6 +238,7 @@ function createUsersRouter({
   // Observação: hoje este endpoint não exige requireAdmin no código original.
   router.post(
     '/sellers',
+    requireAdmin,
     createResourceLimiter,
     validate(schemas.seller),
     auditMiddleware('create-seller'),

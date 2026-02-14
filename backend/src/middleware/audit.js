@@ -39,9 +39,9 @@ function auditMiddleware(action) {
       
       logAudit({
         action,
-        userId: req.session?.userId,
-        userName: req.session?.userName,
-        userType: req.session?.userType,
+        userId: req.session?.userId || req.userId || null,
+        userName: req.session?.userName || req.userName || null,
+        userType: req.session?.userType || req.userType || null,
         ip: req.ip || req.connection?.remoteAddress,
         result,
         details: {

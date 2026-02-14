@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1.0.3';
+const CACHE_VERSION = 'v1.0.4';
 const STATIC_CACHE = `wa-system-static-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/ui.css',
@@ -73,9 +73,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // config.js pode mudar conforme ambiente/configuração do navegador (API_BASE).
-  // Preferimos sempre rede para evitar base antiga em cache.
-  if (url.pathname === '/config.js') {
+  // config.js e ui.js podem mudar conforme ambiente/configuração do endpoint.
+  // Preferimos sempre rede para evitar configuração antiga em cache.
+  if (url.pathname === '/config.js' || url.pathname === '/ui.js') {
     event.respondWith(networkOnly(event.request));
     return;
   }

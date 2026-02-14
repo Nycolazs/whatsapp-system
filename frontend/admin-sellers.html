@@ -2644,16 +2644,27 @@
 
     // Verificar autenticação via sessão
     async function checkAuth() {
+      const sessionUrl = `${(window.API_BASE || API_URL || '').trim()}/auth/session`;
+      const retryDelays = [200, 400, 800, 1400, 2200, 3200];
+      let response = null;
+
+      for (const delay of retryDelays) {
+        try {
+          response = await fetch(sessionUrl, {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+          if (response.ok) break;
+        } catch (_) {}
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
+      if (!response || !response.ok) {
+        if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
+        return;
+      }
+
       try {
-        const response = await fetch(`${API_URL}/auth/session`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
-          return;
-        }
-
         const data = await response.json();
         
         if (data.userType !== 'admin') {
@@ -2719,6 +2730,9 @@
         });
       } catch (error) {
         // Ignora erros de logout
+      }
+      if (typeof window.clearAuthToken === 'function') {
+        window.clearAuthToken();
       }
       if (typeof navigateTo === 'function') navigateTo('/login'); else window.location.href = '/login';
     }

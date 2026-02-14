@@ -32,84 +32,245 @@ let lastConnectedAt = null;
 let lastDisconnectedAt = null;
 let lastDisconnectCode = null;
 let lastDisconnectReason = null;
+let lastConnectionEventAt = Date.now();
 
 let startInProgress = false;
 let reconnectTimer = null;
 let consecutiveConflicts = 0;
-const MAX_CONSECUTIVE_CONFLICTS = 1; // Força logout no primeiro conflito
+let heartbeatTimer = null;
+let reconnectAttempts = 0;
+let connectTimeoutTimer = null;
+let nextReconnectAt = null;
+let cachedBaileysVersion = null;
+let cachedBaileysVersionAt = 0;
+
+function parseEnvNumber(name, fallback, { min = null, max = null } = {}) {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  let value = Number.isFinite(parsed) ? parsed : fallback;
+  if (Number.isFinite(min)) value = Math.max(min, value);
+  if (Number.isFinite(max)) value = Math.min(max, value);
+  return value;
+}
+
+function parseEnvFloat(name, fallback, { min = null, max = null } = {}) {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  let value = Number.isFinite(parsed) ? parsed : fallback;
+  if (Number.isFinite(min)) value = Math.max(min, value);
+  if (Number.isFinite(max)) value = Math.min(max, value);
+  return value;
+}
+
+const MAX_CONSECUTIVE_CONFLICTS = parseEnvNumber('WA_MAX_CONFLICTS_BEFORE_LOGOUT', 3, { min: 1, max: 20 });
+const WA_SOCKET_READY_STATE_OPEN = 1;
+const BAILEYS_VERSION_CACHE_MS = parseEnvNumber('WA_VERSION_CACHE_MS', 6 * 60 * 60 * 1000, { min: 60 * 1000, max: 24 * 60 * 60 * 1000 });
+const CONNECTING_TIMEOUT_MS = parseEnvNumber('WA_CONNECTING_TIMEOUT_MS', 45 * 1000, { min: 10 * 1000, max: 5 * 60 * 1000 });
 
 // Configurações de estabilidade
 const RECONNECT_CONFIG = {
-  initialDelay: 2000,      // Delay inicial de reconexão
-  maxDelay: 30000,         // Delay máximo entre tentativas
-  maxAttempts: 10,         // Tentativas máximas antes de resetar
-  backoffMultiplier: 1.5,  // Multiplicador exponencial
+  initialDelay: parseEnvNumber('WA_RECONNECT_INITIAL_DELAY_MS', 2_000, { min: 250, max: 60_000 }),
+  maxDelay: parseEnvNumber('WA_RECONNECT_MAX_DELAY_MS', 30_000, { min: 2_000, max: 10 * 60 * 1000 }),
+  maxAttemptsBeforeReset: parseEnvNumber('WA_RECONNECT_MAX_ATTEMPTS', 10, { min: 1, max: 10_000 }),
+  backoffMultiplier: parseEnvFloat('WA_RECONNECT_BACKOFF_MULTIPLIER', 1.5, { min: 1.05, max: 4 }),
+  jitterPct: parseEnvFloat('WA_RECONNECT_JITTER_PCT', 0.15, { min: 0, max: 0.5 }),
 };
-
-let reconnectAttempts = 0;
-let currentReconnectDelay = RECONNECT_CONFIG.initialDelay;
-let heartbeatTimer = null;
-
-function calculateNextDelay() {
-  if (reconnectAttempts >= RECONNECT_CONFIG.maxAttempts) {
-    reconnectAttempts = 0; // Reset após atingir máximo
-    currentReconnectDelay = RECONNECT_CONFIG.initialDelay;
-  }
-  
-  const delay = Math.min(
-    RECONNECT_CONFIG.initialDelay * Math.pow(RECONNECT_CONFIG.backoffMultiplier, reconnectAttempts),
-    RECONNECT_CONFIG.maxDelay
-  );
-  
-  reconnectAttempts++;
-  return Math.floor(delay);
+if (RECONNECT_CONFIG.maxDelay < RECONNECT_CONFIG.initialDelay) {
+  RECONNECT_CONFIG.maxDelay = RECONNECT_CONFIG.initialDelay;
 }
 
-function scheduleReconnect(delayMs = null) {
+const HEARTBEAT_CONFIG = {
+  intervalMs: parseEnvNumber('WA_HEARTBEAT_INTERVAL_MS', 30_000, { min: 10_000, max: 120_000 }),
+  maxMissedChecks: parseEnvNumber('WA_HEARTBEAT_MAX_MISSED', 3, { min: 1, max: 20 }),
+};
+
+const WATCHDOG_CONFIG = {
+  intervalMs: parseEnvNumber('WA_WATCHDOG_INTERVAL_MS', 60_000, { min: 10_000, max: 5 * 60 * 1000 }),
+  staleThresholdMs: parseEnvNumber('WA_WATCHDOG_STALE_THRESHOLD_MS', 90_000, { min: 30_000, max: 30 * 60 * 1000 }),
+};
+
+function touchConnectionEvent() {
+  lastConnectionEventAt = Date.now();
+}
+
+function clearReconnectTimer() {
   try {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-  } catch (e) {}
-  
-  const actualDelay = delayMs !== null ? delayMs : calculateNextDelay();
-  
-  logger.info(`[RECONNECT] Reconectando em ${actualDelay}ms (tentativa ${reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts})`);
-  
+  } catch (_) {}
+  reconnectTimer = null;
+  nextReconnectAt = null;
+}
+
+function clearConnectTimeout() {
+  try {
+    if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
+  } catch (_) {}
+  connectTimeoutTimer = null;
+}
+
+function stopSocket(sock) {
+  if (!sock) return;
+  try { sock.ev?.removeAllListeners?.(); } catch (_) {}
+  try { sock.ws?.close?.(); } catch (_) {}
+}
+
+function isSocketOpen(sock) {
+  if (!sock) return false;
+  const readyState = Number(sock?.ws?.readyState);
+  if (Number.isFinite(readyState)) {
+    return readyState === WA_SOCKET_READY_STATE_OPEN;
+  }
+  // Fallback defensivo para versões onde ws.readyState não está disponível
+  return typeof sock.sendMessage === 'function';
+}
+
+function resolveDisconnectCode(lastDisconnect) {
+  const raw = Number(lastDisconnect?.error?.output?.statusCode);
+  if (Number.isFinite(raw)) return raw;
+  return null;
+}
+
+function resolveDisconnectReason(lastDisconnect) {
+  try {
+    return (
+      lastDisconnect?.error?.output?.payload?.message ||
+      lastDisconnect?.error?.message ||
+      null
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+function isConflictDisconnect(code, reason) {
+  if (code === DisconnectReason.connectionReplaced) return true;
+  return !!(reason && String(reason).toLowerCase().includes('conflict'));
+}
+
+function isLogoutDisconnect(code) {
+  return (
+    code === DisconnectReason.loggedOut ||
+    code === DisconnectReason.badSession ||
+    code === DisconnectReason.multideviceMismatch ||
+    code === 405
+  );
+}
+
+function addJitter(baseDelay) {
+  if (RECONNECT_CONFIG.jitterPct <= 0) return Math.floor(baseDelay);
+  const variance = 1 + ((Math.random() * 2 - 1) * RECONNECT_CONFIG.jitterPct);
+  const jittered = baseDelay * variance;
+  return Math.max(RECONNECT_CONFIG.initialDelay, Math.floor(jittered));
+}
+
+function calculateNextDelay() {
+  const cycleAttempt = reconnectAttempts % RECONNECT_CONFIG.maxAttemptsBeforeReset;
+  const baseDelay = Math.min(
+    RECONNECT_CONFIG.initialDelay * Math.pow(RECONNECT_CONFIG.backoffMultiplier, cycleAttempt),
+    RECONNECT_CONFIG.maxDelay
+  );
+  reconnectAttempts += 1;
+  return addJitter(baseDelay);
+}
+
+function scheduleReconnect(delayMs = null, reason = 'unknown') {
+  clearReconnectTimer();
+  touchConnectionEvent();
+
+  const requestedDelay = Number(delayMs);
+  const actualDelay = Number.isFinite(requestedDelay)
+    ? Math.max(0, Math.floor(requestedDelay))
+    : calculateNextDelay();
+
+  nextReconnectAt = Date.now() + actualDelay;
+  logger.info(
+    `[RECONNECT] Agendado em ${actualDelay}ms (tentativa ${reconnectAttempts}, motivo: ${reason})`
+  );
+
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    nextReconnectAt = null;
+
+    if (startInProgress) {
+      scheduleReconnect(RECONNECT_CONFIG.initialDelay, 'start-in-progress');
+      return;
+    }
+
     startBot().catch((err) => {
       logger.error('[RECONNECT] Falha ao reconectar WhatsApp:', err);
     });
   }, actualDelay);
+
+  try {
+    if (typeof reconnectTimer.unref === 'function') reconnectTimer.unref();
+  } catch (_) {}
+}
+
+function scheduleConnectTimeout(sock) {
+  clearConnectTimeout();
+  connectTimeoutTimer = setTimeout(() => {
+    if (sock !== currentSock) return;
+    if (connectionState === 'open' || connectionState === 'qr') return;
+
+    logger.warn(
+      `[CONNECT_TIMEOUT] Conexão sem progresso por ${CONNECTING_TIMEOUT_MS}ms. Reiniciando socket.`
+    );
+    touchConnectionEvent();
+    lastDisconnectedAt = Date.now();
+    lastDisconnectCode = 'timeout';
+    lastDisconnectReason = 'connecting_timeout';
+    activeSock = null;
+    if (currentSock === sock) currentSock = null;
+    stopSocket(sock);
+    connectionState = 'close';
+    scheduleReconnect(RECONNECT_CONFIG.initialDelay, 'connect-timeout');
+  }, CONNECTING_TIMEOUT_MS);
+
+  try {
+    if (typeof connectTimeoutTimer.unref === 'function') connectTimeoutTimer.unref();
+  } catch (_) {}
 }
 
 function startHeartbeat(sock) {
-  try {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-  } catch (e) {}
-  
+  stopHeartbeat();
   let missedChecks = 0;
-  
+
   heartbeatTimer = setInterval(() => {
     try {
-      // Verificação mais robusta - se activeSock existe e tem métodos de socket
-      if (activeSock && typeof activeSock.query === 'function') {
-        // Socket está ativo, reset counter
+      if (sock !== currentSock || connectionState !== 'open') {
         missedChecks = 0;
-      } else if (activeSock) {
-        // Socket pode estar em transição, aguarda mais uma checagem
-        missedChecks++;
-        
-        if (missedChecks >= 2) {
-          logger.warn('[HEARTBEAT] WebSocket desconectado (miss count: ' + missedChecks + '), reconectando...');
-          activeSock = null;
-          missedChecks = 0;
-          scheduleReconnect();
-        }
+        return;
       }
+
+      if (isSocketOpen(sock)) {
+        missedChecks = 0;
+        return;
+      }
+
+      missedChecks += 1;
+      logger.warn(
+        `[HEARTBEAT] Socket sem readyState OPEN (${missedChecks}/${HEARTBEAT_CONFIG.maxMissedChecks})`
+      );
+
+      if (missedChecks < HEARTBEAT_CONFIG.maxMissedChecks) return;
+
+      touchConnectionEvent();
+      lastDisconnectedAt = Date.now();
+      lastDisconnectCode = 'heartbeat';
+      lastDisconnectReason = 'heartbeat_stale';
+      connectionState = 'close';
+      activeSock = null;
+      if (currentSock === sock) currentSock = null;
+      stopSocket(sock);
+      scheduleReconnect(null, 'heartbeat-stale');
     } catch (err) {
-      logger.warn('[HEARTBEAT] Erro ao verificar conexão:', err.message);
+      logger.warn('[HEARTBEAT] Erro ao verificar conexão:', err && err.message ? err.message : err);
     }
-  }, 45000); // Aumentado para 45 segundos para dar mais tempo
+  }, HEARTBEAT_CONFIG.intervalMs);
+
+  try {
+    if (typeof heartbeatTimer.unref === 'function') heartbeatTimer.unref();
+  } catch (_) {}
 }
 
 function stopHeartbeat() {
@@ -120,6 +281,64 @@ function stopHeartbeat() {
     }
   } catch (e) {}
 }
+
+function startSelfHealWatchdog() {
+  const timer = setInterval(() => {
+    try {
+      if (startInProgress) return;
+      if (activeSock || currentSock || reconnectTimer) return;
+      if (connectionState === 'open') return;
+
+      const stalledForMs = Date.now() - lastConnectionEventAt;
+      if (stalledForMs < WATCHDOG_CONFIG.staleThresholdMs) return;
+
+      logger.warn(
+        `[WATCHDOG] Estado parado em "${connectionState}" há ${stalledForMs}ms. Forçando reconexão.`
+      );
+      scheduleReconnect(RECONNECT_CONFIG.initialDelay, 'watchdog-stale-state');
+    } catch (err) {
+      logger.warn('[WATCHDOG] Falha no monitor de conexão:', err && err.message ? err.message : err);
+    }
+  }, WATCHDOG_CONFIG.intervalMs);
+
+  try {
+    if (typeof timer.unref === 'function') timer.unref();
+  } catch (_) {}
+}
+
+async function resolveBaileysVersion() {
+  const now = Date.now();
+  if (
+    Array.isArray(cachedBaileysVersion) &&
+    cachedBaileysVersion.length > 0 &&
+    (now - cachedBaileysVersionAt) < BAILEYS_VERSION_CACHE_MS
+  ) {
+    return cachedBaileysVersion;
+  }
+
+  try {
+    const { version } = await fetchLatestBaileysVersion();
+    if (Array.isArray(version) && version.length > 0) {
+      cachedBaileysVersion = version;
+      cachedBaileysVersionAt = now;
+      return version;
+    }
+  } catch (err) {
+    if (Array.isArray(cachedBaileysVersion) && cachedBaileysVersion.length > 0) {
+      logger.warn('[BAILEYS] Falha ao buscar versão mais recente. Usando cache local.');
+      return cachedBaileysVersion;
+    }
+    throw err;
+  }
+
+  if (Array.isArray(cachedBaileysVersion) && cachedBaileysVersion.length > 0) {
+    return cachedBaileysVersion;
+  }
+
+  throw new Error('Não foi possível determinar a versão do Baileys');
+}
+
+startSelfHealWatchdog();
 
 function clearMediaFiles() {
   const mediaDirs = [
@@ -286,6 +505,22 @@ function shouldSendOutOfHours(phoneNumber, now) {
 
     return true;
   } catch (err) {
+    return false;
+  }
+}
+
+function normalizePhoneForBlacklist(phoneNumber) {
+  if (!phoneNumber) return '';
+  return String(phoneNumber).split('@')[0].replace(/\D/g, '');
+}
+
+function isPhoneInBlacklist(phoneNumber) {
+  try {
+    const normalized = normalizePhoneForBlacklist(phoneNumber);
+    if (!normalized) return false;
+    const row = db.prepare('SELECT 1 FROM blacklist WHERE phone = ? LIMIT 1').get(normalized);
+    return !!row;
+  } catch (_) {
     return false;
   }
 }
@@ -488,18 +723,21 @@ async function startBot() {
     return currentSock;
   }
   startInProgress = true;
-  
+
+  touchConnectionEvent();
+  clearReconnectTimer();
+  clearConnectTimeout();
+  stopHeartbeat();
+
   // Limpa socket anterior se existir
   if (currentSock) {
-    try {
-      currentSock.ev.removeAllListeners();
-      currentSock.ws?.close();
-    } catch (_) {}
+    stopSocket(currentSock);
     currentSock = null;
   }
-  
+  activeSock = null;
+
   try {
-    const { version } = await fetchLatestBaileysVersion()
+    const version = await resolveBaileysVersion();
     const authPath = accountManager.getAuthPathForStartup();
     const { state, saveCreds } = await useMultiFileAuthState(authPath)
     const sock = makeWASocket({
@@ -516,6 +754,8 @@ async function startBot() {
       emitOwnEvents: false,
     })
     currentSock = sock;
+    connectionState = 'connecting';
+    scheduleConnectTimeout(sock);
 
     sock.ev.on('creds.update', (...args) => {
       try {
@@ -524,22 +764,29 @@ async function startBot() {
         logger.warn('[creds.update] Falha ao salvar credenciais:', err)
       }
     })
-    
+
     sock.ev.on('connection.update', (update) => {
+      if (sock !== currentSock) return;
+      touchConnectionEvent();
+
       try {
         const { connection, qr, lastDisconnect } = update
+
         if (connection === 'connecting') {
           connectionState = 'connecting'
         }
-        
+
         if (qr) {
           latestQr = qr
           latestQrAt = Date.now()
           connectionState = 'qr'
+          clearConnectTimeout();
           clearOperationalDataFor('disconnected')
         }
-        
+
         if (connection === 'open') {
+          clearConnectTimeout();
+          clearReconnectTimer();
           activeSock = sock; // Atualiza o socket ativo
           latestQr = null
           connectionState = 'open'
@@ -548,7 +795,6 @@ async function startBot() {
           lastDisconnectReason = null;
           consecutiveConflicts = 0; // Reset conflitos ao conectar
           reconnectAttempts = 0; // Reset tentativas de reconexão
-          currentReconnectDelay = RECONNECT_CONFIG.initialDelay; // Reset delay
           startHeartbeat(sock); // Inicia heartbeat
           logger.info('[CONNECTED] WhatsApp conectado com sucesso');
 
@@ -566,45 +812,45 @@ async function startBot() {
 
           clearOperationalDataFor('connected')
         }
-        
+
         if (connection === 'close') {
+          clearConnectTimeout();
           activeSock = null; // Limpa o socket ativo
           stopHeartbeat(); // Para heartbeat
           connectionState = 'close'
           clearOperationalDataFor('disconnected')
-          const code = lastDisconnect?.error?.output?.statusCode
+          const code = resolveDisconnectCode(lastDisconnect);
+          const reason = resolveDisconnectReason(lastDisconnect);
 
           lastDisconnectedAt = Date.now();
           lastDisconnectCode = code ?? null;
-          try {
-            lastDisconnectReason = lastDisconnect?.error?.output?.payload?.message || lastDisconnect?.error?.message || null;
-          } catch (e) {
-            lastDisconnectReason = null;
-          }
-          
-          logger.warn(`[DISCONNECT] Conexão fechada. Código: ${code}, Motivo: ${lastDisconnectReason}`);
+          lastDisconnectReason = reason;
+
+          logger.warn(`[DISCONNECT] Conexão fechada. Código: ${code}, Motivo: ${reason}`);
 
           // Limpa socket anterior para evitar leak
-          if (currentSock && currentSock !== sock) {
-            try {
-              currentSock.ev.removeAllListeners();
-              currentSock.ws?.close();
-            } catch (_) {}
-          }
-          currentSock = null;
+          if (currentSock === sock) currentSock = null;
+          stopSocket(sock);
 
-          if (code === 401 || code === 405) {
-            // Credenciais inválidas: limpa o auth em uso (staging ou conta)
+          if (isLogoutDisconnect(code)) {
+            logger.warn('[AUTH] Sessão inválida/logged out. Limpando credenciais para gerar novo QR.');
             try { accountManager.clearAuthDir(authPath); } catch (_) { clearAuthFiles() }
+            reconnectAttempts = 0;
+            consecutiveConflicts = 0;
+            latestQr = null;
+            latestQrAt = null;
+            connectionState = 'qr';
+            scheduleReconnect(RECONNECT_CONFIG.initialDelay, 'logged-out');
+            return;
           }
 
           // Detecta conflito (outra sessão ativa)
-          const isConflict = lastDisconnectReason && String(lastDisconnectReason).toLowerCase().includes('conflict');
-          
+          const isConflict = isConflictDisconnect(code, reason);
+
           if (isConflict) {
             consecutiveConflicts++;
             logger.warn(`[CONFLICT] Conflito detectado (${consecutiveConflicts}/${MAX_CONSECUTIVE_CONFLICTS})`);
-            
+
             // Se tiver muitos conflitos consecutivos, força logout
             if (consecutiveConflicts >= MAX_CONSECUTIVE_CONFLICTS) {
               logger.warn('[CONFLICT] Muitos conflitos. Limpando sessão. Escaneie novo QR.');
@@ -614,16 +860,24 @@ async function startBot() {
               activeSock = null;
               currentSock = null;
               latestQr = null;
+              latestQrAt = null;
               connectionState = 'qr';
               // Reinicia socket para gerar novo QR, sem deixar rejection sem tratamento
-              scheduleReconnect(5000);
+              scheduleReconnect(2_500, 'conflict-force-new-qr');
               return;
             }
-            
-            scheduleReconnect(calculateNextDelay()); // Usa backoff exponencial
+
+            scheduleReconnect(null, 'conflict-disconnect');
+            return;
+          }
+
+          consecutiveConflicts = 0; // Reset se não for conflito
+          if (code === DisconnectReason.restartRequired) {
+            scheduleReconnect(500, 'restart-required');
+          } else if (code === DisconnectReason.unavailableService) {
+            scheduleReconnect(RECONNECT_CONFIG.maxDelay, 'unavailable-service');
           } else {
-            consecutiveConflicts = 0; // Reset se não for conflito
-            scheduleReconnect(); // Usa próximo delay calculado
+            scheduleReconnect(null, `disconnect-${code || 'unknown'}`);
           }
         }
       } catch (err) {
@@ -632,6 +886,7 @@ async function startBot() {
     })
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
+      if (sock !== currentSock) return;
       if (!messages || !Array.isArray(messages) || messages.length === 0) return;
       const welcomeQueuedForTicket = new Set();
 
@@ -654,11 +909,12 @@ async function startBot() {
       // RESPOSTA AUTOMÁTICA SUPER RÁPIDA - Envia PRIMEIRO, processa depois
       const now = new Date()
       const businessStatus = getBusinessStatus(now)
+      const isBlacklistedForAutoMessages = isPhoneInBlacklist(phoneNumber)
       
       // Faz checagens rápidas em paralelo, sem aguardar
       setImmediate(() => {
         try {
-          if (!businessStatus.isOpen && isOutOfHoursEnabled()) {
+          if (isBlacklistedForAutoMessages && !businessStatus.isOpen && isOutOfHoursEnabled()) {
             if (shouldSendOutOfHours(phoneNumber, now)) {
               const outOfHoursMessage = getOutOfHoursMessage()
               if (outOfHoursMessage) {
@@ -854,7 +1110,7 @@ async function startBot() {
       }
 
       // MENSAGEM DE BOAS-VINDAS quando estabelecimento está aberto
-      if (businessStatus.isOpen && !welcomeQueuedForTicket.has(ticket.id) && shouldSendWelcomeMessage(ticket.id)) {
+      if (isBlacklistedForAutoMessages && businessStatus.isOpen && !welcomeQueuedForTicket.has(ticket.id) && shouldSendWelcomeMessage(ticket.id)) {
         welcomeQueuedForTicket.add(ticket.id);
         setImmediate(() => {
           try {
@@ -976,15 +1232,24 @@ async function startBot() {
 
     return sock
   } catch (error) {
+    touchConnectionEvent();
+    clearConnectTimeout();
+    stopHeartbeat();
+
     logger.error('[START] Falha ao iniciar WhatsApp. Tentando reconectar...', error)
     try {
       if (currentSock) {
-        try { currentSock.ev.removeAllListeners(); } catch (_) {}
-        try { currentSock.ws?.close(); } catch (_) {}
+        stopSocket(currentSock);
         currentSock = null;
       }
     } catch (e) {}
-    scheduleReconnect();
+
+    activeSock = null;
+    connectionState = 'close';
+    lastDisconnectedAt = Date.now();
+    lastDisconnectCode = 'start_error';
+    lastDisconnectReason = error && error.message ? String(error.message) : 'start_error';
+    scheduleReconnect(null, 'start-failure');
     return null;
   } finally {
     startInProgress = false;
@@ -998,23 +1263,29 @@ module.exports.getQrState = () => ({
   qr: latestQr,
   qrAt: latestQrAt,
   connectionState,
-  connected: activeSock !== null,
-  stableConnected: (activeSock !== null) || (typeof lastConnectedAt === 'number' && (Date.now() - lastConnectedAt) < 15_000),
+  connected: !!(activeSock && isSocketOpen(activeSock)),
+  stableConnected: !!(activeSock && isSocketOpen(activeSock)) || (typeof lastConnectedAt === 'number' && (Date.now() - lastConnectedAt) < 15_000),
   lastConnectedAt,
   lastDisconnectedAt,
   lastDisconnectCode,
   lastDisconnectReason,
+  reconnectAttempts,
+  reconnectScheduledAt: nextReconnectAt,
 });
 module.exports.forceNewQr = async (allowWhenConnected = false) => {
   if (activeSock && !allowWhenConnected) {
     return { ok: false, reason: 'connected' };
   }
 
+  clearReconnectTimer();
+  clearConnectTimeout();
+  stopHeartbeat();
+  touchConnectionEvent();
+
   try {
     if (currentSock) {
       try { await currentSock.logout(); } catch (e) {}
-      try { currentSock.ev?.removeAllListeners?.(); } catch (e) {}
-      try { currentSock.ws?.close(); } catch (e) {}
+      stopSocket(currentSock);
     }
   } catch (e) {}
 
@@ -1028,9 +1299,11 @@ module.exports.forceNewQr = async (allowWhenConnected = false) => {
   lastDisconnectedAt = Date.now();
   lastDisconnectCode = 'forced';
   lastDisconnectReason = 'forceNewQr';
+  reconnectAttempts = 0;
+  consecutiveConflicts = 0;
 
   // Reinicia o bot após 1 segundo
-  scheduleReconnect(1000);
+  scheduleReconnect(1000, 'force-new-qr');
 
   return { ok: true };
 };

@@ -1,6 +1,7 @@
 // Shared UI helpers: page transitions and toast notifications
 (function () {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
 
   function setAppHeight() {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -23,6 +24,143 @@
     if (input.startsWith('/')) return `${base}${input}`;
     return `${base}/${input}`;
   }
+
+  function isElectronRuntime() {
+    try {
+      const ua = String((navigator && navigator.userAgent) || '');
+      return /\bElectron\/\d+/i.test(ua) || window.__ELECTRON_APP__ === true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isCapacitorNativeRuntime() {
+    try {
+      if (!window.Capacitor) return false;
+      if (typeof window.Capacitor.isNativePlatform === 'function') {
+        return window.Capacitor.isNativePlatform();
+      }
+      const platform = window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+      return platform && platform !== 'web';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function toAbsoluteUrl(input) {
+    try {
+      if (typeof input === 'string') return new URL(input, window.location.origin);
+      if (input instanceof URL) return input;
+      if (typeof Request !== 'undefined' && input instanceof Request) {
+        return new URL(input.url, window.location.origin);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function installElectronApiProxyFetch() {
+    if (!isElectronRuntime()) return;
+    if (!window.fetch || typeof window.fetch !== 'function') return;
+    if (window.__API_PROXY_FETCH_INSTALLED__) return;
+
+    const originalFetch = window.fetch.bind(window);
+    window.__API_PROXY_FETCH_INSTALLED__ = true;
+
+    window.fetch = function proxiedFetch(input, init) {
+      try {
+        const baseRaw = String(window.API_BASE || '').trim().replace(/\/+$/, '');
+        if (!baseRaw || !/^https?:\/\//i.test(baseRaw)) {
+          return originalFetch(input, init);
+        }
+
+        const absolute = toAbsoluteUrl(input);
+        if (!absolute) return originalFetch(input, init);
+
+        const targetBase = new URL(baseRaw);
+        if (absolute.origin !== targetBase.origin) {
+          return originalFetch(input, init);
+        }
+
+        const proxyPath = `/__api${absolute.pathname}${absolute.search || ''}`;
+        const headers = new Headers((init && init.headers) || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
+        headers.set('x-api-base', `${targetBase.protocol}//${targetBase.host}`);
+
+        if (typeof Request !== 'undefined' && input instanceof Request) {
+          const requestInit = { ...init, headers };
+          const proxiedRequest = new Request(proxyPath, input);
+          return originalFetch(proxiedRequest, requestInit);
+        }
+
+        return originalFetch(proxyPath, { ...init, headers });
+      } catch (_) {
+        return originalFetch(input, init);
+      }
+    };
+  }
+
+  installElectronApiProxyFetch();
+
+  function getStoredAuthToken() {
+    try {
+      return String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function storeAuthToken(token) {
+    const normalized = String(token || '').trim();
+    try {
+      if (normalized) localStorage.setItem(AUTH_TOKEN_KEY, normalized);
+      else localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch (_) {}
+  }
+
+  function toFetchInputUrl(input) {
+    try {
+      if (typeof input === 'string') return input;
+      if (typeof Request !== 'undefined' && input instanceof Request) return input.url;
+      return String(input || '');
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function installAuthTokenFetch() {
+    if (!window.fetch || typeof window.fetch !== 'function') return;
+    if (window.__AUTH_TOKEN_FETCH_INSTALLED__) return;
+
+    const originalFetch = window.fetch.bind(window);
+    window.__AUTH_TOKEN_FETCH_INSTALLED__ = true;
+
+    window.fetch = function authTokenFetch(input, init = {}) {
+      const token = getStoredAuthToken();
+      if (!token) return originalFetch(input, init);
+
+      const rawInputUrl = toFetchInputUrl(input);
+      const isRelative = rawInputUrl.startsWith('/') || rawInputUrl.startsWith('./') || rawInputUrl.startsWith('../');
+      const isApiAbsolute = /^https?:\/\//i.test(rawInputUrl);
+      if (!isRelative && !isApiAbsolute) return originalFetch(input, init);
+
+      try {
+        const headers = new Headers((init && init.headers) || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
+        if (!headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+
+        if (typeof Request !== 'undefined' && input instanceof Request) {
+          const req = new Request(input, { ...init, headers });
+          return originalFetch(req);
+        }
+
+        return originalFetch(input, { ...init, headers });
+      } catch (_) {
+        return originalFetch(input, init);
+      }
+    };
+  }
+
+  installAuthTokenFetch();
 
   // Global fetch wrapper for large-scale usage:
   // - backs off on 429
@@ -144,6 +282,23 @@
 
     if (!pathOnly.startsWith('/')) return url;
 
+    const isNativeApp = isCapacitorNativeRuntime();
+    // Em apps nativos (Capacitor), converte rotas limpas para arquivos HTML
+    // independentemente do esquema (file:// ou http://localhost).
+    if (isNativeApp || (window.location && window.location.protocol === 'file:')) {
+      const cleanToFileMap = {
+        '/': '/index.html',
+        '/login': '/index.html',
+        '/agent': '/agent.html',
+        '/admin-sellers': '/admin-sellers.html',
+        '/whatsapp-qr': '/whatsapp-qr.html',
+        '/setup-admin': '/setup-admin.html',
+      };
+
+      const localFilePath = cleanToFileMap[pathOnly] || pathOnly;
+      return `${localFilePath.replace(/^\//, '')}${query}${hash}`;
+    }
+
     const routeMap = {
       '/index.html': '/',
       '/agent.html': '/agent',
@@ -179,16 +334,55 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
+      if (isElectronRuntime()) {
+        navigator.serviceWorker.getRegistrations()
+          .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
+          .catch(() => {});
+        if (window.caches && typeof window.caches.keys === 'function') {
+          window.caches.keys()
+            .then((keys) => Promise.all(keys.map((key) => window.caches.delete(key))))
+            .catch(() => {});
+        }
+        return;
+      }
+
       navigator.serviceWorker.register('/sw.js').catch((err) => {
         console.debug('Service worker registration failed', err);
       });
     });
   }
 
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    window.dispatchEvent(new CustomEvent('pwa-install-available'));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    window.dispatchEvent(new CustomEvent('pwa-installed'));
+  });
+
   // Expose globally
   window.showNotification = showNotification;
   window.resolveAppUrl = resolveAppUrl;
   window.navigateTo = navigateTo;
+  window.getAuthToken = getStoredAuthToken;
+  window.setAuthToken = storeAuthToken;
+  window.clearAuthToken = function clearAuthToken() {
+    storeAuthToken('');
+  };
+  window.canInstallPwa = function canInstallPwa() {
+    return !!deferredInstallPrompt;
+  };
+  window.promptInstallPwa = async function promptInstallPwa() {
+    if (!deferredInstallPrompt) return false;
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    return choice && choice.outcome === 'accepted';
+  };
   window.ensureConnected = async function ensureConnected() {
     async function fetchQrState() {
       return window.smartJson('/whatsapp/qr', { cache: 'no-store', maxRetries: 1 });

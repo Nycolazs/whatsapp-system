@@ -1,15 +1,13 @@
 {
   "name": "whatsapp-system",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema WhatsApp",
   "main": "backend/index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "npm run start:backend || true; npm run start:frontend || true",
-    "start:backend": "SERVE_FRONTEND=0 ./start start",
+    "start": "npm run electron:start",
+    "start:backend": "./start start",
     "start:frontend": "./start-frontend start",
-    "start:menu": "./start",
-    "start:direct": "SERVE_FRONTEND=0 node backend/index.js",
     "stop": "npm run stop:frontend || true; npm run stop:backend || true",
     "stop:backend": "./start stop",
     "stop:frontend": "./start-frontend stop",
@@ -24,6 +22,20 @@
     "logs:clear": "./start logs",
     "logs:clear:frontend": "./start-frontend logs",
     "reset": "./start reset",
+    "electron:start": "./start start && electron ./electron/main.js",
+    "electron:restart": "npm run stop:frontend || true; npm run electron:start",
+    "electron:pack": "electron-builder --dir",
+    "electron:dist": "electron-builder --mac dmg zip --win nsis zip --x64",
+    "electron:dist:mac": "electron-builder --mac dmg zip",
+    "electron:dist:win": "electron-builder --win nsis zip --x64",
+    "electron:dist:linux": "electron-builder --linux AppImage deb",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:build:debug": "./scripts/android-build.sh assembleDebug",
+    "android:build:release": "./scripts/android-build.sh assembleRelease",
+    "android:bundle:release": "./scripts/android-build.sh bundleRelease",
+    "android:dist": "npm run android:sync && npm run android:build:debug && npm run android:build:release && npm run android:bundle:release",
+    "qa:smoke": "node ./scripts/smoke-prod-check.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -31,5 +43,58 @@
   "license": "ISC",
   "dependencies": {
     "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "electron": "^37.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.whatsappsystem.desktop",
+    "productName": "WhatsApp System",
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "frontend/**"
+    ],
+    "files": [
+      "electron/**/*",
+      "frontend/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "electron/assets"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office"
+    },
+    "publish": null
   }
 }

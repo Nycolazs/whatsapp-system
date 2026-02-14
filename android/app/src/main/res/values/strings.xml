@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WhatsApp System</string>
+    <string name="title_activity_main">WhatsApp System</string>
+    <string name="package_name">com.whatsappsystem.mobile</string>
+    <string name="custom_url_scheme">com.whatsappsystem.mobile</string>
+</resources>
