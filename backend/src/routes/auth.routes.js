@@ -1,9 +1,31 @@
 const express = require('express');
 const { validate, schemas } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
+const { createAuthToken } = require('../security/authToken');
+const { resolveAuthIdentity } = require('../middleware/auth');
+
+const tokenSecret = process.env.AUTH_TOKEN_SECRET || process.env.SESSION_SECRET || 'whatsapp-system-secret-key-fixed-2024';
+const tokenTtlSeconds = Number(process.env.AUTH_TOKEN_TTL_SECONDS || (60 * 60 * 24 * 30));
 
 function createAuthRouter({ db, hashPassword, verifyPassword, getQrState }) {
   const router = express.Router();
+
+  function respondWithSession(req, res, payload) {
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        return res.status(500).json({ error: 'Erro ao persistir sessão' });
+      }
+      const accessToken = createAuthToken(
+        {
+          userId: payload.userId,
+          userName: payload.userName,
+          userType: payload.userType,
+        },
+        { secret: tokenSecret, expiresInSeconds: tokenTtlSeconds }
+      );
+      return res.json({ ...payload, accessToken });
+    });
+  }
 
   router.post(
     '/auth/login',
@@ -30,7 +52,7 @@ function createAuthRouter({ db, hashPassword, verifyPassword, getQrState }) {
             req.session.userName = adminUser.username;
             req.session.userType = 'admin';
 
-            return res.json({
+            return respondWithSession(req, res, {
               success: true,
               userId: adminUser.id,
               userType: 'admin',
@@ -60,7 +82,7 @@ function createAuthRouter({ db, hashPassword, verifyPassword, getQrState }) {
             req.session.userName = seller.name;
             req.session.userType = 'seller';
 
-            return res.json({
+            return respondWithSession(req, res, {
               success: true,
               userId: seller.id,
               userType: 'seller',
@@ -124,19 +146,25 @@ function createAuthRouter({ db, hashPassword, verifyPassword, getQrState }) {
   );
 
   router.get('/auth/session', (req, res) => {
-    if (!req.session || !req.session.userId) {
+    const identity = resolveAuthIdentity(req);
+    if (!identity) {
       return res.status(401).json({ authenticated: false });
     }
 
     return res.json({
       authenticated: true,
-      userId: req.session.userId,
-      userName: req.session.userName,
-      userType: req.session.userType,
+      userId: identity.userId,
+      userName: identity.userName,
+      userType: identity.userType,
     });
   });
 
   router.post('/auth/logout', (req, res) => {
+    if (!req.session || !req.session.userId) {
+      res.clearCookie('connect.sid');
+      return res.json({ success: true });
+    }
+
     req.session.destroy((err) => {
       if (err) {
         return res.status(500).json({ error: 'Erro ao fazer logout' });

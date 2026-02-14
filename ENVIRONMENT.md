@@ -195,6 +195,39 @@ SESSION_REDIS_URL=redis://localhost:6379
 
 ---
 
+## 📶 WhatsApp 24/7 (estabilidade máxima)
+
+Para reduzir quedas e recuperar rápido após falhas de rede, ajuste:
+
+```bash
+# Backoff de reconexão
+WA_RECONNECT_INITIAL_DELAY_MS=2000
+WA_RECONNECT_MAX_DELAY_MS=30000
+WA_RECONNECT_MAX_ATTEMPTS=10
+WA_RECONNECT_BACKOFF_MULTIPLIER=1.5
+WA_RECONNECT_JITTER_PCT=0.15
+
+# Detecção de conexão travada
+WA_CONNECTING_TIMEOUT_MS=45000
+WA_HEARTBEAT_INTERVAL_MS=30000
+WA_HEARTBEAT_MAX_MISSED=3
+WA_WATCHDOG_INTERVAL_MS=60000
+WA_WATCHDOG_STALE_THRESHOLD_MS=90000
+
+# Conflito de sessão (quando outro dispositivo assume)
+WA_MAX_CONFLICTS_BEFORE_LOGOUT=3
+
+# Cache da versão do Baileys (evita falha por indisponibilidade temporária)
+WA_VERSION_CACHE_MS=21600000
+```
+
+Recomendação prática para servidor:
+- rode apenas **1 instância** do processo WhatsApp por número
+- mantenha relógio/NTP sincronizado
+- use supervisor (`systemd`/PM2) com restart automático
+
+---
+
 ## ⚠️ Importante
 
 - ✅ O arquivo `.env` está no `.gitignore` (nunca commite credenciais)

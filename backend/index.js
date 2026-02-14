@@ -98,6 +98,12 @@ try {
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
   : null;
+const nativeAppOrigins = new Set([
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+]);
 
 const allowInsecureCookies = process.env.ALLOW_INSECURE_COOKIES === '1';
 const defaultSameSite = process.env.COOKIE_SAMESITE || (corsOrigins ? 'none' : (isProduction ? 'strict' : 'lax'));
@@ -122,6 +128,7 @@ app.use(sessionManager.middleware);
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
+    if (nativeAppOrigins.has(origin)) return cb(null, true);
     if (!corsOrigins) return cb(null, true);
     if (corsOrigins.includes(origin)) return cb(null, true);
     return cb(new Error('Not allowed by CORS'));
@@ -213,7 +220,7 @@ app.use(createWhatsAppRouter({ baileys, db, requireAdmin }));
 app.use(createAuthRouter({ db, hashPassword, verifyPassword, getQrState }));
 app.use(createUsersRouter({ db, hashPassword, requireAuth, requireAdmin, getAdminCount }));
 app.use(createTicketsRouter({ db, requireAuth, requireAdmin, getSocket, uploadAudio }));
-app.use(createBlacklistRouter({ db }));
+app.use(createBlacklistRouter({ db, requireAdmin }));
 app.use(createContactsRouter({ getSocket }));
 app.use(createEventsRouter({ requireAuth }));
 app.use(createHealthRouter({ getQrState, accountContext, db, getSessionsPath: () => sessionManager.getCurrentSessionDbPath() }));

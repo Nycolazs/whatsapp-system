@@ -181,6 +181,128 @@
       pointer-events: none;
     }
 
+    .endpoint-fab {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(11, 18, 32, 0.72);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(4px);
+      z-index: 1200;
+    }
+
+    .endpoint-fab svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .endpoint-fab:hover {
+      background: rgba(11, 18, 32, 0.88);
+    }
+
+    .endpoint-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 14, 24, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1250;
+    }
+
+    .endpoint-modal.active {
+      display: flex;
+    }
+
+    .endpoint-card {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.35);
+      padding: 22px;
+    }
+
+    .endpoint-card h2 {
+      color: #111;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .endpoint-card p {
+      color: #667781;
+      font-size: 13px;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+
+    .endpoint-current {
+      margin-bottom: 12px;
+      background: #f5f7fb;
+      border: 1px solid #dde3eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #495661;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .endpoint-input {
+      width: 100%;
+      border: 1px solid #cfd6dd;
+      border-radius: 8px;
+      padding: 11px 12px;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+
+    .endpoint-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+    }
+
+    .endpoint-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .endpoint-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .endpoint-btn.secondary {
+      background: #eef2f6;
+      color: #22303a;
+    }
+
+    .endpoint-btn.primary {
+      background: #667eea;
+      color: #fff;
+    }
+
     /* Responsividade Mobile */
     @media (max-width: 480px) {
       body {
@@ -211,6 +333,18 @@
       .login-button {
         font-size: 14px;
         padding: 12px;
+      }
+
+      .endpoint-card {
+        padding: 18px;
+      }
+
+      .endpoint-actions {
+        justify-content: stretch;
+      }
+
+      .endpoint-btn {
+        flex: 1 1 100%;
       }
     }
   </style>
@@ -273,11 +407,166 @@
 
   </div>
 
+  <button id="endpointFab" class="endpoint-fab" type="button" aria-label="Configurar endpoint do backend" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.02.02a2 2 0 0 1-2.83 2.83l-.02-.02a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1.05 1.56V21a2 2 0 1 1-4 0v-.03a1.7 1.7 0 0 0-1.05-1.56 1.7 1.7 0 0 0-1.86.34l-.02.02a2 2 0 0 1-2.83-2.83l.02-.02a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.56-1.05H3a2 2 0 1 1 0-4h.03a1.7 1.7 0 0 0 1.56-1.05 1.7 1.7 0 0 0-.34-1.86l-.02-.02a2 2 0 1 1 2.83-2.83l.02.02a1.7 1.7 0 0 0 1.86.34H9a1.7 1.7 0 0 0 1.05-1.56V3a2 2 0 1 1 4 0v.03A1.7 1.7 0 0 0 15.1 4.6h.02a1.7 1.7 0 0 0 1.86-.34l.02-.02a2 2 0 1 1 2.83 2.83l-.02.02a1.7 1.7 0 0 0-.34 1.86V9a1.7 1.7 0 0 0 1.56 1.05H21a2 2 0 1 1 0 4h-.03A1.7 1.7 0 0 0 19.4 15z"></path>
+    </svg>
+  </button>
+
+  <div id="endpointModal" class="endpoint-modal" aria-hidden="true">
+    <div class="endpoint-card" role="dialog" aria-modal="true" aria-labelledby="endpointTitle">
+      <h2 id="endpointTitle">Configurar backend</h2>
+      <p>Defina a URL da API para este aplicativo. Exemplo: <code>http://localhost:3001</code>.</p>
+      <div class="endpoint-current">
+        Endpoint atual: <span id="endpointCurrentValue"></span>
+      </div>
+      <input
+        id="endpointInput"
+        class="endpoint-input"
+        type="url"
+        inputmode="url"
+        placeholder="https://api.suaempresa.com"
+        spellcheck="false"
+        autocapitalize="none"
+        autocomplete="off"
+      >
+      <div class="endpoint-actions">
+        <button id="endpointResetBtn" class="endpoint-btn secondary" type="button">Usar local</button>
+        <button id="endpointCancelBtn" class="endpoint-btn secondary" type="button">Cancelar</button>
+        <button id="endpointSaveBtn" class="endpoint-btn primary" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/config.js"></script>
   <script src="/ui.js"></script>
   <script>
-    // Use URLs relativas para evitar problemas de protocolo (http/https) e CORS.
-    const API_URL = window.API_BASE || '';
+    function getApiBase() {
+      return window.API_BASE || '';
+    }
+
+    function isElectronApp() {
+      const ua = String((navigator && navigator.userAgent) || '');
+      return /\bElectron\/\d+/i.test(ua) || window.__ELECTRON_APP__ === true;
+    }
+
+    function isCapacitorNativeApp() {
+      try {
+        if (!window.Capacitor) return false;
+        if (typeof window.Capacitor.isNativePlatform === 'function') {
+          return window.Capacitor.isNativePlatform();
+        }
+        const platform = window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+        return platform && platform !== 'web';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function canConfigureEndpointFromUi() {
+      return isElectronApp() || isCapacitorNativeApp();
+    }
+
+    function defaultBackendUrl() {
+      const host = (window.location && window.location.hostname) ? window.location.hostname : 'localhost';
+      const protocol = window.location && window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${protocol}//${host}:3001`;
+    }
+
+    function normalizeEndpointUrl(value) {
+      return String(value || '').trim().replace(/\/+$/, '');
+    }
+
+    function initElectronEndpointConfig() {
+      const fab = document.getElementById('endpointFab');
+      const modal = document.getElementById('endpointModal');
+      const input = document.getElementById('endpointInput');
+      const currentValue = document.getElementById('endpointCurrentValue');
+      const saveBtn = document.getElementById('endpointSaveBtn');
+      const resetBtn = document.getElementById('endpointResetBtn');
+      const cancelBtn = document.getElementById('endpointCancelBtn');
+
+      if (!fab || !modal || !input || !currentValue || !saveBtn || !resetBtn || !cancelBtn) return;
+      if (!canConfigureEndpointFromUi()) return;
+
+      fab.hidden = false;
+      if (isCapacitorNativeApp()) {
+        resetBtn.textContent = 'Usar 10.0.2.2';
+      }
+
+      const refreshCurrentValue = () => {
+        currentValue.textContent = getApiBase() || defaultBackendUrl();
+      };
+
+      const closeModal = () => {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+      };
+
+      const openModal = () => {
+        input.value = getApiBase();
+        refreshCurrentValue();
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(() => input.focus(), 0);
+      };
+
+      fab.addEventListener('click', openModal);
+      cancelBtn.addEventListener('click', closeModal);
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.classList.contains('active')) {
+          closeModal();
+        }
+      });
+
+      saveBtn.addEventListener('click', () => {
+        const normalized = normalizeEndpointUrl(input.value);
+        let parsed = null;
+        try {
+          parsed = new URL(normalized);
+        } catch (_) {
+          parsed = null;
+        }
+
+        if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+          if (typeof showNotification === 'function') {
+            showNotification('Informe uma URL válida. Ex.: http://localhost:3001', 'error');
+          }
+          return;
+        }
+
+        try {
+          localStorage.setItem('API_BASE', normalized);
+        } catch (_) {}
+
+        window.API_BASE = normalized;
+        refreshCurrentValue();
+        if (typeof showNotification === 'function') {
+          showNotification('Endpoint salvo com sucesso.', 'info');
+        }
+        closeModal();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        try {
+          localStorage.removeItem('API_BASE');
+        } catch (_) {}
+
+        window.API_BASE = defaultBackendUrl();
+        refreshCurrentValue();
+        if (typeof showNotification === 'function') {
+          showNotification('Endpoint local restaurado.', 'info');
+        }
+        closeModal();
+      });
+
+      refreshCurrentValue();
+    }
 
     // Helper para formatar mensagens de erro com detalhes
     function formatErrorMessage(data) {
@@ -372,7 +661,7 @@
       loginBtn.textContent = 'Aguarde...';
 
       try {
-        const response = await fetch(`${API_URL}/auth/login`, {
+        const response = await fetch(`${getApiBase()}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // Importante para cookies de sessão
@@ -386,6 +675,40 @@
 
         if (!response.ok) {
           throw new Error(formatErrorMessage(data) || 'Erro ao fazer login');
+        }
+
+        if (data && data.accessToken && typeof window.setAuthToken === 'function') {
+          window.setAuthToken(data.accessToken);
+        }
+
+        const nativeRuntime = isCapacitorNativeApp();
+        const sessionDelays = nativeRuntime
+          ? [250, 500, 900, 1500, 2200, 3000]
+          : [120, 300, 650];
+        let sessionConfirmed = false;
+        for (const delay of sessionDelays) {
+          try {
+            const sessionResponse = await fetch(`${getApiBase()}/auth/session`, {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            if (sessionResponse.ok) {
+              sessionConfirmed = true;
+              break;
+            }
+          } catch (_) {
+            // Continua tentando por mais alguns segundos, principalmente no Android.
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+
+        if (!sessionConfirmed) {
+          if (!nativeRuntime) {
+            throw new Error('Login efetuado, mas a sessão não foi confirmada. Tente novamente.');
+          }
+          // Em alguns WebViews, a persistência do cookie pode atrasar um pouco.
+          // Seguimos para a tela principal e a checagem de auth continuará tentando.
+          console.warn('[login] Sessão ainda não confirmada no app nativo; seguindo com fallback.');
         }
 
         console.log('[login] Login bem-sucedido, redirecionando...');
@@ -407,6 +730,7 @@
     // Aguarda o ui.js ser carregado e depois inicializa
     document.addEventListener('DOMContentLoaded', () => {
       initPasswordToggles();
+      initElectronEndpointConfig();
 
       const secureFields = [
         document.getElementById('accessKey'),

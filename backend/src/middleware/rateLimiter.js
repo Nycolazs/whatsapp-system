@@ -73,9 +73,9 @@ function defaultKeyGenerator(req) {
   // when multiple users share the same IP (proxy/NAT).
   const sessionUserId = req && req.session && req.session.userId;
   if (sessionUserId) return `u:${sessionUserId}`;
-  
-  // Use express-rate-limit's built-in helper to handle IPv6 properly
-  return req.ip || 'unknown';
+
+  // Use express-rate-limit helper to normalize IPv6 and avoid bypass warnings.
+  return rateLimit.ipKeyGenerator((req && req.ip) || 'unknown');
 }
 
 function defaultSkip(req) {

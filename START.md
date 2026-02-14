@@ -1,59 +1,65 @@
-# WhatsApp System - Guia de Inicialização (Frontend + Backend Separados)
+# WhatsApp System - Start rapido (Electron Only)
 
-## Portas padrão
+## Portas
 
-- Frontend: `http://localhost:8080`
-- Backend (API): `http://localhost:3001`
+- Backend API: `http://localhost:3001`
+- Frontend interno: `http://127.0.0.1:8080` (somente Electron)
 
-## Subir tudo
-
-```bash
-npm start
-```
-
-Isso inicia:
-- backend em background (`./start`)
-- frontend em background (`./start-frontend`)
-
-## Comandos por serviço
-
-### Backend (3001)
-```bash
-npm run start:backend
-npm run stop:backend
-npm run restart:backend
-npm run status:backend
-npm run logs
-```
-
-### Frontend (8080)
-```bash
-npm run start:frontend
-npm run stop:frontend
-npm run restart:frontend
-npm run status:frontend
-npm run logs:frontend
-```
-
-## Comandos gerais
+## Subir aplicacao desktop
 
 ```bash
-npm run status   # status dos dois serviços
-npm run stop     # para os dois serviços
-npm run restart  # reinicia os dois serviços
+npm run start
 ```
 
-## Troubleshooting rápido
+Esse comando sobe backend e abre o Electron.
 
-Se o frontend não abrir:
+## Controle por script
+
+### Backend (`./start`)
+
 ```bash
-npm run status:frontend
-npm run logs:frontend
+./start start
+./start stop
+./start restart
+./start status
+./start tail
+./start logs
+./start reset
 ```
 
-Se a API não responder:
+### Frontend interno (`./start-frontend`)
+
 ```bash
-npm run status:backend
-npm run logs
+./start-frontend start
+./start-frontend stop
+./start-frontend restart
+./start-frontend status
+./start-frontend tail
+./start-frontend logs
 ```
 
+## Observacao importante
+
+- Navegador comum nao e modo suportado.
+- O frontend responde `403` fora do Electron.
+
+## Builds desktop instalaveis
+
+```bash
+npm run electron:dist:mac
+npm run electron:dist:win
+```
+
+Ou tudo em uma vez:
+
+```bash
+npm run electron:dist
+```
+
+Saida: `dist-electron/`
+
+## Validacao pre-producao
+
+```bash
+npm run qa:smoke
+```

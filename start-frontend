@@ -1,113 +1,168 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+set -u
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$PROJECT_DIR/data/frontend.pid"
 LOG_FILE="$PROJECT_DIR/frontend.log"
 APP_PORT="${FRONTEND_PORT:-8080}"
+APP_HOST="${FRONTEND_HOST:-127.0.0.1}"
+STARTUP_TIMEOUT="${FRONTEND_STARTUP_TIMEOUT:-15}"
 
-start_frontend() {
-  mkdir -p "$PROJECT_DIR/data"
-  touch "$LOG_FILE"
+mkdir -p "$PROJECT_DIR/data"
+touch "$LOG_FILE"
 
+read_pid() {
   if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-      echo -e "${RED}✗ Frontend já está rodando (PID: $PID)${NC}"
-      return 1
-    fi
+    tr -d '[:space:]' < "$PID_FILE"
   fi
-
-  echo -e "${GREEN}✓ Iniciando frontend na porta ${APP_PORT}...${NC}"
-  FRONTEND_PORT="$APP_PORT" nohup node "$PROJECT_DIR/frontend/server.js" >> "$LOG_FILE" 2>&1 &
-  echo $! > "$PID_FILE"
-  sleep 1
-
-  if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-    echo -e "${GREEN}✓ Frontend iniciado com sucesso${NC}"
-    echo -e "${BLUE}Acesse:${NC} http://localhost:$APP_PORT"
-    echo -e "${BLUE}Logs:${NC} $LOG_FILE"
-    return 0
-  fi
-
-  echo -e "${RED}✗ Falha ao iniciar frontend${NC}"
-  rm -f "$PID_FILE"
-  return 1
 }
 
-stop_frontend() {
-  if [ ! -f "$PID_FILE" ]; then
-    echo -e "${RED}✗ Frontend não está em execução${NC}"
-    return 1
-  fi
+is_pid_running() {
+  local pid="${1:-}"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
 
-  PID=$(cat "$PID_FILE")
-  if ! kill -0 "$PID" 2>/dev/null; then
-    echo -e "${YELLOW}⋯ PID inválido, limpando estado${NC}"
+cleanup_stale_pid() {
+  local pid
+  pid="$(read_pid || true)"
+  if [ -n "$pid" ] && ! is_pid_running "$pid"; then
     rm -f "$PID_FILE"
-    return 1
   fi
+}
 
-  echo -e "${YELLOW}⋯ Parando frontend (PID: $PID)...${NC}"
-  kill "$PID" 2>/dev/null
+is_running() {
+  cleanup_stale_pid
+  local pid
+  pid="$(read_pid || true)"
+  is_pid_running "$pid"
+}
 
-  for i in {1..10}; do
-    if ! kill -0 "$PID" 2>/dev/null; then
-      rm -f "$PID_FILE"
-      echo -e "${GREEN}✓ Frontend parado com sucesso${NC}"
+wait_for_health() {
+  local timeout_s="${1:-15}"
+  local deadline=$((SECONDS + timeout_s))
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if curl -fsS -H 'x-whatsapp-system-runtime: electron' "http://${APP_HOST}:${APP_PORT}/healthz" >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
   done
 
-  echo -e "${YELLOW}⋯ Forçando encerramento...${NC}"
-  kill -9 "$PID" 2>/dev/null
-  rm -f "$PID_FILE"
-  echo -e "${GREEN}✓ Frontend encerrado forçadamente${NC}"
+  return 1
 }
 
-status_frontend() {
-  echo ""
-  if [ ! -f "$PID_FILE" ]; then
-    echo -e "${RED}● Frontend: DESLIGADO${NC}"
+start_frontend() {
+  if is_running; then
+    echo "[frontend] already running (PID: $(read_pid))"
     return 0
   fi
 
-  PID=$(cat "$PID_FILE")
-  if kill -0 "$PID" 2>/dev/null; then
-    echo -e "${GREEN}● Frontend: RODANDO${NC}"
-    echo -e "  PID: $PID"
-    echo -e "  Uptime: $(ps -o etime= -p "$PID" | xargs)"
-    echo -e "  Memória: $(ps -o rss= -p "$PID" | awk '{printf "%.1f MB", $1/1024}')"
-    echo -e "  URL: http://localhost:$APP_PORT"
-    echo -e "  Logs: $LOG_FILE"
-  else
-    echo -e "${RED}● Frontend: PID não encontrado ($PID)${NC}"
+  echo "[frontend] starting..."
+  FRONTEND_PORT="$APP_PORT" FRONTEND_HOST="$APP_HOST" FRONTEND_REQUIRE_ELECTRON="${FRONTEND_REQUIRE_ELECTRON:-1}" nohup node "$PROJECT_DIR/frontend/server.js" >> "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  sleep 1
+
+  local pid
+  pid="$(read_pid || true)"
+  if ! is_pid_running "$pid"; then
     rm -f "$PID_FILE"
+    echo "[frontend] failed to start. Check logs: $LOG_FILE"
+    return 1
   fi
-  echo ""
+
+  if wait_for_health "$STARTUP_TIMEOUT"; then
+    echo "[frontend] ready at http://${APP_HOST}:${APP_PORT} (electron-only) (PID: $pid)"
+  else
+    echo "[frontend] running, but health check did not pass in ${STARTUP_TIMEOUT}s"
+    echo "[frontend] check logs: $LOG_FILE"
+  fi
+}
+
+stop_frontend() {
+  if ! is_running; then
+    echo "[frontend] already stopped"
+    rm -f "$PID_FILE"
+    return 0
+  fi
+
+  local pid
+  pid="$(read_pid)"
+
+  echo "[frontend] stopping PID $pid..."
+  kill "$pid" 2>/dev/null || true
+
+  for _ in {1..15}; do
+    if ! is_pid_running "$pid"; then
+      rm -f "$PID_FILE"
+      echo "[frontend] stopped"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "[frontend] forcing shutdown PID $pid..."
+  kill -9 "$pid" 2>/dev/null || true
+  rm -f "$PID_FILE"
+  echo "[frontend] stopped (forced)"
+}
+
+status_frontend() {
+  if is_running; then
+    local pid
+    pid="$(read_pid)"
+    local uptime
+    uptime="$(ps -o etime= -p "$pid" | xargs 2>/dev/null || true)"
+    local mem
+    mem="$(ps -o rss= -p "$pid" | awk '{printf "%.1f MB", $1/1024}' 2>/dev/null || true)"
+
+    echo "[frontend] running"
+    echo "  PID: $pid"
+    echo "  Uptime: ${uptime:-unknown}"
+    echo "  Memory: ${mem:-unknown}"
+    echo "  URL: http://${APP_HOST}:${APP_PORT} (electron-only)"
+    echo "  Logs: $LOG_FILE"
+
+    if curl -fsS -H 'x-whatsapp-system-runtime: electron' "http://${APP_HOST}:${APP_PORT}/healthz" >/dev/null 2>&1; then
+      echo "  Health: ok"
+    else
+      echo "  Health: unreachable"
+    fi
+  else
+    echo "[frontend] stopped"
+  fi
+}
+
+restart_frontend() {
+  stop_frontend
+  start_frontend
 }
 
 clear_logs() {
-  > "$LOG_FILE"
-  echo -e "${GREEN}✓ Logs do frontend limpos${NC}"
+  : > "$LOG_FILE"
+  echo "[frontend] logs cleared: $LOG_FILE"
 }
 
-case "$1" in
+usage() {
+  cat <<USAGE
+Usage: ./start-frontend <command>
+
+Commands:
+  start      Start frontend server in background
+  stop       Stop frontend server
+  restart    Restart frontend server
+  status     Show frontend status
+  tail       Tail frontend logs
+  logs       Clear frontend logs
+USAGE
+}
+
+case "${1:-}" in
   start) start_frontend ;;
   stop) stop_frontend ;;
-  restart) stop_frontend; sleep 1; start_frontend ;;
+  restart) restart_frontend ;;
   status) status_frontend ;;
-  logs) clear_logs ;;
   tail) tail -f "$LOG_FILE" ;;
-  *)
-    echo "Uso: $0 [start|stop|restart|status|logs|tail]"
-    exit 1
-    ;;
+  logs) clear_logs ;;
+  *) usage; exit 1 ;;
 esac

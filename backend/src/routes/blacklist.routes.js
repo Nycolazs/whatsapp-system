@@ -2,16 +2,17 @@ const express = require('express');
 const { validate, schemas } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
 
-function createBlacklistRouter({ db }) {
+function createBlacklistRouter({ db, requireAdmin }) {
   const router = express.Router();
 
-  router.get('/blacklist', (req, res) => {
+  router.get('/blacklist', requireAdmin, (req, res) => {
     const blacklist = db.prepare('SELECT * FROM blacklist').all();
     return res.json(blacklist);
   });
 
   router.post(
     '/blacklist',
+    requireAdmin,
     (req, res, next) => {
       console.log('[BLACKLIST DEBUG] Request body:', req.body);
       next();
@@ -42,7 +43,7 @@ function createBlacklistRouter({ db }) {
   });
 
   // Endpoint: adiciona via lid (mapeia e insere)
-  router.post('/blacklist/by-lid', (req, res) => {
+  router.post('/blacklist/by-lid', requireAdmin, (req, res) => {
     const { lid, reason } = req.body;
     if (!lid) return res.status(400).json({ error: 'lid é obrigatório' });
 
@@ -62,7 +63,7 @@ function createBlacklistRouter({ db }) {
     }
   });
 
-  router.delete('/blacklist/:phone', auditMiddleware('remove-from-blacklist'), (req, res) => {
+  router.delete('/blacklist/:phone', requireAdmin, auditMiddleware('remove-from-blacklist'), (req, res) => {
     const { phone } = req.params;
 
     const result = db.prepare('DELETE FROM blacklist WHERE phone = ?').run(phone);

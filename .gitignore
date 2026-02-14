@@ -27,7 +27,18 @@ cert.pem
 
 # Logs
 *.log
+.DS_Store
+
+# Android signing (local)
+android/keystore.properties
+*.keystore
+*.jks
 
 # PID files
 *.pid
 backend.pid
+
+# Electron build artifacts
+dist-electron/
+electron-dist/
+.npm-cache/
